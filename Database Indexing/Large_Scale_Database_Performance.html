@@ -1,0 +1,1462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Large Scale Database Performance</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            color: #111827;
+        }
+        pre {
+            font-family: 'Fira Code', monospace;
+        }
+        .prose h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin-top: 3rem;
+            margin-bottom: 1.5rem;
+            color: #1e3a8a;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        .prose h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: #1f2937;
+        }
+        .prose h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: #374151;
+        }
+        .prose h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: #4b5563;
+        }
+        .prose p {
+            margin-bottom: 1rem;
+            line-height: 1.75;
+            color: #4b5563;
+        }
+        .prose ul, .prose ol {
+            padding-left: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #4b5563;
+        }
+        .prose ul { list-style-type: disc; }
+        .prose ol { list-style-type: decimal; }
+        .prose li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        .prose strong {
+            color: #111827;
+            font-weight: 600;
+        }
+        .prose blockquote {
+            border-left: 4px solid #3b82f6;
+            background-color: #eff6ff;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            font-style: normal;
+            color: #1e40af;
+            border-radius: 0 0.5rem 0.5rem 0;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        .prose table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+            background-color: white;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .prose th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #374151;
+        }
+        .prose td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #4b5563;
+            vertical-align: top;
+        }
+        .prose tr:last-child td {
+            border-bottom: none;
+        }
+        .code-block {
+            background-color: #1f2937;
+            color: #e5e7eb;
+            padding: 1.25rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            white-space: pre;
+        }
+        .inline-code {
+            background-color: #f3f4f6;
+            color: #ef4444;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.875rem;
+        }
+        .nav-link {
+            transition: all 0.2s ease;
+        }
+        .nav-link:hover {
+            color: #2563eb;
+            background-color: #eff6ff;
+            padding-left: 0.5rem;
+        }
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body class="antialiased flex flex-col md:flex-row h-screen overflow-hidden">
+
+    <!-- Sidebar / Table of Contents -->
+    <aside class="w-full md:w-72 bg-white border-r border-gray-200 h-1/4 md:h-full overflow-y-auto flex-shrink-0 z-10 shadow-sm">
+        <div class="p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Contents</h2>
+            
+            <nav class="space-y-1 text-sm font-medium text-gray-600">
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Concepts</p>
+                <a href="#sec-1" class="block py-1.5 nav-link rounded-md">1. Big Picture</a>
+                <a href="#sec-2" class="block py-1.5 nav-link rounded-md">2. Core Concepts</a>
+                <a href="#sec-3" class="block py-1.5 nav-link rounded-md">3. Deep Dive</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Practice & Prep</p>
+                <a href="#sec-4" class="block py-1.5 nav-link rounded-md">4. Practical Perspective</a>
+                <a href="#sec-5" class="block py-1.5 nav-link rounded-md">5. Interview Questions</a>
+                <a href="#sec-6" class="block py-1.5 nav-link rounded-md">6. Common Mistakes</a>
+                <a href="#sec-7" class="block py-1.5 nav-link rounded-md">7. Perf & Scalability</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Advanced Topics</p>
+                <a href="#sec-8" class="block py-1.5 nav-link rounded-md">8. Database Internals</a>
+                <a href="#sec-9" class="block py-1.5 nav-link rounded-md">9. Beyond the Lecture</a>
+                <a href="#sec-10" class="block py-1.5 nav-link rounded-md">10. Practical SQL/Java</a>
+                <a href="#sec-11" class="block py-1.5 nav-link rounded-md">11. System Design</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Review</p>
+                <a href="#sec-12" class="block py-1.5 nav-link rounded-md">12. Visual Mental Models</a>
+                <a href="#sec-13" class="block py-1.5 nav-link rounded-md">13. Lecture Summary</a>
+                <a href="#sec-14" class="block py-1.5 nav-link rounded-md">14. Revision Cheat Sheet</a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 h-3/4 md:h-full overflow-y-auto bg-gray-50 p-6 md:p-12 lg:p-16">
+        <div class="max-w-4xl mx-auto prose">
+            
+            <header class="mb-12 text-center md:text-left">
+                <p class="text-blue-600 font-semibold tracking-wide uppercase text-sm mb-2">Combined Engineering Notes — Interview & Production Ready</p>
+                <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 mt-0 border-none pb-0">Large Scale Database Performance</h1>
+            </header>
+
+            <!-- SECTION 1 -->
+            <section id="sec-1">
+                <h1>1. Big Picture</h1>
+                
+                <h2>Why This Topic Exists</h2>
+                <p>As systems grow — user bases, transaction volumes, data retention — databases face a fundamental physics problem: <strong>data grows faster than hardware scales</strong>. A table that works perfectly at 10 million rows can become a system-crippling liability at 1 billion rows. Engineers who don't anticipate this end up doing emergency surgery on live production systems.</p>
+                <p>This topic bundles four interconnected problems that every senior backend and database engineer must master:</p>
+                
+                <table>
+                    <thead>
+                        <tr><th>Problem</th><th>Root Cause</th><th>Solution Family</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Billion-row table performance</td><td>Volume beyond single-scan feasibility</td><td>Indexing → Partitioning → Sharding → MapReduce</td></tr>
+                        <tr><td>Random UUID index degradation</td><td>Non-sequential inserts cause page splits and I/O thrashing</td><td>Ordered IDs (ULIDs, UUID v7)</td></tr>
+                        <tr><td>Unnecessary full database lookups</td><td>Every existence check hits disk</td><td>Bloom Filters</td></tr>
+                        <tr><td>Long transaction rollback cost</td><td>MVCC dead rows accumulate, bloat pages</td><td>Eager undo logs vs lazy VACUUM</td></tr>
+                    </tbody>
+                </table>
+
+                <h2>Why Backend Engineers Must Care</h2>
+                <ul>
+                    <li><strong>System design interviews</strong> test exactly this: "Design Twitter follows. The table has 10 billion rows. Now what?"</li>
+                    <li><strong>Production incidents</strong> are frequently caused by: UUID primary keys degrading insert performance at scale, missing partition pruning, table bloat from unvacuumed dead rows.</li>
+                    <li><strong>Cost</strong>: Unnecessary I/O = more CPU, more disk, larger cloud bills, slower p99 latencies.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 2 -->
+            <section id="sec-2">
+                <h1>2. Core Concepts</h1>
+
+                <h2>2.1 — Working with Billion-Row Tables</h2>
+
+                <h3>The Problem</h3>
+                <p>A social graph table (follower_id, followee_id) for a Twitter-like system can easily reach billions of rows. A naive full table scan at that scale is functionally unusable in any interactive system.</p>
+
+                <h3>The Solution Hierarchy (in order of preference)</h3>
+                <pre class="code-block">1. Avoid the billion-row table (schema redesign)
+        ↓ if unavoidable
+2. Index the search column
+        ↓ if index scan is still too large
+3. Partition the table (horizontal)
+        ↓ if single-machine limits are hit
+4. Shard across multiple databases
+        ↓ if real-time query is not required
+5. Parallel/distributed processing (MapReduce / Spark)</pre>
+
+                <h3>Strategy 1: Schema Redesign (Avoid the Problem)</h3>
+                <p>Instead of a join table:</p>
+                <pre class="code-block">-- Problematic at scale
+CREATE TABLE follows (
+    follower_id BIGINT,
+    followee_id BIGINT
+);
+-- 1 billion rows for 500M users with avg 2 follows each</pre>
+                <p>Embed the relationship in the entity:</p>
+                <pre class="code-block">CREATE TABLE users (
+    id         BIGINT PRIMARY KEY,
+    username   VARCHAR(50),
+    followers  JSONB,           -- or array of IDs
+    following  JSONB,
+    follower_count INT DEFAULT 0
+);</pre>
+                <p><strong>Trade-offs:</strong></p>
+                <ul>
+                    <li>✅ Eliminates the join table entirely</li>
+                    <li>✅ Single row fetch gets all follow data</li>
+                    <li>❌ Write amplification: every follow = 2 row updates</li>
+                    <li>❌ JSON field can become large for mega-influencers (Elon Musk has 150M+ followers)</li>
+                    <li>❌ Harder to query "list all people user X follows" efficiently</li>
+                    <li>✅ Write latency can be decoupled with a message queue (async updates)</li>
+                </ul>
+                <p><strong>Real world:</strong> Twitter (X) uses a graph database (FlockDB, then in-house systems) specifically because neither the join-table approach nor embedding scales cleanly for a bidirectional social graph at Twitter's scale.</p>
+
+                <h3>Strategy 2: Indexing</h3>
+                <p>An index is a <strong>B+ Tree data structure stored on disk</strong> that maps column values → row locations. It trades write overhead and extra disk space for dramatically faster reads.</p>
+                <pre class="code-block">-- Without index: full table scan = O(n) = billions of row reads
+SELECT * FROM follows WHERE follower_id = 12345;
+
+-- With index: B+ Tree traversal = O(log n) then leaf scan
+CREATE INDEX idx_follows_follower ON follows(follower_id);
+-- Now the same query reads maybe hundreds of rows</pre>
+                <p><strong>What indexing does NOT do:</strong></p>
+                <ul>
+                    <li>Does not break the table into separate files</li>
+                    <li>Does not help when the search column is not indexed</li>
+                    <li>Does not help queries that return a large percentage of the table (low selectivity)</li>
+                </ul>
+
+                <h3>Strategy 3: Horizontal Partitioning</h3>
+                <p>Partitioning physically divides the table into smaller sub-tables (partitions) stored separately on disk, while appearing as a single table to the query layer.</p>
+                <pre class="code-block">-- PostgreSQL range partitioning example
+CREATE TABLE follows (
+    follower_id BIGINT,
+    followee_id BIGINT,
+    created_at  TIMESTAMPTZ
+) PARTITION BY RANGE (follower_id);
+
+CREATE TABLE follows_0_100M   PARTITION OF follows FOR VALUES FROM (0)         TO (100000000);
+CREATE TABLE follows_100M_200M PARTITION OF follows FOR VALUES FROM (100000000) TO (200000000);
+CREATE TABLE follows_200M_300M PARTITION OF follows FOR VALUES FROM (200000000) TO (300000000);</pre>
+                <p><strong>Partition Pruning:</strong> When a query includes the partition key in its WHERE clause, the query planner skips irrelevant partitions entirely:</p>
+                <pre class="code-block">-- Only hits follows_0_100M partition — other partitions never touched
+SELECT * FROM follows WHERE follower_id = 55000000;</pre>
+                <p><strong>Partition Key Selection — Critical Decision:</strong></p>
+                <table>
+                    <thead>
+                        <tr><th>Partition Key Type</th><th>Good For</th><th>Bad For</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Range (ID, date)</td><td>Time-series, sequential scans</td><td>Hotspot risk on latest partition</td></tr>
+                        <tr><td>Hash</td><td>Even distribution</td><td>Range queries become full scans</td></tr>
+                        <tr><td>List</td><td>Known discrete categories</td><td>Too many categories = too many partitions</td></tr>
+                    </tbody>
+                </table>
+
+                <h3>Strategy 4: Sharding</h3>
+                <p>Sharding is partitioning across <strong>multiple independent database instances</strong> (different machines, different network hosts).</p>
+                <pre class="code-block">Shard 1 (DB Server A):  user_id 0       → 100,000,000
+Shard 2 (DB Server B):  user_id 100M+1  → 200,000,000
+Shard 3 (DB Server C):  user_id 200M+1  → 300,000,000</pre>
+                <p><strong>Complexity introduced:</strong></p>
+                <ul>
+                    <li>Cross-shard transactions are impossible with standard ACID — requires distributed transactions (2PC) or eventual consistency</li>
+                    <li>The application layer (or a proxy like Vitess, Citus) must know which shard to route to</li>
+                    <li>Schema migrations must be applied to all shards</li>
+                    <li>JOINs across shards require application-level merging</li>
+                </ul>
+                <p><strong>Real world examples:</strong></p>
+                <ul>
+                    <li><strong>Instagram</strong> shards by user_id using PostgreSQL + Citus</li>
+                    <li><strong>Uber</strong> shards trip data by city/region</li>
+                    <li><strong>Stripe</strong> shards by merchant_id</li>
+                </ul>
+                <pre class="code-block">                    ┌──────────────────────────────────┐
+                    │         Application Layer         │
+                    │    (Shard Router / Vitess Proxy)  │
+                    └──────────┬──────────┬─────────────┘
+                               │          │
+                    ┌──────────▼──┐   ┌───▼────────────┐
+                    │  Shard 1    │   │    Shard 2      │
+                    │  DB Server  │   │    DB Server    │
+                    │  ┌────────┐ │   │  ┌───────────┐  │
+                    │  │Partition│ │   │  │ Partition │  │
+                    │  │   A    │ │   │  │    C      │  │
+                    │  ├────────┤ │   │  ├───────────┤  │
+                    │  │Partition│ │   │  │ Partition │  │
+                    │  │   B    │ │   │  │    D      │  │
+                    │  └────────┘ │   │  └───────────┘  │
+                    └─────────────┘   └─────────────────┘</pre>
+
+                <h3>Strategy 5: Parallel / MapReduce Processing</h3>
+                <p>When real-time query is not required (analytics, batch jobs, reporting), distribute the work:</p>
+                <ul>
+                    <li><strong>Hadoop MapReduce</strong>: Split table scan across 100 machines. Each maps a partition, results are reduced.</li>
+                    <li><strong>Apache Spark</strong>: In-memory distributed processing, much faster than Hadoop for iterative jobs.</li>
+                    <li><strong>BigQuery / Redshift / Snowflake</strong>: Columnar storage + massively parallel query execution.</li>
+                </ul>
+                <p><strong>Caveat:</strong> If the table is transactional (rows being written simultaneously), running a parallel scan may yield inconsistent results unless you use snapshot isolation carefully.</p>
+
+                <hr class="my-8 border-gray-200">
+
+                <h2>2.2 — Random UUIDs and Index Performance</h2>
+
+                <h3>What UUID v4 Is</h3>
+                <p>UUID v4 is a 128-bit randomly generated identifier. Two consecutively generated UUIDs have no ordering relationship — they are effectively random numbers scattered across a 2^128 space.</p>
+                <pre class="code-block">UUID v4 examples:
+550e8400-e29b-41d4-a716-446655440000
+f47ac10b-58cc-4372-a567-0e02b2c3d479</pre>
+                <p>These two values are mathematically nowhere near each other in value.</p>
+
+                <h3>Why Indexes Require Order</h3>
+                <p>A B+ Tree index maintains keys in <strong>sorted order</strong> within leaf pages. This is not optional — it is the fundamental property that makes binary search possible and range scans efficient.</p>
+                <pre class="code-block">B+ Tree Leaf Pages (ordered):
+┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+│  10  │  20   │ ←→ │  30  │  40   │ ←→ │  50  │  60   │
+└──────────────┘    └──────────────┘    └──────────────┘
+         ↑
+  Doubly-linked list maintains order across pages</pre>
+                <p>Each page has a fixed size (typically 8KB in PostgreSQL, 16KB in MySQL). A page can hold a fixed number of index entries.</p>
+
+                <h3>What Happens with Random UUID Inserts</h3>
+                <p>Because UUIDs are random, each new insert lands at a <strong>random position</strong> within the B+ Tree's sorted structure. If the target page is full, a <strong>page split</strong> occurs.</p>
+
+                <h4>Page Split — Step by Step</h4>
+                <pre class="code-block">Initial state: Page holds [10, 90] (max 2 entries per page)
+
+Insert 80:
+  80 must go between 10 and 90
+  Page is FULL → PAGE SPLIT required
+
+  Step 1: Allocate new page
+  Step 2: Move 90 to new page
+  Step 3: Insert 80 in original page
+  Step 4: Update parent internal node
+  Step 5: Update doubly-linked list pointers (prev/next page references)
+  Step 6: Mark both pages dirty (needs flush to disk)
+
+After split:
+┌──────────────┐    ┌──────────────┐
+│  10  │  80   │ ←→ │  90  │      │
+└──────────────┘    └──────────────┘</pre>
+                <p><strong>Costs of a page split:</strong></p>
+                <ol>
+                    <li>Memory allocation for new page</li>
+                    <li>Data copy/movement within pages</li>
+                    <li>Parent node update (may cascade up the tree)</li>
+                    <li>Pointer updates in doubly-linked list</li>
+                    <li>Both pages marked dirty → must be flushed to disk</li>
+                    <li>Write-Ahead Log (WAL) entries for both pages</li>
+                </ol>
+
+                <h3>The Buffer Pool Thrashing Problem</h3>
+                <p>The database keeps recently used pages in an <strong>in-memory buffer pool</strong> (PostgreSQL: <span class="inline-code">shared_buffers</span>, MySQL: <span class="inline-code">innodb_buffer_pool_size</span>). This is an LRU cache of disk pages.</p>
+                <pre class="code-block">Buffer Pool (LRU Cache):
+┌─────────────────────────────────────────────┐
+│  [Page 47] [Page 3] [Page 891] [Page 12] …  │
+│   MRU ←─────────────────────────────→ LRU   │
+└─────────────────────────────────────────────┘</pre>
+                <p><strong>With sequential inserts (good):</strong></p>
+                <ul>
+                    <li>Inserts always land at the rightmost leaf page</li>
+                    <li>That page stays hot in buffer pool</li>
+                    <li>Minimal disk I/O</li>
+                </ul>
+                <p><strong>With random UUID inserts (bad):</strong></p>
+                <ul>
+                    <li>Each insert targets a random page scattered across the entire index</li>
+                    <li>Each random page may have been evicted from buffer pool</li>
+                    <li>Must fetch from disk → load into buffer pool → evict something else</li>
+                    <li>Next UUID insert is equally random — may need the just-evicted page back</li>
+                    <li>This is called <strong>I/O thrashing</strong></li>
+                </ul>
+                <pre class="code-block">Sequential insert pattern:           Random UUID insert pattern:
+Buffer Pool hit rate: ~99%           Buffer Pool hit rate: ~5-20%
+Disk reads per insert: ~0            Disk reads per insert: 1-5+</pre>
+
+                <h3>Real-World Case: Shopify's UUID → ULID Migration</h3>
+                <p>Shopify labels every order/purchase with a UUID for idempotency (prevent duplicate order submission). They used UUID v4.</p>
+                <p><strong>The insight:</strong> Purchases happen in real-time. If 10,000 customers buy simultaneously, all their inserts are happening at roughly the same timestamp — they are <strong>temporally clustered</strong> even if their UUIDs are not.</p>
+                <p>By switching to <strong>ULID (Universally Unique Lexicographically Sortable Identifier)</strong>:</p>
+                <ul>
+                    <li>First 48 bits = millisecond timestamp</li>
+                    <li>Last 80 bits = random</li>
+                    <li>Result: ULIDs generated at the same time sort near each other</li>
+                </ul>
+                <pre class="code-block">ULID example: 01ARZ3NDEKTSV4RRFFQ69G5FAV
+              ├──────────┤├──────────────────────┤
+              Timestamp    Randomness
+              (ms precision)</pre>
+                <p><strong>Result for Shopify:</strong> Inserts for concurrent purchases land on the same (or adjacent) leaf pages. Buffer pool hit rate skyrockets. Write performance dramatically improves.</p>
+
+                <h3>UUID v4 vs Ordered Alternatives</h3>
+                <table>
+                    <thead>
+                        <tr><th>Identifier</th><th>Ordered?</th><th>Size</th><th>Notes</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>UUID v4</td><td>❌ Random</td><td>128-bit</td><td>Default choice, worst for indexes</td></tr>
+                        <tr><td>UUID v1</td><td>✅ Time-ordered</td><td>128-bit</td><td>Leaks MAC address — security concern</td></tr>
+                        <tr><td>UUID v7</td><td>✅ Time-ordered</td><td>128-bit</td><td>Modern standard, replaces v1 safely</td></tr>
+                        <tr><td>ULID</td><td>✅ Time-ordered</td><td>128-bit</td><td>Lexicographically sortable string</td></tr>
+                        <tr><td>Snowflake ID</td><td>✅ Time-ordered</td><td>64-bit</td><td>Twitter's approach, smaller than UUID</td></tr>
+                        <tr><td>Auto-increment INT</td><td>✅ Sequential</td><td>32/64-bit</td><td>Simplest, not distributed-safe</td></tr>
+                    </tbody>
+                </table>
+
+                <h3>PostgreSQL Special Case: Unindexed UUID Fields</h3>
+                <pre class="code-block">-- If UUID is NOT indexed in PostgreSQL:
+-- PostgreSQL is a heap-organized table (rows in random heap order)
+-- A new UUID row just appends to the end of the heap
+-- No ordering required → no page split → no performance issue
+
+-- The problem ONLY manifests when UUID is in an INDEX
+-- (primary key index, secondary index, or unique constraint)</pre>
+                <p>MySQL (InnoDB) is an <strong>index-organized table</strong> — the primary key IS the table. Every row lives in primary key order. Random UUID as primary key in MySQL is catastrophically bad.</p>
+
+                <hr class="my-8 border-gray-200">
+
+                <h2>2.3 — Bloom Filters</h2>
+
+                <h3>The Problem They Solve</h3>
+                <p>Before querying a database (even with an index), you pay:</p>
+                <ol>
+                    <li>Network round-trip to database</li>
+                    <li>Index traversal (O(log n))</li>
+                    <li>Disk I/O if page not in buffer pool</li>
+                    <li>Result deserialization</li>
+                </ol>
+                <p>For <strong>existence checks</strong> ("does username X exist?") that return nothing 80% of the time (most usernames are available), you're paying full query cost for a negative answer.</p>
+
+                <h3>What a Bloom Filter Is</h3>
+                <p>A Bloom filter is a <strong>probabilistic data structure</strong> that answers: "Is this element in the set?"</p>
+                <ul>
+                    <li>Answer <strong>"NO"</strong> → 100% guaranteed correct. The element is definitely not in the set.</li>
+                    <li>Answer <strong>"YES"</strong> → probably in the set (may be a false positive).</li>
+                </ul>
+                <p>It uses a <strong>bit array</strong> of size m and <strong>k independent hash functions</strong>.</p>
+
+                <h3>How It Works — Construction</h3>
+                <pre class="code-block">Bit array of size 8: [0, 0, 0, 0, 0, 0, 0, 0]
+                      0  1  2  3  4  5  6  7
+
+Insert "jack":
+  hash1("jack") % 8 = 6  → set bit 6
+  hash2("jack") % 8 = 2  → set bit 2
+  hash3("jack") % 8 = 4  → set bit 4
+
+Bit array: [0, 0, 1, 0, 1, 0, 1, 0]
+                  ↑     ↑     ↑
+                  2     4     6
+
+Insert "paul":
+  hash1("paul") % 8 = 3
+  hash2("paul") % 8 = 7
+  hash3("paul") % 8 = 1
+
+Bit array: [0, 1, 1, 1, 1, 0, 1, 1]</pre>
+
+                <h3>How It Works — Query</h3>
+                <pre class="code-block">Query "jack":
+  hash1("jack") % 8 = 6  → bit 6 set? YES
+  hash2("jack") % 8 = 2  → bit 2 set? YES
+  hash3("jack") % 8 = 4  → bit 4 set? YES
+  All bits set → "probably exists" → hit database to confirm
+
+Query "alice":
+  hash1("alice") % 8 = 5 → bit 5 set? NO
+  → STOP. "alice" definitely does not exist.
+  → Skip database entirely. ✅ Saved a query.</pre>
+
+                <h3>False Positives — Why They Happen</h3>
+                <pre class="code-block">Bit array after inserting jack and paul:
+[0, 1, 1, 1, 1, 0, 1, 1]
+
+Query "tim":
+  hash1("tim") % 8 = 7  → bit 7 set? YES (set by paul)
+  hash2("tim") % 8 = 3  → bit 3 set? YES (set by paul)
+  hash3("tim") % 8 = 1  → bit 1 set? YES (set by paul)
+  → Reports "probably exists" BUT tim is NOT in database
+  → False positive → unnecessary database query</pre>
+                <p>False positives are <strong>acceptable</strong> — they just cause an extra (unnecessary) database query. They do not cause incorrect answers to the user.</p>
+                <p>False negatives are <strong>impossible</strong> — if a Bloom filter says "not exists," it's always correct.</p>
+
+                <h3>Bloom Filter Properties</h3>
+                <table>
+                    <thead>
+                        <tr><th>Property</th><th>Value</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Space complexity</td><td>O(m) — very small (64 bits to a few KB for millions of items)</td></tr>
+                        <tr><td>Insert time</td><td>O(k) — k hash function evaluations</td></tr>
+                        <tr><td>Query time</td><td>O(k) — k hash function evaluations</td></tr>
+                        <tr><td>False positive rate</td><td>Depends on m (array size), n (items inserted), k (hash functions)</td></tr>
+                        <tr><td>Delete support</td><td>❌ Not supported in standard Bloom filters</td></tr>
+                        <tr><td>False negatives</td><td>❌ Impossible — definitive NO is always correct</td></tr>
+                    </tbody>
+                </table>
+                <p><strong>False positive probability formula:</strong></p>
+                <pre class="code-block">p ≈ (1 - e^(-kn/m))^k
+
+Where:
+  k = number of hash functions
+  n = number of inserted elements
+  m = size of bit array</pre>
+                <p><strong>Saturation problem:</strong> As more elements are inserted, more bits are set to 1. Eventually all bits are 1 → every query returns "probably exists" → Bloom filter is useless (degrades to always hitting the database, no harm but no benefit).</p>
+
+                <h3>Production Usage of Bloom Filters</h3>
+                <table>
+                    <thead>
+                        <tr><th>System</th><th>Usage</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><strong>Cassandra</strong></td><td>Each SSTable has a Bloom filter. Before doing disk I/O to check if a key exists in an SSTable, consults Bloom filter first. Dramatically reduces unnecessary disk reads.</td></tr>
+                        <tr><td><strong>PostgreSQL</strong></td><td>Used internally in some index types; also in pg_partman for partition pruning checks</td></tr>
+                        <tr><td><strong>HBase</strong></td><td>Per-HFile Bloom filters for read optimization</td></tr>
+                        <tr><td><strong>LevelDB / RocksDB</strong></td><td>Per-SSTable Bloom filters — standard in LSM-tree storage engines</td></tr>
+                        <tr><td><strong>Redis</strong></td><td>RedisBloom module provides Bloom filter as a first-class data type</td></tr>
+                        <tr><td><strong>Akamai CDN</strong></td><td>Used to avoid caching single-hit objects (one-time URLs)</td></tr>
+                        <tr><td><strong>Medium</strong></td><td>Used to filter already-read articles from recommendations</td></tr>
+                        <tr><td><strong>Chrome browser</strong></td><td>Malicious URL detection uses a Bloom filter as first-pass check</td></tr>
+                    </tbody>
+                </table>
+
+                <hr class="my-8 border-gray-200">
+
+                <h2>2.4 — Long Transaction Rollback Cost in PostgreSQL (MVCC)</h2>
+
+                <h3>MVCC Background</h3>
+                <p>PostgreSQL uses <strong>Multi-Version Concurrency Control (MVCC)</strong>. Instead of locking rows for reads, it maintains <strong>multiple versions of each row</strong>.</p>
+                <p>Every row version has:</p>
+                <ul>
+                    <li><span class="inline-code">xmin</span>: Transaction ID that created this version</li>
+                    <li><span class="inline-code">xmax</span>: Transaction ID that deleted/updated this version (0 if still live)</li>
+                </ul>
+                <pre class="code-block">Row in heap:
+┌────────────────────────────────────────────────┐
+│ xmin=1050 │ xmax=0 │ data: {id:1, name:"Alice"} │  ← Live row
+└────────────────────────────────────────────────┘
+
+After UPDATE by txn 1090:
+┌────────────────────────────────────────────────┐
+│ xmin=1050 │ xmax=1090 │ data: {id:1, name:"Alice"} │ ← Dead (updated)
+└────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────┐
+│ xmin=1090 │ xmax=0    │ data: {id:1, name:"Bob"}   │ ← New live version
+└────────────────────────────────────────────────┘</pre>
+
+                <h3>The Long Transaction Problem</h3>
+                <p>Consider a transaction that updates 5 million rows:</p>
+                <pre class="code-block">BEGIN;
+UPDATE orders SET status = 'archived' WHERE created_at &lt; '2020-01-01';
+-- This touches 5 million rows
+-- Creates 5 million NEW row versions
+-- Marks 5 million OLD row versions with xmax = this_txn_id
+...
+-- Something goes wrong 30 minutes later
+ROLLBACK;</pre>
+                
+                <p><strong>After ROLLBACK:</strong></p>
+                <ul>
+                    <li>The 5 million new row versions have <span class="inline-code">xmin</span> = aborted transaction ID</li>
+                    <li>They are now "dead rows" (dead tuples)</li>
+                    <li>The 5 million old row versions have <span class="inline-code">xmax</span> = aborted transaction ID → they are still live</li>
+                    <li>Net result: 5 million dead tuples sitting in pages alongside live rows</li>
+                </ul>
+
+                <h3>Why PostgreSQL Uses Lazy Cleanup (VACUUM)</h3>
+                <p>PostgreSQL does <strong>NOT</strong> immediately clean up dead tuples on ROLLBACK. Reasons:</p>
+                <ol>
+                    <li><strong>Rollback must be instant</strong> — users expect <span class="inline-code">ROLLBACK</span> to return immediately, not after cleaning 5 million rows</li>
+                    <li><strong>Other transactions may need those versions</strong> — a concurrent read that started before the rollback needs consistent snapshot</li>
+                    <li><strong>Cleanup is deferred to VACUUM</strong>, which runs as a background process</li>
+                </ol>
+
+                <h3>The Cost of Dead Tuples</h3>
+                <p><strong>Correctness:</strong> No correctness issue. PostgreSQL correctly identifies dead tuples by checking <span class="inline-code">pg_xact</span> (transaction commit/abort status):</p>
+                <pre class="code-block">For each row version encountered during a scan:
+  Is xmin committed?   → If NO, row is invisible
+  Is xmax committed?   → If YES, row is deleted, invisible
+  Is xmax our txn?     → Special case</pre>
+
+                <p><strong>Performance degradation:</strong></p>
+                <pre class="code-block">Page BEFORE long rollback (healthy):
+┌────────────────────────────────────────────────────┐
+│ row1 │ row2 │ row3 │ row4 │ row5 │ row6 │ row7 ... │  1000 live rows/page
+└────────────────────────────────────────────────────┘
+
+Page AFTER long rollback + no vacuum:
+┌─────────────────────────────────────────────────────┐
+│ DEAD │ DEAD │ DEAD │ DEAD │ live │ DEAD │ DEAD ... │  1 live + 999 dead
+└─────────────────────────────────────────────────────┘</pre>
+                <p>Fetching this page from disk costs exactly the same I/O as a full page — but yields only 1 useful row. Every sequential scan, index scan, and VACUUM that touches this page pays full I/O cost for minimal data.</p>
+                
+                <p><strong>Additional costs:</strong></p>
+                <ul>
+                    <li><span class="inline-code">pg_xact</span> lookup for every dead tuple's xmin/xmax — not free</li>
+                    <li>Table bloat — pages not reclaimed, file grows</li>
+                    <li>Index bloat — index entries pointing to dead tuples remain until VACUUM cleans them</li>
+                    <li>Autovacuum load spikes after large rollback</li>
+                </ul>
+
+                <h3>VACUUM — PostgreSQL's Solution</h3>
+                <pre class="code-block">-- Manual vacuum (can run while table is live):
+VACUUM orders;
+
+-- Vacuum + reclaim disk space (requires brief lock):
+VACUUM FULL orders;
+
+-- Analyze + vacuum:
+VACUUM ANALYZE orders;
+
+-- View dead tuple counts:
+SELECT schemaname, relname, n_dead_tup, n_live_tup, last_vacuum, last_autovacuum
+FROM pg_stat_user_tables
+ORDER BY n_dead_tup DESC;</pre>
+
+                <p><strong>What VACUUM does:</strong></p>
+                <ol>
+                    <li>Scans pages looking for dead tuples</li>
+                    <li>Removes dead tuple entries from pages (marks space as reusable)</li>
+                    <li>Removes corresponding index entries (index vacuum)</li>
+                    <li>Updates visibility map (optimization for future scans)</li>
+                    <li>Does NOT shrink the physical file size (VACUUM FULL does, but requires exclusive lock)</li>
+                </ol>
+
+                <h3>Eager Rollback: The Alternative Approach (Oracle, SQL Server)</h3>
+                <p><strong>Oracle and SQL Server</strong> use <strong>undo logs (undo segments)</strong>:</p>
+                <pre class="code-block">On UPDATE:
+  1. Write old row version to UNDO log
+  2. Update row in-place in the main table
+  3. If ROLLBACK: read undo log, restore original row</pre>
+                
+                <p><strong>Advantages:</strong></p>
+                <ul>
+                    <li>No dead tuples in main table — rollback physically reverses changes</li>
+                    <li>No VACUUM needed for dead tuple cleanup</li>
+                    <li>Cleaner pages → better I/O efficiency</li>
+                </ul>
+                <p><strong>Disadvantages:</strong></p>
+                <ul>
+                    <li>Rollback time is proportional to work done — rolling back 5 million rows takes time</li>
+                    <li>During rollback, undo log segments are under pressure</li>
+                    <li>Database crash during rollback requires undo replay on startup (can delay startup)</li>
+                    <li>Undo log becomes a hot contention point under high write load</li>
+                </ul>
+
+                <h3>Comparison: Lazy vs Eager Cleanup</h3>
+                <table>
+                    <thead>
+                        <tr><th>Aspect</th><th>PostgreSQL (Lazy/VACUUM)</th><th>Oracle/SQL Server (Eager/Undo)</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Rollback speed</td><td>Instant</td><td>Proportional to work done</td></tr>
+                        <tr><td>Dead tuple cleanup</td><td>Background (VACUUM)</td><td>Immediate</td></tr>
+                        <tr><td>Table bloat risk</td><td>Yes, if VACUUM falls behind</td><td>No</td></tr>
+                        <tr><td>Startup after crash</td><td>Fast (no undo replay)</td><td>May be slow (undo replay)</td></tr>
+                        <tr><td>Write amplification</td><td>Higher (new versions written)</td><td>Lower (in-place update)</td></tr>
+                        <tr><td>Read consistency</td><td>Snapshot via xmin/xmax</td><td>Snapshot via undo reconstruction</td></tr>
+                        <tr><td>Operational complexity</td><td>Need to monitor/tune autovacuum</td><td>Need to monitor undo tablespace</td></tr>
+                    </tbody>
+                </table>
+                <p>Neither approach is objectively better. Both are valid engineering trade-offs.</p>
+            </section>
+
+            <!-- SECTION 3 -->
+            <section id="sec-3">
+                <h1>3. Deep Dive</h1>
+
+                <h2>3.1 — B+ Tree Internals and Page Splits</h2>
+
+                <h3>B+ Tree Structure</h3>
+                <pre class="code-block">                    ┌──────────────────┐
+                    │   Root Node      │
+                    │   [40, 70]       │
+                    └──────┬───┬───────┘
+                   ┌───────┘   └────────┐
+          ┌────────▼───┐           ┌────▼───────┐
+          │ Internal   │           │ Internal   │
+          │ [20, 30]   │           │ [50, 60]   │
+          └────────────┘           └────────────┘
+               ↓↓↓                      ↓↓↓
+┌──────┐ ┌──────┐ ┌──────┐  ┌──────┐ ┌──────┐ ┌──────┐
+│10,20 │↔│21,30 │↔│31,40 │  │41,50 │↔│51,60 │↔│61,70 │  ← Leaf pages
+└──────┘ └──────┘ └──────┘  └──────┘ └──────┘ └──────┘
+                                                         (doubly linked)</pre>
+                <ul>
+                    <li><strong>Internal nodes</strong>: Only hold keys for routing, no actual row data</li>
+                    <li><strong>Leaf nodes</strong>: Hold actual index entries (key + pointer to heap row, or full row in IOT)</li>
+                    <li><strong>Doubly-linked leaves</strong>: Enable efficient range scans without going back up the tree</li>
+                </ul>
+
+                <h3>Page Split Cascade</h3>
+                <p>In the worst case, a leaf page split can trigger a cascade up to the root:</p>
+                <ol>
+                    <li>Leaf page splits → parent internal node needs new key</li>
+                    <li>Internal node is full → internal node splits</li>
+                    <li>Cascades up to root</li>
+                    <li>Root splits → tree grows one level taller</li>
+                </ol>
+                <p>This is rare but expensive — log(n) nodes may be modified and written.</p>
+
+                <h3>Fill Factor Optimization</h3>
+                <pre class="code-block">-- Create index with fill factor 70%
+-- Leaves 30% of each page empty to absorb inserts without immediate splits
+CREATE INDEX idx_orders_user ON orders(user_id) WITH (fillfactor = 70);</pre>
+                <p>Trade-off: More disk space, fewer page splits on insert.</p>
+
+                <hr class="my-8 border-gray-200">
+
+                <h2>3.2 — MVCC Transaction Visibility Check Cost</h2>
+                <pre class="code-block">For every row version read during a query:
+  1. Read xmin from row header
+  2. Check if xmin is in-progress, committed, or aborted
+     → Consult pg_xact (transaction status file, cached in memory)
+  3. If aborted → skip this version (dead)
+  4. If committed and xmax = 0 → visible
+  5. If committed and xmax set → check xmax status similarly</pre>
+                <p>On a healthy table: most rows are live → fast path.<br>
+                After large rollback: many rows have aborted xmin → extra pg_xact lookups → CPU overhead.</p>
+            </section>
+
+            <!-- SECTION 4 -->
+            <section id="sec-4">
+                <h1>4. Practical Backend Engineering Perspective</h1>
+
+                <h2>Billion-Row Tables in Production</h2>
+                <h3>Amazon / E-commerce</h3>
+                <ul>
+                    <li><strong>Order history table</strong>: Partition by <span class="inline-code">created_at</span> (monthly partitions). Old partitions archived to cold storage (S3 + Athena). Recent partitions on fast NVMe SSDs.</li>
+                    <li><strong>Product catalog</strong>: Shard by product category or seller_id. Each shard gets its own full-text search index.</li>
+                </ul>
+
+                <h3>Uber</h3>
+                <ul>
+                    <li><strong>Trips table</strong>: Sharded by city_id + range-partitioned by date. Analytical queries run on separate read replicas with columnar storage (Parquet on HDFS).</li>
+                </ul>
+
+                <h3>Netflix</h3>
+                <ul>
+                    <li><strong>Watch history</strong>: Time-partitioned. Retention policy drops partitions older than 2 years. Real-time queries never touch old partitions.</li>
+                </ul>
+
+                <h3>Banking Systems</h3>
+                <ul>
+                    <li><strong>Transaction ledger</strong>: Immutable append-only design. Partition by account_id range + date. Archival tier for compliance data.</li>
+                </ul>
+
+                <h2>UUID Impact in Production</h2>
+                <h3>Stripe</h3>
+                <ul>
+                    <li>Uses a custom ID format (Snowflake-inspired): <span class="inline-code">ch_1J2e3R2eZvKYlo2C...</span> — lexicographically ordered with timestamp prefix. All internal DB inserts are ordered.</li>
+                </ul>
+
+                <h3>MySQL at Scale</h3>
+                <ul>
+                    <li>Any MySQL table using UUID v4 as primary key will suffer — because InnoDB's clustered primary key means the table itself is B+ Tree ordered by PK. Random UUIDs = random writes everywhere = massive I/O.</li>
+                </ul>
+
+                <h2>Bloom Filters in Production</h2>
+                <h3>Cassandra Architecture</h3>
+                <pre class="code-block">Read path for key K:
+1. Check memtable (in-memory write buffer) — O(1)
+2. For each SSTable on disk (there may be 10s):
+   a. Check Bloom filter — O(k) in memory
+   b. If NO → skip this SSTable (saved disk I/O)
+   c. If YES → read index, then read data block</pre>
+                <p>Without Bloom filters, every read would need to check every SSTable on disk.</p>
+            </section>
+
+            <!-- SECTION 5 -->
+            <section id="sec-5">
+                <h1>5. Important Interview Questions</h1>
+
+                <h2>Basic Questions</h2>
+                <p><strong>Q: What is horizontal partitioning?</strong><br>
+                A: Dividing a table's rows into multiple physical sub-tables (partitions) based on a partition key (e.g., range of IDs, hash, date). The table appears unified to the query layer but data is stored separately.</p>
+
+                <p><strong>Q: What is the difference between partitioning and sharding?</strong><br>
+                A: Partitioning divides a table on a single database instance. Sharding divides data across multiple independent database instances (different machines). Sharding adds network/distributed complexity that partitioning avoids.</p>
+
+                <p><strong>Q: Why are indexes ordered?</strong><br>
+                A: Because the B+ Tree data structure requires sorted keys to enable binary search (O(log n) lookup) and efficient range scans. Without ordering, a linear scan would be required — defeating the purpose of an index.</p>
+
+                <p><strong>Q: What is a Bloom filter?</strong><br>
+                A: A probabilistic space-efficient data structure that can definitively say an element is NOT in a set, or probably is in the set. Used to avoid expensive lookups when the answer is likely "not found."</p>
+
+                <p><strong>Q: What are dead tuples in PostgreSQL?</strong><br>
+                A: Row versions that are no longer visible to any current or future transaction — created by updates, deletes, or rolled-back transactions under MVCC. They occupy space until cleaned by VACUUM.</p>
+
+                <h2>Intermediate Questions</h2>
+                <p><strong>Q: Why does UUID v4 hurt insert performance and what's the alternative?</strong><br>
+                A: UUID v4 is random, so each insert lands at a random position in the B+ Tree index, frequently requiring page splits and random disk I/O (buffer pool thrashing). Alternatives: ULID, UUID v7, or Snowflake IDs — all time-ordered so consecutive inserts go to the tail of the index, minimizing splits.</p>
+
+                <p><strong>Q: Explain partition pruning.</strong><br>
+                A: When a query's WHERE clause includes the partition key, the query planner can determine at planning time which partitions contain relevant rows and skip all others. This is automatic in PostgreSQL and MySQL when the partition key is used in the filter.</p>
+
+                <p><strong>Q: Can a Bloom filter give false negatives?</strong><br>
+                A: No. A definitive "not exists" answer is always correct. Only "exists" answers can be false positives (the queried item's hash bits happen to be set by other items). This makes Bloom filters safe to use as a pre-filter before database queries.</p>
+
+                <p><strong>Q: What is the fill factor in an index and why would you change it?</strong><br>
+                A: Fill factor is the percentage of each index page that is filled during initial creation/insert. Setting it to 70% leaves 30% free space, reducing page splits for subsequent inserts. Trade-off: more disk space.</p>
+
+                <p><strong>Q: Why does PostgreSQL use lazy VACUUM instead of immediate cleanup on rollback?</strong><br>
+                A: Immediate cleanup would make ROLLBACK time proportional to the amount of work done, unacceptable for user-facing operations. Lazy cleanup (VACUUM) runs asynchronously, keeps ROLLBACK instant, but risks table bloat if VACUUM falls behind.</p>
+
+                <h2>Advanced Questions</h2>
+                <p><strong>Q: A 5-million-row UPDATE transaction rolls back in PostgreSQL. Walk me through the full impact.</strong><br>
+                A:<br>
+                1. ROLLBACK is instant — PostgreSQL marks the transaction as aborted in pg_xact<br>
+                2. 5 million new row versions (created during UPDATE) now have aborted xmin → dead tuples<br>
+                3. 5 million original row versions (with xmax = aborted txn) are now live again<br>
+                4. Dead tuples occupy pages alongside live rows — same I/O cost for fewer usable rows<br>
+                5. Index entries pointing to dead tuples remain until VACUUM runs<br>
+                6. Every query that touches those pages pays xmin/xmax visibility check overhead<br>
+                7. Autovacuum eventually runs, scanning and cleaning dead tuples from pages<br>
+                8. VACUUM FULL needed if you want physical disk space reclaimed</p>
+
+                <p><strong>Q: Design a user lookup system that handles 100 million users with sub-millisecond response for username existence checks.</strong><br>
+                A:<br>
+                1. Bloom filter in application memory for definitive "does not exist" — handles 80%+ of requests<br>
+                2. If Bloom filter says "maybe" → check Redis (L2 cache) with TTL<br>
+                3. If Redis miss → query PostgreSQL with index on <span class="inline-code">username</span><br>
+                4. Consider partitioning users table by first letter or hash of username for better cache locality<br>
+                5. Bloom filter false positive rate tuned to ~1% using 10 bits/element</p>
+
+                <p><strong>Q: Explain the trade-off between eager (undo log) and lazy (VACUUM) approaches to MVCC dead row cleanup.</strong><br>
+                A: Eager (Oracle): immediate cleanup, no bloat risk, but ROLLBACK is slow proportional to work done. Lazy (PostgreSQL): instant ROLLBACK, but needs operational discipline around VACUUM, risk of table bloat under heavy write/rollback workloads. Neither is universally better — OLTP with many small transactions favors eager; systems needing instant rollback or very high write throughput may prefer lazy.</p>
+            </section>
+
+            <!-- SECTION 6 -->
+            <section id="sec-6">
+                <h1>6. Common Mistakes</h1>
+
+                <h2>Beginner Mistakes</h2>
+                <ul>
+                    <li><strong>Using UUID v4 as primary key in MySQL</strong> without understanding clustered index implications</li>
+                    <li><strong>Not indexing foreign keys</strong> — causes full table scans on JOINs</li>
+                    <li><strong>Thinking ROLLBACK is "free"</strong> — it's fast but leaves dead tuples</li>
+                    <li><strong>Assuming VACUUM runs automatically</strong> — autovacuum has thresholds; heavily written tables may need manual tuning</li>
+                </ul>
+
+                <h2>Backend Engineer Mistakes</h2>
+                <ul>
+                    <li><strong>Partitioning on a column that's never in WHERE clauses</strong> — partitioning exists but partition pruning never triggers</li>
+                    <li><strong>Using Bloom filters for mutable data without understanding deletion</strong> — standard Bloom filters don't support deletion; use Counting Bloom Filters for mutable sets</li>
+                    <li><strong>Sharding too early</strong> — adds enormous complexity; exhaust partitioning first</li>
+                    <li><strong>Ignoring the partition key in application queries</strong> — forces full partition scan, defeats the purpose</li>
+                </ul>
+
+                <h2>Production Mistakes</h2>
+                <ul>
+                    <li><strong>Unbounded long-running transactions</strong> — UPDATE millions of rows in one transaction without pagination. Use batched updates instead:
+<pre class="code-block">-- Instead of:
+UPDATE orders SET status='archived' WHERE created_at &lt; '2020-01-01';
+
+-- Do:
+DO $$
+DECLARE rows_updated INT;
+BEGIN
+  LOOP
+    UPDATE orders SET status='archived'
+    WHERE id IN (
+      SELECT id FROM orders 
+      WHERE created_at &lt; '2020-01-01' AND status != 'archived'
+      LIMIT 10000
+    );
+    GET DIAGNOSTICS rows_updated = ROW_COUNT;
+    EXIT WHEN rows_updated = 0;
+    PERFORM pg_sleep(0.1); -- give autovacuum a chance
+  END LOOP;
+END $$;</pre>
+                    </li>
+                    <li><strong>Not monitoring <span class="inline-code">n_dead_tup</span></strong> — tables silently bloat until query performance degrades severely</li>
+                    <li><strong>Cross-shard JOINs in application code</strong> — O(n) queries instead of O(1) join</li>
+                    <li><strong>Bloom filter saturation</strong> — not resizing/rebuilding as dataset grows</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 7 -->
+            <section id="sec-7">
+                <h1>7. Performance & Scalability Notes</h1>
+
+                <h2>Indexing</h2>
+                <table>
+                    <thead>
+                        <tr><th>Operation</th><th>Without Index</th><th>With Index</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Point lookup</td><td>O(n) full scan</td><td>O(log n) B+ Tree traversal</td></tr>
+                        <tr><td>Range scan</td><td>O(n)</td><td>O(log n) + range</td></tr>
+                        <tr><td>Insert</td><td>O(1) heap append</td><td>O(log n) + possible page split</td></tr>
+                        <tr><td>Update (indexed col)</td><td>O(n) find + O(1) update</td><td>O(log n) find + O(log n) index update</td></tr>
+                        <tr><td>Storage overhead</td><td>None</td><td>~10-30% of table size per index</td></tr>
+                    </tbody>
+                </table>
+
+                <h2>UUID v4 vs Ordered ID Performance</h2>
+                <table>
+                    <thead>
+                        <tr><th>Metric</th><th>UUID v4</th><th>ULID / UUID v7</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Insert rate (indexed)</td><td>Low (page splits, I/O thrash)</td><td>High (tail append, few splits)</td></tr>
+                        <tr><td>Buffer pool hit rate</td><td>Low (~5-20% on large tables)</td><td>High (~80-99%)</td></tr>
+                        <tr><td>Index fragmentation</td><td>High</td><td>Low</td></tr>
+                        <tr><td>Disk space per index</td><td>Higher (fragmentation)</td><td>Lower</td></tr>
+                        <tr><td>Concurrent insert scalability</td><td>Poor (random lock contention)</td><td>Good (tail contention only)</td></tr>
+                    </tbody>
+                </table>
+
+                <h2>Partition Scaling</h2>
+                <pre class="code-block">Table size:        1B rows
+Partition key:     user_id (hash, 100 partitions)
+Per partition:     ~10M rows
+Index per part.:   ~10M entries → fits in ~200MB RAM
+
+vs full table index: 1B entries → ~20GB RAM needed</pre>
+
+                <h2>VACUUM Performance Impact</h2>
+                <table>
+                    <thead>
+                        <tr><th>Scenario</th><th>Impact</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Healthy table (autovacuum on schedule)</td><td>Minimal, background</td></tr>
+                        <tr><td>Table with 50% dead tuples</td><td>2x I/O per scan, slow queries</td></tr>
+                        <tr><td>VACUUM FULL on large table</td><td>Exclusive lock, table unavailable</td></tr>
+                        <tr><td>Autovacuum lagging (high write rate)</td><td>Progressive bloat, query degradation</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- SECTION 8 -->
+            <section id="sec-8">
+                <h1>8. Database Internals Notes</h1>
+
+                <h2>Pages</h2>
+                <ul>
+                    <li>Default page size: 8KB (PostgreSQL), 16KB (MySQL InnoDB)</li>
+                    <li>All data (table rows AND index entries) lives in fixed-size pages</li>
+                    <li>Pages are the unit of I/O — even reading 1 row fetches the entire page</li>
+                    <li>Pages are cached in the buffer pool (shared_buffers in PostgreSQL)</li>
+                </ul>
+
+                <h2>B+ Tree</h2>
+                <pre class="code-block">Properties:
+  - All data lives in leaf nodes
+  - Internal nodes are pure routing structures
+  - All leaf nodes at same depth (balanced)
+  - Leaf nodes doubly linked for range scans
+  - Fill factor controls free space per page
+
+Operations:
+  - Search: O(log n) internal node traversal
+  - Insert: O(log n) + potential page split
+  - Delete: O(log n) + potential page merge (or just mark deleted)
+  - Range scan: O(log n) to find start + O(k) to scan k results</pre>
+
+                <h2>WAL (Write-Ahead Log)</h2>
+                <p>Before any page modification is written to disk, the change is recorded in the WAL:</p>
+                <pre class="code-block">WAL entry for page split:
+  LSN: 0/1A43F20
+  Type: BTREE_SPLIT
+  Page: 447
+  New page: 1892
+  Data: [moved entries, new key in parent]</pre>
+                <p>This guarantees durability. On crash: replay WAL to reconstruct in-progress operations. This also means a page split writes WAL entries for: the split page, the new page, and the parent internal node update — significant write amplification.</p>
+
+                <h2>Buffer Pool</h2>
+                <pre class="code-block">shared_buffers = 25% of RAM (PostgreSQL recommendation)
+innodb_buffer_pool_size = 70-80% of RAM (MySQL recommendation)
+
+LRU eviction: when buffer pool is full, least-recently-used dirty pages
+are written to disk to free space.
+
+Random UUID impact: Each insert evicts a different page, bringing in another
+random page that may itself be immediately evicted → thrashing.</pre>
+
+                <h2>MVCC Internals</h2>
+                <pre class="code-block">Row header (PostgreSQL):
+  xmin    (4 bytes) — creating transaction ID
+  xmax    (4 bytes) — deleting transaction ID
+  infomask (2 bytes) — flags including commit status hints
+  ctid    (6 bytes) — current location of latest version
+
+Transaction visibility:
+  xmin committed AND xmax not committed (or 0) → row is visible
+  xmin aborted → row never existed, skip
+  xmax committed → row deleted, skip</pre>
+            </section>
+
+            <!-- SECTION 9 -->
+            <section id="sec-9">
+                <h1>9. Beyond the Lecture — Additional Important Knowledge</h1>
+
+                <h2>HOT Updates (Heap-Only Tuples) in PostgreSQL</h2>
+                <p>When an UPDATE modifies a non-indexed column and there's free space on the same page, PostgreSQL can do a HOT update:</p>
+                <ul>
+                    <li>New row version placed on the SAME page as the old version</li>
+                    <li>Index entries are NOT updated (still point to old version, which has a chain to new version)</li>
+                    <li>Result: Lower write amplification, no index bloat from the update</li>
+                </ul>
+                <pre class="code-block">-- HOT update is MORE likely with lower fill factor (more free space per page)
+ALTER TABLE orders SET (fillfactor = 70);
+VACUUM orders; -- Rebuilds pages with new fill factor</pre>
+
+                <h2>Partial Indexes</h2>
+                <pre class="code-block">-- Index only active orders, not archived ones
+-- 90% smaller than full index if most orders are archived
+CREATE INDEX idx_active_orders ON orders(user_id)
+WHERE status = 'active';
+
+-- Query must include the WHERE clause to use the index
+SELECT * FROM orders WHERE user_id = 123 AND status = 'active';</pre>
+
+                <h2>Covering Indexes (Index-Only Scans)</h2>
+                <pre class="code-block">-- Include all columns needed by the query in the index
+-- Query never needs to touch the heap at all
+CREATE INDEX idx_orders_cover ON orders(user_id)
+INCLUDE (created_at, total_amount, status);
+
+SELECT user_id, created_at, total_amount, status
+FROM orders
+WHERE user_id = 123;
+-- ↑ Index-only scan — zero heap I/O</pre>
+
+                <h2>Counting Bloom Filters (Supports Deletion)</h2>
+                <p>Standard Bloom filters cannot delete items (you can't unset a bit — it might be shared with other items). Counting Bloom Filters replace each bit with a small counter (4 bits):</p>
+                <ul>
+                    <li>Insert: increment k counters</li>
+                    <li>Delete: decrement k counters</li>
+                    <li>Query: all k counters > 0 → "probably exists"</li>
+                </ul>
+                <p>Trade-off: ~4x memory vs standard Bloom filter.</p>
+
+                <h2>Consistent Hashing for Sharding</h2>
+                <p>Instead of simple modulo sharding (<span class="inline-code">user_id % num_shards</span>), consistent hashing:</p>
+                <ul>
+                    <li>Maps shards to positions on a virtual "ring"</li>
+                    <li>Each key maps to the nearest shard clockwise on the ring</li>
+                    <li>Adding/removing a shard only remaps ~1/n of keys (vs 100% in modulo)</li>
+                </ul>
+                <p>Used by: Cassandra, DynamoDB, Redis Cluster</p>
+
+                <h2>Global vs Local Indexes in Partitioned Tables</h2>
+                <pre class="code-block">-- LOCAL index: one index per partition (default, partition-pruning friendly)
+-- Queries with partition key use partition-pruned local index
+
+-- GLOBAL index: single index across all partitions
+-- Needed for queries that don't include partition key
+-- Expensive to maintain (all partitions participate in every index update)</pre>
+            </section>
+
+            <!-- SECTION 10 -->
+            <section id="sec-10">
+                <h1>10. Practical SQL Examples</h1>
+
+                <h2>Billion-Row Table — Partitioned Setup</h2>
+                <pre class="code-block">-- Step 1: Create partitioned table
+CREATE TABLE user_events (
+    id          BIGSERIAL,
+    user_id     BIGINT NOT NULL,
+    event_type  VARCHAR(50),
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    payload     JSONB
+) PARTITION BY RANGE (created_at);
+
+-- Step 2: Create monthly partitions
+CREATE TABLE user_events_2024_01 PARTITION OF user_events
+    FOR VALUES FROM ('2024-01-01') TO ('2024-02-01');
+
+CREATE TABLE user_events_2024_02 PARTITION OF user_events
+    FOR VALUES FROM ('2024-02-01') TO ('2024-03-01');
+
+-- Step 3: Create local indexes on each partition
+CREATE INDEX ON user_events_2024_01 (user_id, created_at);
+CREATE INDEX ON user_events_2024_02 (user_id, created_at);
+
+-- Step 4: Query — partition pruning kicks in
+EXPLAIN SELECT * FROM user_events
+WHERE user_id = 12345
+  AND created_at BETWEEN '2024-01-01' AND '2024-01-31';
+-- → Only scans user_events_2024_01, all others pruned</pre>
+
+                <h2>UUID v4 vs ULID — Java Implementation</h2>
+                <pre class="code-block">import java.util.UUID;
+import de.huxhorn.sulky.ulid.ULID;
+
+public class IdGenerationExample {
+
+    // BAD: Random UUID v4 — terrible for indexed primary keys
+    public String generateUUIDv4() {
+        return UUID.randomUUID().toString();
+        // Example: f47ac10b-58cc-4372-a567-0e02b2c3d479
+        // Completely random → bad B+ Tree insertion behavior
+    }
+
+    // GOOD: ULID — time-ordered, sortable, no page split storms
+    private final ULID ulid = new ULID();
+
+    public String generateULID() {
+        return ulid.nextULID();
+        // Example: 01ARZ3NDEKTSV4RRFFQ69G5FAV
+        // First 48 bits = timestamp → ordered inserts → happy B+ Tree
+    }
+}</pre>
+                <pre class="code-block">-- PostgreSQL: UUID v7 (available in PostgreSQL 17+ or via extension)
+-- Generates time-ordered UUID natively
+SELECT gen_random_uuid();       -- UUID v4: random, bad for PK
+-- vs
+SELECT uuidv7();                -- UUID v7: time-ordered, good for PK</pre>
+
+                <h2>Bloom Filter — Java Implementation</h2>
+                <pre class="code-block">import com.google.common.hash.BloomFilter;
+import com.google.common.hash.Funnels;
+import java.nio.charset.StandardCharsets;
+
+public class UsernameBloomFilter {
+
+    // Create filter: expected 10M usernames, 1% false positive rate
+    private final BloomFilter&lt;String&gt; filter = BloomFilter.create(
+        Funnels.stringFunnel(StandardCharsets.UTF_8),
+        10_000_000,    // expected insertions
+        0.01           // desired false positive probability
+    );
+
+    // Called when user is created
+    public void addUsername(String username) {
+        filter.put(username);
+        // Also write to database
+        database.insert("INSERT INTO users(username) VALUES (?)", username);
+    }
+
+    // Called on every username availability check
+    public UsernameCheckResult checkUsername(String username) {
+        if (!filter.mightContain(username)) {
+            // Bloom filter says NO → definitely not in database
+            // Skip database query entirely
+            return UsernameCheckResult.DEFINITELY_AVAILABLE;
+        }
+
+        // Bloom filter says MAYBE → check database to confirm
+        boolean existsInDb = database.queryOne(
+            "SELECT 1 FROM users WHERE username = ? LIMIT 1", username
+        );
+
+        if (existsInDb) {
+            return UsernameCheckResult.TAKEN;
+        } else {
+            // False positive from Bloom filter — username is actually available
+            return UsernameCheckResult.AVAILABLE;
+        }
+    }
+}</pre>
+
+                <h2>VACUUM Monitoring</h2>
+                <pre class="code-block">-- Monitor table health — run this periodically
+SELECT
+    schemaname,
+    relname AS table_name,
+    n_live_tup AS live_rows,
+    n_dead_tup AS dead_rows,
+    ROUND(100.0 * n_dead_tup / NULLIF(n_live_tup + n_dead_tup, 0), 2) AS dead_pct,
+    last_autovacuum,
+    last_vacuum,
+    pg_size_pretty(pg_total_relation_size(relid)) AS total_size
+FROM pg_stat_user_tables
+WHERE n_dead_tup > 1000
+ORDER BY dead_pct DESC;
+
+-- If dead_pct > 20%, consider manual VACUUM
+VACUUM VERBOSE orders;
+
+-- Nuclear option: reclaim disk space (requires exclusive lock!)
+VACUUM FULL orders;</pre>
+
+                <h2>Batched Update to Avoid Large Transaction Rollback Cost</h2>
+                <pre class="code-block">public void archiveOldOrders(LocalDate cutoffDate, JdbcTemplate jdbc) {
+    int batchSize = 10_000;
+    int updated;
+
+    do {
+        // Each iteration is a small, fast transaction
+        updated = jdbc.update("""
+            UPDATE orders SET status = 'archived'
+            WHERE id IN (
+                SELECT id FROM orders
+                WHERE created_at &lt; ?
+                  AND status != 'archived'
+                LIMIT ?
+                FOR UPDATE SKIP LOCKED
+            )
+            """, cutoffDate, batchSize);
+
+        if (updated > 0) {
+            Thread.sleep(100); // Give autovacuum breathing room
+        }
+
+    } while (updated == batchSize); // Continue until fewer than batchSize updated
+}</pre>
+            </section>
+
+            <!-- SECTION 11 -->
+            <section id="sec-11">
+                <h1>11. System Design Connections</h1>
+
+                <h2>Scalability</h2>
+                <pre class="code-block">Data Volume Growth Path:
+  Phase 1: Single table, add indexes          → handles ~100M rows well
+  Phase 2: Add partitioning                   → handles ~1-10B rows on one machine
+  Phase 3: Add read replicas                  → scales reads horizontally
+  Phase 4: Shard across multiple databases    → scales writes horizontally
+  Phase 5: Move analytics to separate system  → OLAP (BigQuery/Snowflake) vs OLTP</pre>
+
+                <h2>High Availability</h2>
+                <ul>
+                    <li><strong>Partitioned tables</strong>: A partition-level failure can be isolated; other partitions remain available</li>
+                    <li><strong>Shards</strong>: A shard failure affects only that shard's users — partial availability vs total failure</li>
+                    <li><strong>VACUUM lag</strong>: If autovacuum falls behind and table bloat is severe, can cause query timeouts — operational HA concern</li>
+                </ul>
+
+                <h2>Distributed Systems</h2>
+                <ul>
+                    <li><strong>Bloom filters</strong> are used in distributed caches (avoid stampede to database layer)</li>
+                    <li><strong>Consistent hashing</strong> is the shard routing mechanism in distributed key-value stores</li>
+                    <li><strong>MVCC dead tuples</strong> and rollback behavior: in distributed databases (CockroachDB, YugabyteDB), similar concepts exist but distributed across nodes</li>
+                </ul>
+
+                <h2>Microservices</h2>
+                <ul>
+                    <li>Each microservice should own its shard(s) — avoids cross-service DB coupling</li>
+                    <li>Bloom filters work well as in-process cache (each service instance has its own filter)</li>
+                    <li>Partition by service tenant/domain boundary for clean data isolation</li>
+                </ul>
+
+                <h2>Caching Layer Integration</h2>
+                <pre class="code-block">Request flow with Bloom Filter + Cache + DB:
+
+Client Request
+      │
+      ▼
+Bloom Filter (in-process, ns latency)
+   "Definitely NOT exists" ──→ Return "not found" immediately
+      │
+   "Maybe exists"
+      │
+      ▼
+Redis Cache (network, μs latency)
+   Hit ──→ Return cached result
+      │
+   Miss
+      │
+      ▼
+PostgreSQL (disk, ms latency)
+   Result cached in Redis
+   Return to client</pre>
+            </section>
+
+            <!-- SECTION 12 -->
+            <section id="sec-12">
+                <h1>12. Visual Mental Models</h1>
+
+                <h2>Full Stack: Billion-Row Query Path</h2>
+                <pre class="code-block">Client Query: "Find all follows for user_id = 500,000,123"
+         │
+         ▼
+  ┌─────────────────┐
+  │   Shard Router  │   user_id 500M → Shard 5
+  └────────┬────────┘
+           │
+           ▼
+  ┌─────────────────────────────────────┐
+  │  Shard 5 — PostgreSQL Instance      │
+  │                                     │
+  │  Query Planner → Partition Pruning  │
+  │  "user_id 500M → partition_5_of_10" │
+  │                                     │
+  │  ┌──────────────────────────────┐   │
+  │  │ Partition: follows_p5        │   │
+  │  │  ↓                           │   │
+  │  │ B+ Tree Index on follower_id │   │
+  │  │  ↓ (traverse 3-4 levels)     │   │
+  │  │ Leaf page with matching rows │   │
+  │  │  ↓ (heap fetch if needed)    │   │
+  │  │ Return 500 result rows       │   │
+  │  └──────────────────────────────┘   │
+  └─────────────────────────────────────┘
+           │
+           ▼
+       Client ← 500 rows</pre>
+
+                <h2>UUID v4 vs Sequential ID — Buffer Pool Behavior</h2>
+                <pre class="code-block">UUID v4 inserts (100 inserts, 8 pages exist):
+
+Insert 1: needs page 7 → fetch from disk → in buffer
+Insert 2: needs page 2 → fetch from disk → in buffer
+Insert 3: needs page 5 → fetch from disk → evict page 7
+Insert 4: needs page 7 → fetch from disk (again!) → evict page 2
+Insert 5: needs page 3 → fetch from disk → evict page 5
+... endless thrashing
+
+Sequential inserts (100 inserts):
+Insert 1-30: all go to page 8 (rightmost) → 1 fetch, stays in buffer
+Insert 31-60: page 8 full → new page 9 → 0 extra fetches
+Insert 61-100: go to page 9 → 0 extra fetches
+Result: 2 disk reads for 100 inserts</pre>
+
+                <h2>MVCC Dead Tuple Accumulation</h2>
+                <pre class="code-block">Timeline:
+
+T=0: Transaction 1090 starts large UPDATE
+     ┌─────────────────────────────┐
+     │ Page 447: [row1, row2, row3] │  (all live)
+     └─────────────────────────────┘
+
+T=30min: 5M rows updated, all new versions created
+     ┌──────────────────────────────────────────────┐
+     │ Page 447: [dead_r1, dead_r2, dead_r3,         │
+     │            new_r1,  new_r2,  new_r3]          │
+     └──────────────────────────────────────────────┘
+
+T=30min+1sec: ROLLBACK
+     ┌──────────────────────────────────────────────┐
+     │ Page 447: [live_r1, live_r2, live_r3,         │
+     │            DEAD_n1, DEAD_n2, DEAD_n3]         │
+     └──────────────────────────────────────────────┘
+     (new versions now dead, old versions live again)
+
+T+eventual: VACUUM runs
+     ┌─────────────────────────────┐
+     │ Page 447: [row1, row2, row3] │  (dead tuples removed)
+     └─────────────────────────────┘</pre>
+            </section>
+
+            <!-- SECTION 13 -->
+            <section id="sec-13">
+                <h1>13. Lecture Summary</h1>
+
+                <h2>Key Takeaways</h2>
+                <ol>
+                    <li><strong>Billion-row tables</strong>: The hierarchy is Schema Redesign → Indexing → Partitioning → Sharding → MapReduce. Exhaust simpler options before adding complexity.</li>
+                    <li><strong>Random UUIDs</strong>: UUID v4 in an indexed column causes page splits, I/O thrashing, and buffer pool pressure. Use time-ordered IDs (ULID, UUID v7) when inserts are performance-critical.</li>
+                    <li><strong>Bloom Filters</strong>: O(k) probabilistic existence check that can definitively answer "not exists." Great for reducing database lookups for negative cases. Used pervasively in Cassandra, RocksDB, and caching layers.</li>
+                    <li><strong>MVCC Rollback</strong>: PostgreSQL's lazy cleanup means large rollbacks leave dead tuples that bloat pages and degrade I/O efficiency. Mitigation: batch updates, monitor autovacuum, run VACUUM proactively.</li>
+                </ol>
+
+                <h2>Must Remember Points</h2>
+                <ul>
+                    <li>Index = B+ Tree = requires sorted order = random inserts cause page splits</li>
+                    <li>Page split = I/O + WAL write + pointer updates = expensive</li>
+                    <li>Bloom filter false negatives = impossible; false positives = acceptable</li>
+                    <li>Dead tuples don't cause correctness issues but kill I/O efficiency</li>
+                    <li>Partition pruning only works if the partition key is in the WHERE clause</li>
+                    <li>Sharding = distributed partitioning = exponentially more complexity</li>
+                </ul>
+
+                <h2>Interview Nuggets</h2>
+                <ul>
+                    <li><strong>"Why is UUID v4 bad for MySQL primary keys?"</strong> → MySQL InnoDB = clustered index = table IS the B+ Tree = random PK = random page splits everywhere in the table itself</li>
+                    <li><strong>"What's the difference between partitioning and sharding?"</strong> → Same machine vs. multiple machines</li>
+                    <li><strong>"Why does VACUUM exist?"</strong> → Because PostgreSQL's MVCC never overwrites rows, it creates new versions. Dead versions accumulate and must be periodically cleaned.</li>
+                    <li><strong>"Can a Bloom filter replace a database index?"</strong> → No. Bloom filter only answers existence; it can't retrieve data, support range queries, or handle deletions without extension.</li>
+                    <li><strong>"How does Cassandra use Bloom filters?"</strong> → Each SSTable has a Bloom filter. Before doing expensive disk I/O to check if a key exists in a specific SSTable, check the Bloom filter first. A definitive "no" skips the SSTable entirely.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 14 -->
+            <section id="sec-14">
+                <h1>14. Revision Notes — One Page</h1>
+                <pre class="code-block bg-blue-900 border border-blue-800 text-blue-50 shadow-md">┌──────────────────────────────────────────────────────────────────┐
+│            LARGE SCALE DATABASE PERFORMANCE — CHEAT SHEET        │
+├──────────────────────────────────────────────────────────────────┤
+│  BILLION ROW STRATEGY (in order of preference):                  │
+│  1. Redesign schema to avoid the table                           │
+│  2. Index → B+Tree, O(log n) vs O(n)                             │
+│  3. Partition → physical sub-tables, partition pruning           │
+│  4. Shard → multiple DB instances, distributed complexity        │
+│  5. MapReduce → parallel brute force, non-transactional          │
+├──────────────────────────────────────────────────────────────────┤
+│  UUID v4 PROBLEM:                                                │
+│  • Random 128-bit → random B+Tree position → page splits        │
+│  • Page splits = I/O + WAL writes + pointer updates             │
+│  • Buffer pool thrashing: each random insert evicts random page │
+│  • Fix: ULID / UUID v7 (time-ordered) → tail inserts → no splits│
+│  • PostgreSQL heap: unindexed UUID OK. MySQL InnoDB PK: disaster │
+├──────────────────────────────────────────────────────────────────┤
+│  BLOOM FILTER:                                                   │
+│  • Bit array + k hash functions                                  │
+│  • Insert: set k bits. Query: check k bits.                      │
+│  • NO → definitely not in set (100% correct)                    │
+│  • YES → probably in set (may be false positive)                 │
+│  • False negatives: impossible. False positives: acceptable.     │
+│  • Used in: Cassandra SSTables, RocksDB, Redis, Chrome          │
+│  • Limitation: no deletion, saturation when all bits = 1        │
+├──────────────────────────────────────────────────────────────────┤
+│  MVCC DEAD TUPLES (PostgreSQL):                                  │
+│  • MVCC = multiple row versions (xmin/xmax per row)             │
+│  • UPDATE/DELETE creates dead versions, not in-place modify     │
+│  • Large ROLLBACK → millions of dead tuples instantly           │
+│  • Dead tuples: no correctness issue, but waste I/O             │
+│  • Page with 999 dead + 1 live still costs a full page I/O      │
+│  • Fix: VACUUM (lazy background cleanup)                         │
+│  • Prevent: batch updates (10K rows per txn), monitor autovacuum│
+│  • Eager alternative (Oracle): undo logs, rollback is slow      │
+├──────────────────────────────────────────────────────────────────┤
+│  KEY FORMULAS / RULES:                                           │
+│  • Index traversal: O(log n) — fine even at 1B rows             │
+│  • Partition pruning: only if WHERE includes partition key       │
+│  • Fill factor < 100%: fewer page splits, more disk space       │
+│  • Bloom FP rate ≈ (1 - e^(-kn/m))^k                           │
+│  • Monitor: SELECT n_dead_tup FROM pg_stat_user_tables           │
+└──────────────────────────────────────────────────────────────────┘</pre>
+            </section>
+
+            <footer class="mt-16 pt-8 border-t border-gray-200 text-center text-gray-500 text-sm pb-16">
+                End of Notes — Large Scale Database Performance
+            </footer>
+        </div>
+    </main>
+
+</body>
+</html>
