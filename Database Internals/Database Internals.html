@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Storage Fundamentals</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            color: #111827;
+        }
+        pre {
+            font-family: 'Fira Code', monospace;
+        }
+        .prose h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin-top: 3rem;
+            margin-bottom: 1.5rem;
+            color: #1e3a8a;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        .prose h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: #1f2937;
+        }
+        .prose h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: #374151;
+        }
+        .prose p {
+            margin-bottom: 1rem;
+            line-height: 1.75;
+            color: #4b5563;
+        }
+        .prose ul, .prose ol {
+            padding-left: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #4b5563;
+        }
+        .prose ul { list-style-type: disc; }
+        .prose ol { list-style-type: decimal; }
+        .prose li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        .prose strong {
+            color: #111827;
+            font-weight: 600;
+        }
+        .prose blockquote {
+            border-left: 4px solid #3b82f6;
+            background-color: #eff6ff;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            font-style: italic;
+            color: #1e40af;
+            border-radius: 0 0.5rem 0.5rem 0;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        .prose table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+            background-color: white;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .prose th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #374151;
+        }
+        .prose td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #4b5563;
+            vertical-align: top;
+        }
+        .prose tr:last-child td {
+            border-bottom: none;
+        }
+        .code-block {
+            background-color: #1f2937;
+            color: #e5e7eb;
+            padding: 1.25rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            white-space: pre;
+        }
+        .inline-code {
+            background-color: #f3f4f6;
+            color: #ef4444;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.875rem;
+        }
+        .nav-link {
+            transition: all 0.2s ease;
+        }
+        .nav-link:hover {
+            color: #2563eb;
+            background-color: #eff6ff;
+            padding-left: 0.5rem;
+        }
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body class="antialiased flex flex-col md:flex-row h-screen overflow-hidden">
+
+    <!-- Sidebar / Table of Contents -->
+    <aside class="w-full md:w-72 bg-white border-r border-gray-200 h-1/4 md:h-full overflow-y-auto flex-shrink-0 z-10 shadow-sm">
+        <div class="p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Contents</h2>
+            
+            <nav class="space-y-1 text-sm font-medium text-gray-600">
+                <a href="#sec-1" class="block py-1.5 nav-link rounded-md">1. Big Picture</a>
+                <a href="#sec-2" class="block py-1.5 nav-link rounded-md">2. Core Storage Concepts</a>
+                <a href="#sec-3" class="block py-1.5 nav-link rounded-md">3. Heap Scan vs Index Scan</a>
+                <a href="#sec-4" class="block py-1.5 nav-link rounded-md">4. Row-Oriented Storage</a>
+                <a href="#sec-5" class="block py-1.5 nav-link rounded-md">5. Column-Oriented Storage</a>
+                <a href="#sec-6" class="block py-1.5 nav-link rounded-md">6. Row vs Column Head-to-Head</a>
+                <a href="#sec-7" class="block py-1.5 nav-link rounded-md">7. Primary vs Secondary Index</a>
+                <a href="#sec-8" class="block py-1.5 nav-link rounded-md">8. Practical Backend Perspective</a>
+                <a href="#sec-9" class="block py-1.5 nav-link rounded-md">9. Java Implementation Examples</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-6">Review & Design</p>
+                <a href="#sec-10" class="block py-1.5 nav-link rounded-md">10. Important Interview Questions</a>
+                <a href="#sec-11" class="block py-1.5 nav-link rounded-md">11. Common Mistakes</a>
+                <a href="#sec-12" class="block py-1.5 nav-link rounded-md">12. Performance & Scalability Notes</a>
+                <a href="#sec-13" class="block py-1.5 nav-link rounded-md">13. System Design Connections</a>
+                <a href="#sec-14" class="block py-1.5 nav-link rounded-md">14. Visual Mental Models</a>
+                <a href="#sec-15" class="block py-1.5 nav-link rounded-md">15. Revision Notes (One Page)</a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 h-3/4 md:h-full overflow-y-auto bg-gray-50 p-6 md:p-12 lg:p-16">
+        <div class="max-w-4xl mx-auto prose">
+            
+            <header class="mb-12 text-center md:text-left">
+                <p class="text-blue-600 font-semibold tracking-wide uppercase text-sm mb-2">Complete Learning Notes | Database Engineering | System Design</p>
+                <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 mt-0 border-none pb-0">Database Storage Fundamentals</h1>
+                <p class="text-xl text-gray-500 mt-4">Pages, Heap, IO, Row vs Column Storage, Primary vs Secondary Indexes</p>
+            </header>
+
+            <!-- SECTION 1 -->
+            <section id="sec-1">
+                <h2>1. Big Picture</h2>
+                
+                <h3>Why These Concepts Exist</h3>
+                <p>Everything that happens in a database — every query, every index lookup, every transaction commit — ultimately boils down to reading and writing <strong>bytes on disk</strong>. The way those bytes are organized is not arbitrary. It is the result of decades of engineering trade-offs around:</p>
+                <ul>
+                    <li><strong>How fast can we find a specific row?</strong></li>
+                    <li><strong>How fast can we write new data?</strong></li>
+                    <li><strong>How efficiently can we answer analytical queries?</strong></li>
+                    <li><strong>How do we minimize the expensive act of talking to disk?</strong></li>
+                </ul>
+                <p>Understanding storage internals is what separates an engineer who writes queries from an engineer who understands <em>why</em> a query is slow and how to fix it. This knowledge directly explains:</p>
+                <ul>
+                    <li>Why indexes exist and how they actually work internally</li>
+                    <li>Why <span class="inline-code">SELECT *</span> is expensive (but <em>how</em> expensive depends on storage model)</li>
+                    <li>Why UUID primary keys destroy write performance in MySQL</li>
+                    <li>Why analytical databases like Redshift, BigQuery, and Snowflake are columnar</li>
+                    <li>Why PostgreSQL and MySQL behave differently for the same query on the same data</li>
+                </ul>
+
+                <h3>Where It Appears in Real Systems</h3>
+                <table>
+                    <thead>
+                        <tr><th>Concept</th><th>Real-World Impact</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Page size</td><td>Determines how many rows fit per IO — tuning this affects bulk load speed</td></tr>
+                        <tr><td>IO minimization</td><td>The single biggest lever for query performance optimization</td></tr>
+                        <tr><td>Heap organization</td><td>Drives table scan cost — the baseline for all queries without indexes</td></tr>
+                        <tr><td>Row storage</td><td>OLTP databases (PostgreSQL, MySQL, Oracle) — transactional workloads</td></tr>
+                        <tr><td>Column storage</td><td>Analytical databases (Redshift, BigQuery, Snowflake, Parquet files)</td></tr>
+                        <tr><td>Primary (clustered) index</td><td>Range query performance, MySQL default, write cost of UUIDs</td></tr>
+                        <tr><td>Secondary index</td><td>Every non-PK index in PostgreSQL, all indexes in PostgreSQL</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- SECTION 2 -->
+            <section id="sec-2">
+                <h2>2. Core Storage Concepts — The Building Blocks</h2>
+
+                <h3>The Table: Logical vs Physical</h3>
+                <p>A table is a <strong>logical abstraction</strong>. What you see as rows and columns in SQL is not what exists on disk. On disk, a table is a collection of fixed-size binary blocks called <strong>pages</strong>, each containing serialized row data (or column data, depending on the storage model). The database engine is responsible for translating between these two representations.</p>
+                <pre class="code-block">Logical view (what SQL sees):        Physical view (what disk holds):
+┌────┬──────────┬───────┐            ┌──────────────────────────┐
+│ ID │ Name     │ Salary│            │ PAGE 0 (8KB)             │
+├────┼──────────┼───────┤            │ [1][Alice][50000]        │
+│  1 │ Alice    │ 50000 │   ═══►     │ [2][Bob][60000]          │
+│  2 │ Bob      │ 60000 │            │ [3][Carol][55000]        │
+│  3 │ Carol    │ 55000 │            ├──────────────────────────┤
+└────┴──────────┴───────┘            │ PAGE 1 (8KB)             │
+                                     │ [4][Dave][70000]         │
+                                     │ ...                      │
+                                     └──────────────────────────┘</pre>
+
+                <h3>Row ID (Tuple ID)</h3>
+                <p>Almost every database maintains an <strong>internal, system-managed row identifier</strong> that is separate from any user-defined primary key.</p>
+                <table>
+                    <thead>
+                        <tr><th>Database</th><th>Row Identifier</th><th>Notes</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>PostgreSQL</td><td><span class="inline-code">ctid</span> (tuple ID)</td><td>Physical location: (page number, row offset within page)</td></tr>
+                        <tr><td>MySQL InnoDB</td><td>Primary Key</td><td>The PK <em>is</em> the row locator — there is no separate row ID</td></tr>
+                        <tr><td>Oracle</td><td><span class="inline-code">ROWID</span></td><td>Encodes file, block, row within block</td></tr>
+                        <tr><td>SQL Server</td><td>Row ID internal</td><td>Depends on whether table is clustered or heap-organized</td></tr>
+                    </tbody>
+                </table>
+                <p><strong>Why this matters:</strong></p>
+                <ul>
+                    <li>In PostgreSQL, every secondary index stores the <span class="inline-code">ctid</span> to find the row in the heap.</li>
+                    <li>In MySQL, every secondary index stores the Primary Key value to find the row (requiring a second lookup into the clustered index).</li>
+                    <li>When PostgreSQL updates a row (MVCC), it creates a new row version with a new <span class="inline-code">ctid</span>. ALL indexes must be updated because they store the old <span class="inline-code">ctid</span>. This is a significant write amplification cost.</li>
+                </ul>
+
+                <h3>Page</h3>
+                <p>A <strong>page</strong> (also called a block) is the fundamental unit of storage and IO in a database. It is a fixed-size contiguous chunk of disk space. The database reads and writes in units of pages — never individual rows, never individual bytes.</p>
+                
+                <p><strong>Page sizes by database:</strong></p>
+                <table>
+                    <thead>
+                        <tr><th>Database</th><th>Default Page Size</th><th>Configurable?</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>PostgreSQL</td><td>8 KB</td><td>At compile time</td></tr>
+                        <tr><td>MySQL InnoDB</td><td>16 KB</td><td>Yes (4KB, 8KB, 16KB, 32KB, 64KB)</td></tr>
+                        <tr><td>Oracle</td><td>8 KB (default)</td><td>Yes (2KB to 32KB)</td></tr>
+                        <tr><td>SQL Server</td><td>8 KB</td><td>No</td></tr>
+                    </tbody>
+                </table>
+
+                <p><strong>How many rows fit in a page?</strong></p>
+                <p>Depends entirely on row size. With a 1KB average row:</p>
+                <ul>
+                    <li>PostgreSQL (8KB page): ~8 rows per page</li>
+                    <li>MySQL (16KB page): ~16 rows per page</li>
+                </ul>
+                <p>With a 100-byte row:</p>
+                <ul>
+                    <li>PostgreSQL: ~80 rows per page</li>
+                    <li>MySQL: ~160 rows per page</li>
+                </ul>
+                <p><strong>The implication:</strong> Narrower rows = more rows per page = fewer IOs to scan the table. This is why wide tables (many large columns) are slower to scan than narrow tables.</p>
+
+                <h3>IO (Input/Output)</h3>
+                <p>An IO is a request to the disk controller to read or write data. It is the single most expensive operation in database query execution — orders of magnitude slower than anything done in memory.</p>
+                <p><strong>IO is the "currency" of database performance. Fewer IOs = faster queries. Always.</strong></p>
+                <pre class="code-block">Operation latency comparison:
+  CPU instruction:          ~0.3 nanoseconds
+  L1 cache access:          ~1 nanosecond
+  L2 cache access:          ~4 nanoseconds
+  RAM access:               ~100 nanoseconds
+  NVMe SSD random read:     ~100 microseconds    (1,000x slower than RAM)
+  SATA SSD random read:     ~500 microseconds
+  HDD random read:          ~10 milliseconds     (100,000x slower than RAM)
+  HDD sequential read:      ~1 millisecond       (still 10,000x slower than RAM)</pre>
+
+                <p><strong>Critical IO properties:</strong></p>
+                <ul>
+                    <li><strong>An IO fetches one page or more</strong> — never a single row, never a single byte.</li>
+                    <li><strong>You cannot cherry-pick columns within an IO</strong> (in row-store). If you fetch a page, you get every column of every row on that page, whether you want them or not.</li>
+                    <li><strong>The database engine then filters</strong> in memory — but the deserialization cost is real.</li>
+                    <li><strong>IO can go to the OS page cache</strong> (RAM), not necessarily physical disk. PostgreSQL relies heavily on the OS page cache (<span class="inline-code">shared_buffers</span> + OS cache). A "cache hit" is still an "IO" in terms of the logical operation, but it's orders of magnitude cheaper than a physical disk IO.</li>
+                </ul>
+
+                <h3>The Heap</h3>
+                <p>The <strong>heap</strong> is the primary data structure where the actual table data lives. It is a collection of all pages that hold the rows of a table.</p>
+                <p><strong>Heap characteristics:</strong></p>
+                <ul>
+                    <li>Contains <strong>everything</strong> — all columns, all rows.</li>
+                    <li>By default, <strong>unordered</strong> — rows are inserted in arrival order. There is no inherent sorting.</li>
+                    <li>Expensive to scan sequentially because it contains so much data.</li>
+                    <li>The database must read many pages to find specific rows (without index guidance).</li>
+                    <li>Formally called a <strong>Heap Organized Table (HOT)</strong> when there is no clustered index.</li>
+                </ul>
+                <p><strong>Why "heap"?</strong> Because it is an unordered pile of data pages — just like the memory heap (unstructured allocation pool), as opposed to a stack (ordered). The term emphasizes the lack of inherent organization.</p>
+                <pre class="code-block">Heap for an Employee table (simplified):
+
+Page 0: [Row1: id=1, Alice, 50k] [Row2: id=2, Bob, 60k] [Row3: id=3, Carol, 55k]
+Page 1: [Row4: id=5, Dave, 70k]  [Row5: id=4, Eve, 65k]  [Row6: id=8, Frank, 80k]
+Page 2: [Row7: id=7, Grace, 45k] [Row8: id=6, Henry, 90k] [Row9: id=9, Iris, 55k]
+        ↑
+        Notice: id=5 is on page 1, id=4 is also on page 1, but id=4 < id=5.
+        The heap is NOT ordered by ID. Rows land wherever there is free space.</pre>
+
+                <h3>Index</h3>
+                <p>An index is a <strong>separate data structure</strong> stored alongside the heap. Its purpose is to allow the database to find specific rows in the heap without scanning every page.</p>
+                <p><strong>Index anatomy:</strong></p>
+                <ul>
+                    <li>Contains only the <strong>indexed column(s) values</strong> + <strong>pointers back to the heap</strong> (row IDs or page numbers).</li>
+                    <li>Much smaller than the heap → more likely to fit in memory → cheaper to search.</li>
+                    <li>Organized as a <strong>B+ tree</strong> (the dominant index structure) which supports:
+                        <ul>
+                            <li>Point lookups (equality: <span class="inline-code">WHERE id = 42</span>)</li>
+                            <li>Range queries (inequality: <span class="inline-code">WHERE id BETWEEN 10 AND 100</span>)</li>
+                            <li>Ordered scans</li>
+                        </ul>
+                    </li>
+                    <li>The index itself is stored as pages and requires IOs to read, just like the heap.</li>
+                </ul>
+                <p><strong>The two-step lookup pattern:</strong></p>
+                <pre class="code-block">Query: SELECT name FROM employees WHERE id = 40
+
+Step 1: Search index (B+ tree traversal)
+  Root page → Internal page → Leaf page
+  Leaf page entry: {id=40, row_id=4, heap_page=1}
+  Cost: 2-3 IOs (tree height) for a large index
+
+Step 2: Fetch from heap (heap page lookup)
+  Read heap page 1 → find row_id=4 → extract name
+  Cost: 1 IO (if not already in cache)
+
+Total: 3-4 IOs vs potentially 333 IOs for full heap scan</pre>
+                <p><strong>Index is also stored as pages:</strong></p>
+                <pre class="code-block">Index pages (B+ tree):
+
+Internal node page:  [30 → page_ptr_A] [60 → page_ptr_B] [90 → page_ptr_C]
+                          │
+Leaf node page (A): [10, row_id=1, page=0] [20, row_id=2, page=0] [30, row_id=3, page=0]
+Leaf node page (B): [40, row_id=4, page=1] [50, row_id=5, page=1] [60, row_id=6, page=1]
+Leaf node page (C): [70, row_id=7, page=2] [80, row_id=8, page=2] [90, row_id=9, page=2]</pre>
+            </section>
+
+            <!-- SECTION 3 -->
+            <section id="sec-3">
+                <h2>3. Deep Dive — Heap Scan vs Index Scan</h2>
+
+                <h3>Without Index: Full Heap Scan</h3>
+                <pre class="code-block">Query: SELECT * FROM employees WHERE id = 10000
+Table: 10,000 employees, 3 rows per page → ~3,334 pages
+
+Execution:
+  Read page 0   → rows 1,2,3     → id=10000? No. Discard.
+  Read page 1   → rows 4,5,6     → id=10000? No. Discard.
+  Read page 2   → rows 7,8,9     → id=10000? No. Discard.
+  ...
+  Read page 3333 → rows 9998,9999,10000 → FOUND!
+
+Cost: 3,334 IOs in worst case.
+Note: Some databases use parallel workers (PostgreSQL parallel seq scan) to
+      read multiple pages simultaneously — but it's still expensive.</pre>
+
+                <h3>With Index: B+ Tree Lookup</h3>
+                <pre class="code-block">Query: SELECT * FROM employees WHERE id = 10000
+Index: B+ tree on id, height = 3 (typical for millions of rows)
+
+Step 1: Index traversal
+  Root node (page): id > 5000? → go right
+  Internal node:    id > 7500? → go right
+  Leaf node:        id=10000 → row_id=10000, heap_page=3333
+  Cost: 3 IOs
+
+Step 2: Heap fetch
+  Read heap page 3333 → find row_id=10000 → return all columns
+  Cost: 1 IO
+
+Total: 4 IOs vs 3,334 IOs.</pre>
+
+                <h3>The IO Math in Practice</h3>
+                <pre class="code-block">Table: 10M rows, average row = 500 bytes, page = 8KB → ~625,000 pages
+
+Full heap scan:  625,000 IOs
+Index lookup:    3 IOs (B+ tree height for 10M rows ≈ log₃(10M) ≈ 15, but B+ trees are wide)
+
+Real B+ tree height for 10M rows with 8KB pages ≈ 3-4 levels.
+So: index lookup ≈ 4 IOs regardless of table size.</pre>
+            </section>
+
+            <!-- SECTION 4 -->
+            <section id="sec-4">
+                <h2>4. Row-Oriented Storage — Deep Dive</h2>
+
+                <h3>How Row Storage Works</h3>
+                <p>In a row-oriented database (PostgreSQL, MySQL, Oracle, SQL Server), each row is stored <strong>contiguously</strong> — all columns of a single row are physically adjacent on disk.</p>
+                <pre class="code-block">Disk layout (conceptual):
+
+Block 0: [id=1][Alice][Smith][SSN=111][salary=50k][dob=1990] | [id=2][Bob][Jones][SSN=222][salary=60k][dob=1985]
+Block 1: [id=3][Carol][White][SSN=333][salary=55k][dob=1992] | [id=4][Dave][Black][SSN=444][salary=70k][dob=1988]
+Block 2: [id=5][Eve][Green][SSN=555][salary=65k][dob=1995]   | [id=6][Frank][Brown][SSN=666][salary=80k][dob=1987]</pre>
+                <p>Each block IO gives you complete rows — all columns, all values, for every row in that block.</p>
+
+                <h3>Query Analysis on Row Storage (No Index)</h3>
+                <p><strong>Employees table: id, first_name, last_name, ssn, salary, dob, title, join_date</strong><br>
+                <strong>3 rows per page assumption for clarity.</strong></p>
+
+                <h4>Query 1: <span class="inline-code">SELECT first_name FROM employees WHERE ssn = '666-66-6666'</span></h4>
+                <pre class="code-block">Execution (row store, no index):
+
+Read Block 0: [Alice,SSN=111] [Bob,SSN=222]   → Not 666. Discard.
+Read Block 1: [Carol,SSN=333] [Dave,SSN=444]  → Not 666. Discard.
+Read Block 2: [Eve,SSN=555]   [Frank,SSN=666] → FOUND Frank! SSN=666.
+              first_name is already in memory from this block → return "Frank"
+
+Cost: 3 block IOs (lucky case). Could be 3,334 in the worst case.
+
+Key insight: Once the target row is found, fetching additional columns costs
+ZERO extra IOs — they're already in memory from the same block.
+This is row store's superpower for multi-column access after finding a row.</pre>
+
+                <h4>Query 2: <span class="inline-code">SELECT * FROM employees WHERE id = 1</span></h4>
+                <pre class="code-block">Execution (row store, no index):
+
+Read Block 0: id=1 found immediately.
+All columns for id=1 are already in memory (same block).
+Return everything.
+
+Cost: 1 IO (best case).
+SELECT * is relatively cheap in row store because all columns are co-located.
+
+Key insight: In row store, SELECT * is only "bad" because you're pulling
+more data per block (less rows fit per block if rows are wide). But once
+you find the row, you have everything for free.</pre>
+
+                <h4>Query 3: <span class="inline-code">SELECT SUM(salary) FROM employees</span></h4>
+                <pre class="code-block">Execution (row store, no index):
+
+Read Block 0: Get rows 1,2 → extract salary (50k, 60k). But also pulled first_name,
+              last_name, ssn, dob, title, join_date — ALL WASTED.
+Read Block 1: Get rows 3,4 → extract salary (55k, 70k). Again, everything else wasted.
+Read Block 2: Get rows 5,6 → extract salary (65k, 80k). Again.
+... (repeat for all 625,000 pages)
+
+Running sum: 50k+60k+55k+70k+65k+80k+... = result.
+
+Cost: ALL pages must be read (625,000 IOs for 10M rows).
+Waste: For every salary byte read, ~20x more bytes of other columns are pulled
+       and immediately discarded.
+
+This is the fundamental weakness of row storage for analytics.</pre>
+
+                <h3>Row Storage Characteristics Summary</h3>
+                <table>
+                    <thead>
+                        <tr><th>Characteristic</th><th>Row Store Behavior</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Write (INSERT/UPDATE)</td><td>Excellent — one contiguous write per row</td></tr>
+                        <tr><td>Point lookup (by indexed key)</td><td>Excellent — 1 IO to heap after index</td></tr>
+                        <tr><td>Multi-column fetch after point lookup</td><td>Excellent — all columns co-located</td></tr>
+                        <tr><td>Full table scan (OLTP)</td><td>Acceptable — few rows typically matched</td></tr>
+                        <tr><td>Aggregation on one column</td><td>Poor — reads all columns to get one</td></tr>
+                        <tr><td>Analytics (many aggregations)</td><td>Poor — massive read waste</td></tr>
+                        <tr><td>Compression</td><td>Poor — adjacent values are heterogeneous (id, name, date, salary...)</td></tr>
+                        <tr><td>Concurrency (OLTP)</td><td>Excellent — row-level locking is natural</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- SECTION 5 -->
+            <section id="sec-5">
+                <h2>5. Column-Oriented Storage — Deep Dive</h2>
+
+                <h3>How Column Storage Works</h3>
+                <p>In a column-oriented database (Redshift, BigQuery, Snowflake, ClickHouse, Parquet format), each column is stored <strong>contiguously</strong> — all values for a single column are physically adjacent on disk.</p>
+                <pre class="code-block">Disk layout (conceptual):
+
+ID column segment:         [1][2][3][4][5][6][7][8]...
+first_name column segment: [Alice][Bob][Carol][Dave][Eve][Frank]...
+last_name column segment:  [Smith][Jones][White][Black][Green][Brown]...
+SSN column segment:        [111][222][333][444][555][666]...
+salary column segment:     [50k][60k][55k][70k][65k][80k]...
+dob column segment:        [1990][1985][1992][1988][1995][1987]...</pre>
+                <p><strong>Row IDs are duplicated across all column segments</strong> to allow reconstruction of full rows.</p>
+                
+                <p><strong>Block layout per column:</strong></p>
+                <pre class="code-block">Salary column blocks:
+Block 0: row_id=1,salary=50k | row_id=2,salary=60k | row_id=3,salary=55k | row_id=4,salary=70k
+Block 1: row_id=5,salary=65k | row_id=6,salary=80k | row_id=7,salary=45k | row_id=8,salary=90k</pre>
+                <p>One block IO on the salary column gives you many salary values — no other columns.</p>
+
+                <h3>Query Analysis on Column Storage (No Index)</h3>
+                
+                <h4>Query 1: <span class="inline-code">SELECT first_name FROM employees WHERE ssn = '666-66-6666'</span></h4>
+                <pre class="code-block">Execution (column store, no index):
+
+Step 1: Search only the SSN column segment
+  Read SSN block 0: [111][222][333][444] → No 666. Discard.
+  Read SSN block 1: [555][666]           → FOUND! row_id=1006.
+
+Step 2: Jump to first_name column segment, block containing row_id=1006
+  Database knows: row_id=1006 is in first_name block X.
+  Read first_name block X: → find row_id=1006 → "Frank"
+  Cost: 1 IO (targeted jump, not sequential scan)
+
+Total cost: ~3 IOs.
+
+Key insight: Column store scanned ONLY the SSN column — no wasted reads of
+first_name, salary, dob, title, etc. This is column store's superpower for
+selective column queries.</pre>
+
+                <h4>Query 2: <span class="inline-code">SELECT * FROM employees WHERE id = 1</span></h4>
+                <pre class="code-block">Execution (column store, no index):
+
+Step 1: Search ID column segment → find row_id where id=1 → row_id=1001. (1 IO)
+Step 2: Jump to first_name block for row_id=1001.   (1 IO)
+Step 3: Jump to last_name block for row_id=1001.    (1 IO)
+Step 4: Jump to SSN block for row_id=1001.          (1 IO)
+Step 5: Jump to salary block for row_id=1001.       (1 IO)
+Step 6: Jump to dob block for row_id=1001.          (1 IO)
+Step 7: Jump to title block for row_id=1001.        (1 IO)
+Step 8: Jump to join_date block for row_id=1001.    (1 IO)
+
+Total: ~8 IOs for 8 columns.
+
+Key insight: SELECT * is column store's worst case. Each additional column
+requires a separate IO jump. This is completely opposite to row store where
+SELECT * costs nothing extra once the row is found.</pre>
+
+                <h4>Query 3: <span class="inline-code">SELECT SUM(salary) FROM employees</span></h4>
+                <pre class="code-block">Execution (column store, no index):
+
+Read salary block 0: [50k][60k][55k][70k][65k][80k][45k][90k] → sum += 475k
+Read salary block 1: ... → sum += ...
+... (only salary blocks, nothing else)
+
+Cost: Only salary column pages. For 10M employees at 8 bytes/salary,
+      8KB pages → 10,000 pages. vs 625,000 pages for row store.
+
+Bonus — compression: If many employees have the same salary (e.g., 100k):
+  Instead of: [100k][100k][100k][100k][100k]
+  Store as:   [100k × 5] or [100k, count=5]
+  This is Run-Length Encoding (RLE) — column stores apply this automatically.
+  Result: Even fewer blocks to read.
+
+This is column store's greatest strength.</pre>
+
+                <h3>Column Storage Characteristics Summary</h3>
+                <table>
+                    <thead>
+                        <tr><th>Characteristic</th><th>Column Store Behavior</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Write (INSERT/UPDATE)</td><td>Poor — must update every column segment for one row</td></tr>
+                        <tr><td>Point lookup (single row)</td><td>Poor — must jump to each column segment separately</td></tr>
+                        <tr><td>SELECT *</td><td>Very Poor — one IO per column per row</td></tr>
+                        <tr><td>Aggregation on 1-2 columns</td><td>Excellent — only those column segments read</td></tr>
+                        <tr><td>Analytics (GROUP BY, SUM, AVG)</td><td>Excellent — highly selective column reads</td></tr>
+                        <tr><td>Compression</td><td>Excellent — adjacent values are same type and often similar</td></tr>
+                        <tr><td>Concurrency (OLTP)</td><td>Poor — row-level locking is complex across column segments</td></tr>
+                        <tr><td>Horizontal partitioning</td><td>Natural — each column segment is independently partitioned</td></tr>
+                    </tbody>
+                </table>
+
+                <h3>Compression in Column Stores</h3>
+                <p>Column stores compress dramatically better than row stores because adjacent values are the same data type and often have repeated values or similar magnitude.</p>
+                <p><strong>Compression techniques in columnar databases:</strong></p>
+                <table>
+                    <thead>
+                        <tr><th>Technique</th><th>How It Works</th><th>Best For</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Run-Length Encoding (RLE)</td><td><span class="inline-code">[A,A,A,B,B]</span> → <span class="inline-code">[(A,3),(B,2)]</span></td><td>Low-cardinality columns (status, country)</td></tr>
+                        <tr><td>Dictionary Encoding</td><td>Map unique values to integers → store integers</td><td>String columns (names, categories)</td></tr>
+                        <tr><td>Bit Packing</td><td>Use minimum bits per value (e.g., 0-100 fits in 7 bits)</td><td>Small-range numeric columns</td></tr>
+                        <tr><td>Delta Encoding</td><td>Store differences: <span class="inline-code">[100,101,103]</span> → <span class="inline-code">[100,+1,+2]</span></td><td>Monotonically increasing values (timestamps, IDs)</td></tr>
+                        <tr><td>ZSTD/LZ4</td><td>General compression after above</td><td>Everything</td></tr>
+                    </tbody>
+                </table>
+                <p><strong>Real-world impact:</strong></p>
+                <ul>
+                    <li>Amazon Redshift reports 3-10x compression ratios on typical analytical datasets.</li>
+                    <li>Compressed data = fewer pages = fewer IOs = faster queries.</li>
+                    <li>This is multiplicative with the column pruning benefit.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 6 -->
+            <section id="sec-6">
+                <h2>6. Row vs Column — Head-to-Head Comparison</h2>
+
+                <h3>Query Performance Matrix</h3>
+                <table>
+                    <thead>
+                        <tr><th>Query Type</th><th>Row Store</th><th>Column Store</th><th>Winner</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="inline-code">SELECT * WHERE id = ?</span> (PK lookup)</td><td>✅ Excellent</td><td>❌ Poor (N column IOs)</td><td>Row</td></tr>
+                        <tr><td><span class="inline-code">SELECT col1, col2 WHERE pk = ?</span></td><td>✅ Good</td><td>⚠️ Moderate</td><td>Row</td></tr>
+                        <tr><td><span class="inline-code">SELECT SUM(salary)</span></td><td>❌ Reads all columns</td><td>✅ Reads 1 column</td><td>Column</td></tr>
+                        <tr><td><span class="inline-code">SELECT COUNT(*) GROUP BY dept</span></td><td>❌ Full scan, all cols</td><td>✅ 2 column scans</td><td>Column</td></tr>
+                        <tr><td><span class="inline-code">INSERT one row</span></td><td>✅ Single write</td><td>❌ N column segment writes</td><td>Row</td></tr>
+                        <tr><td><span class="inline-code">UPDATE one column</span></td><td>✅ One page write</td><td>✅ One column segment write</td><td>Tie</td></tr>
+                        <tr><td><span class="inline-code">DELETE one row</span></td><td>✅ Mark in one page</td><td>❌ Mark in N segments</td><td>Row</td></tr>
+                        <tr><td>Range query with many columns returned</td><td>✅ Good</td><td>❌ Poor</td><td>Row</td></tr>
+                        <tr><td>Range query returning 1-2 columns</td><td>⚠️ Pulls all</td><td>✅ Only those columns</td><td>Column</td></tr>
+                    </tbody>
+                </table>
+
+                <h3>OLTP vs OLAP</h3>
+                <pre class="code-block">OLTP (Online Transaction Processing):           OLAP (Online Analytical Processing):
+  • Many small transactions                       • Few large queries
+  • Read + write heavy                            • Read-mostly
+  • Fetch full rows (few rows at a time)          • Aggregate across millions of rows
+  • Concurrency is critical                       • Latency of minutes is acceptable
+  • Row store wins                                • Column store wins
+
+Examples:                                        Examples:
+  • Bank transaction                              • "What is total revenue by region last Q?"
+  • E-commerce order placement                   • "Show me hourly signup rates for 2024"
+  • User authentication                          • "Top 100 products by revenue"
+  • Inventory update                             • "Average salary by department"
+
+Databases: PostgreSQL, MySQL, Oracle            Databases: Redshift, BigQuery, Snowflake,
+           SQL Server                                      ClickHouse, Parquet+Spark</pre>
+
+                <h3>Hybrid Approach — The Modern Reality</h3>
+                <p>Many modern databases offer both storage engines:</p>
+                <table>
+                    <thead>
+                        <tr><th>Database</th><th>Row Engine</th><th>Column Engine</th><th>Notes</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>MySQL</td><td>InnoDB (default)</td><td>NDB Cluster (partial)</td><td>Limited columnar support</td></tr>
+                        <tr><td>PostgreSQL</td><td>Default heap</td><td><span class="inline-code">cstore_fdw</span>, Citus</td><td>Extension-based</td></tr>
+                        <tr><td>Oracle</td><td>Default</td><td>In-Memory Column Store</td><td>Enterprise feature</td></tr>
+                        <tr><td>SQL Server</td><td>Heap/Clustered</td><td>Columnstore Indexes</td><td>First-class feature</td></tr>
+                        <tr><td>MariaDB</td><td>InnoDB</td><td>ColumnStore</td><td>Separate storage engine</td></tr>
+                    </tbody>
+                </table>
+                <p><strong>SQL Server Columnstore Index example:</strong></p>
+                <pre class="code-block">-- Add a columnstore index to an existing row table for analytical queries
+CREATE NONCLUSTERED COLUMNSTORE INDEX idx_sales_columnstore
+ON sales (product_id, quantity, price, sale_date);
+
+-- Optimizer chooses columnstore for aggregations automatically:
+SELECT product_id, SUM(price * quantity) as revenue
+FROM sales
+GROUP BY product_id;
+-- Uses columnstore: reads only product_id and price and quantity columns</pre>
+            </section>
+
+            <!-- SECTION 7 -->
+            <section id="sec-7">
+                <h2>7. Primary Index vs Secondary Index — Deep Dive</h2>
+
+                <h3>The Core Distinction</h3>
+                <table>
+                    <thead>
+                        <tr><th>Property</th><th>Primary (Clustered) Index</th><th>Secondary Index</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Table organization</td><td>Table rows ARE the index (physically ordered)</td><td>Table is a separate, unordered heap</td></tr>
+                        <tr><td>Data location</td><td>Leaf nodes of B+ tree contain the actual row data</td><td>Leaf nodes contain pointers (row IDs) to the heap</td></tr>
+                        <tr><td>Lookup cost</td><td>Index traversal gives you the data directly</td><td>Index traversal → pointer → heap fetch (extra IO)</td></tr>
+                        <tr><td>Range query</td><td>Extremely efficient (rows are co-located on disk)</td><td>Less efficient (each pointer may be in a different heap page)</td></tr>
+                        <tr><td>Write cost</td><td>Higher — must maintain sorted order on insert</td><td>Lower — just append to heap, update index separately</td></tr>
+                        <tr><td>Count per table</td><td>One (only one physical ordering possible)</td><td>Many</td></tr>
+                        <tr><td>Name in Oracle</td><td>Index Organized Table (IOT)</td><td>N/A</td></tr>
+                        <tr><td>Name in general DB</td><td>Clustered Index</td><td>Non-clustered / Secondary Index</td></tr>
+                    </tbody>
+                </table>
+
+                <h3>Primary (Clustered) Index — How It Works</h3>
+                <p>When a table has a clustered index, the <strong>heap is physically sorted by the index key</strong>. The leaf nodes of the B+ tree ARE the heap pages — the actual row data lives in the B+ tree.</p>
+                <pre class="code-block">Clustered index on employee_id:
+
+B+ Tree structure:
+                    [50 | 100 | 150]          ← Root (internal node)
+                    /      |      \
+           [10|20|30]  [60|70|80]  [110|120|130]   ← Internal nodes
+              /              \
+[id=1,Alice,50k][id=2,Bob,60k]...[id=60,Carol,55k][id=70,Dave,70k]...
+← Leaf nodes contain ACTUAL ROW DATA (not just pointers) →
+
+Range query: SELECT * FROM employees WHERE id BETWEEN 1 AND 50
+→ B+ tree traversal finds left boundary (id=1)
+→ Follow linked list of leaf pages (1→2→3→...→50)
+→ All rows are on CONSECUTIVE DISK PAGES
+→ Extremely efficient: ~6-7 IOs for 150 rows</pre>
+
+                <p><strong>The range query superpower:</strong></p>
+                <pre class="code-block">With clustered index on id (employees sorted by id on disk):
+  SELECT * FROM employees WHERE id BETWEEN 1000 AND 2000  →  ~125 IOs
+  (1000 rows, 8 rows/page → 125 pages, all consecutive)
+
+With heap (random order) + secondary index on id:
+  SELECT * FROM employees WHERE id BETWEEN 1000 AND 2000  →  up to 1000 IOs
+  (each id might be on a different heap page — worst case: 1 IO per row)
+  (PostgreSQL calls this "index scan" — each heap fetch is a random IO)</pre>
+
+                <h3>Secondary (Non-Clustered) Index — How It Works</h3>
+                <p>With a secondary index, the heap is <strong>unordered</strong> (rows inserted in arrival order). The B+ tree index is maintained separately and contains pointers (row IDs) back to the heap.</p>
+                <pre class="code-block">Secondary index on last_name, heap table is unordered:
+
+B+ Tree (index on last_name):
+  Leaf nodes: [Black→ctid=(page=3,row=2)] [Brown→ctid=(page=1,row=3)] [Green→ctid=(page=5,row=1)]
+              [Jones→ctid=(page=0,row=2)] [Smith→ctid=(page=0,row=1)] [White→ctid=(page=3,row=1)]
+
+Heap (unordered by last_name):
+  Page 0: [id=1,Alice,Smith,50k] [id=2,Bob,Jones,60k]
+  Page 1: [id=3,Carol,White,55k] [id=4,Dave,Black,70k] [id=6,Frank,Brown,80k]
+  Page 3: [id=7,Grace,White,45k] [id=8,Henry,Smith,90k]
+  Page 5: [id=5,Eve,Green,65k]
+
+Query: SELECT * FROM employees WHERE last_name = 'Smith'
+  Step 1: B+ tree lookup → Smith appears at ctid=(page=0,row=1) AND ctid=(page=3,row=2)
+  Step 2: Fetch heap page 0 → get Alice Smith ✅
+  Step 3: Fetch heap page 3 → get Henry Smith ✅
+  Total: 3 IOs (index + 2 heap pages)
+
+Note: For large range queries on secondary indexes, each result row might be on
+a different heap page → potentially N heap page IOs for N rows.
+PostgreSQL calls this a "random heap fetch" and uses its "bitmap index scan"
+optimization to batch these page fetches and de-duplicate pages.</pre>
+
+                <h3>The UUID Problem in Clustered Indexes (MySQL)</h3>
+                <p>This is one of the most critical production performance issues to understand.</p>
+                <pre class="code-block">MySQL InnoDB: Primary key IS the clustered index.
+The table is physically sorted by the primary key.
+
+Sequential ID (BIGINT AUTO_INCREMENT):
+  Insert id=1  → goes at end: page 0
+  Insert id=2  → goes at end: page 0
+  Insert id=3  → goes at end: page 0
+  Insert id=4  → new page: page 1
+  Result: Inserts are sequential → all go to the same/adjacent pages
+  Cost: Minimal IO. High cache hit rate. Excellent write performance.
+
+UUID (v4 - random):
+  Insert '7f3a...' → lands at some random position in the sorted order
+  Insert '2b9c...' → lands at a completely different random position
+  Insert 'e1d4...' → yet another random position
+  Result: Every insert may hit a DIFFERENT page (page splits, cache misses)
+  Cost: Random IO on every insert. Low cache hit rate. Write performance degrades
+        dramatically as table grows.</pre>
+
+                <p><strong>Why UUID v4 destroys MySQL write performance:</strong></p>
+                <pre class="code-block">10M rows, 16KB pages, ~10 rows/page → 1M pages total
+
+Sequential ID writes:
+  New row always appends near the last page.
+  Last page is almost always in the buffer pool (cache).
+  Cache hit rate: ~99% for the hot tail.
+  IOs for 1000 inserts: ~1-2 (occasional page flush)
+
+UUID v4 writes:
+  New row goes to a RANDOM page among 1M pages.
+  Buffer pool can hold ~10,000 pages (160MB).
+  Probability that the target page is cached: 10,000/1,000,000 = 1%
+  Cache miss rate: ~99%.
+  IOs for 1000 inserts: ~990 physical disk reads + 1000 writes.
+  As table grows: performance degrades further.</pre>
+
+                <p><strong>Solutions:</strong></p>
+                <table>
+                    <thead>
+                        <tr><th>Solution</th><th>Description</th><th>Trade-off</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="inline-code">BIGINT AUTO_INCREMENT</span></td><td>Sequential, database-managed</td><td>Not globally unique</td></tr>
+                        <tr><td>UUID v7</td><td>Time-ordered UUID (recent RFC)</td><td>Near-sequential, globally unique</td></tr>
+                        <tr><td><span class="inline-code">ULID</span></td><td>Monotonic, lexicographically sortable</td><td>Needs library support</td></tr>
+                        <tr><td><span class="inline-code">UUID_TO_BIN(uuid, 1)</span></td><td>Reorder UUID bytes for temporal ordering</td><td>MySQL-specific trick</td></tr>
+                    </tbody>
+                </table>
+                <pre class="code-block">// BAD: Random UUID as MySQL primary key
+@Id
+@GeneratedValue
+private UUID id; // UUID v4 — kills write performance on large tables
+
+// GOOD: Sequential ID
+@Id
+@GeneratedValue(strategy = GenerationType.IDENTITY)
+private Long id;
+
+// GOOD: UUID v7 (time-ordered) — Java 21+ or library
+import com.fasterxml.uuid.Generators;
+
+UUID timeOrderedUUID = Generators.timeBasedEpochGenerator().generate(); // UUID v7
+// Prefix is the timestamp → inserts are nearly sequential → good clustering</pre>
+
+                <h3>PostgreSQL's Unique Situation — All Indexes Are Secondary</h3>
+                <p>PostgreSQL does <strong>not</strong> have a traditional clustered primary index by default. All indexes — including the one on the primary key — are secondary indexes that point to <span class="inline-code">ctid</span> (tuple ID).</p>
+                <pre class="code-block">PostgreSQL index structure:
+
+Primary Key index on id:
+  B+ Tree leaf: [id=1 → ctid=(page=0, row=1)] [id=2 → ctid=(page=0, row=2)] ...
+  These are NOT the actual rows — just pointers.
+
+Heap (unordered):
+  Page 0: [ctid=(0,1): id=1, Alice, 50k] [ctid=(0,2): id=2, Bob, 60k]
+  Page 1: [ctid=(1,1): id=5, Eve, 65k]  [ctid=(1,2): id=3, Carol, 55k]  ← Notice: unordered!
+
+Query: SELECT * FROM employees WHERE id = 1
+  Step 1: B+ tree → id=1 → ctid=(page=0, row=1)  [1 IO]
+  Step 2: Heap page 0, row 1 → Alice                [1 IO]
+  Total: 2 IOs</pre>
+
+                <p><strong>The critical consequence — all index updates on every row change:</strong></p>
+                <pre class="code-block">In MySQL (clustered primary key + secondary indexes):
+  Secondary index stores: {last_name, primary_key_value}
+  UPDATE changes a non-indexed column → only the heap page changes.
+  Secondary indexes: NOT updated (they point to PK, PK didn't change).
+
+In PostgreSQL (MVCC + secondary indexes store ctid):
+  Every UPDATE creates a NEW row version with a NEW ctid.
+  ALL secondary indexes must be updated to point to the new ctid.
+  UPDATE on 1 column → touches the heap + EVERY index on the table.
+  This is why heavy-update tables in PostgreSQL benefit from FILLFACTOR tuning
+  and why HOT (Heap Only Tuples) optimization exists to mitigate this.</pre>
+
+                <p><strong>PostgreSQL <span class="inline-code">CLUSTER</span> command (manual clustering):</strong></p>
+                <pre class="code-block">-- Physically reorder the heap to match an index (one-time operation, not maintained)
+CLUSTER employees USING employees_id_idx;
+-- Table is now physically sorted by id — range queries faster.
+-- But subsequent inserts destroy the order over time.
+-- Must re-run CLUSTER periodically (takes exclusive lock, not for live production).</pre>
+            </section>
+
+            <!-- SECTION 8 -->
+            <section id="sec-8">
+                <h2>8. Practical Backend Engineering Perspective</h2>
+
+                <h3>Amazon / AWS — Storage Choice at Scale</h3>
+                <p><strong>Amazon Redshift</strong> (data warehouse): Columnar storage, zone maps (min/max per block for block pruning), compression per column. Used for petabyte-scale analytics. A query like <span class="inline-code">SELECT SUM(revenue) FROM orders WHERE date BETWEEN '2024-01-01' AND '2024-03-31'</span> reads only the <span class="inline-code">revenue</span> and <span class="inline-code">date</span> columns — potentially 50-100x fewer IOs than a row store.</p>
+                
+                <p><strong>Amazon DynamoDB</strong>: Row-oriented (stores items as JSON-like documents). Optimized for OLTP-style point lookups and small range scans. Not suited for analytics without DynamoDB Streams + Redshift.</p>
+                
+                <p><strong>Amazon Aurora</strong>: Row-oriented (MySQL/PostgreSQL compatible). Decouples storage from compute. Pages are stored in a distributed storage layer. Page reads are cached in the instance's buffer pool. The distributed storage layer serves as a shared heap.</p>
+
+                <h3>Uber — Sequential IDs Over UUIDs</h3>
+                <p>Uber moved away from UUID primary keys in MySQL for their core trip and driver tables after experiencing write performance degradation at scale. They adopted a distributed sequential ID generator (similar to Twitter's Snowflake) that produces time-ordered 64-bit integers — preserving the clustered index performance benefits of sequential keys while providing uniqueness across distributed nodes.</p>
+
+                <h3>Netflix — Columnar for Analytics</h3>
+                <p>Netflix stores billions of streaming events in Parquet format (columnar) on S3. When analysts run queries like "average watch time per genre per week," only the <span class="inline-code">genre</span>, <span class="inline-code">watch_time</span>, and <span class="inline-code">timestamp</span> columns are read — not user IDs, device info, etc. This reduces Spark job IO by 80-90%.</p>
+
+                <h3>PostgreSQL Production — Index Bloat from MVCC</h3>
+                <p>In PostgreSQL, every UPDATE creates a new row version. Old versions must be vacuumed. If VACUUM can't keep up (e.g., long-running transactions holding back the oldest XID), dead tuples accumulate → table bloat → more pages → more IOs for sequential scans. Monitoring:</p>
+                <pre class="code-block">-- Check table bloat
+SELECT relname, n_dead_tup, n_live_tup,
+       round(n_dead_tup::numeric / nullif(n_live_tup,0) * 100, 2) as dead_pct
+FROM pg_stat_user_tables
+ORDER BY n_dead_tup DESC;
+
+-- Check index bloat and size
+SELECT indexname, pg_size_pretty(pg_relation_size(indexname::regclass)) as size
+FROM pg_indexes
+WHERE tablename = 'employees'
+ORDER BY pg_relation_size(indexname::regclass) DESC;</pre>
+            </section>
+
+            <!-- SECTION 9 -->
+            <section id="sec-9">
+                <h2>9. Java Implementation Examples</h2>
+
+                <h3>Understanding IO Cost in JDBC</h3>
+                <pre class="code-block">/**
+ * Demonstrates the practical difference between full heap scan
+ * and index-guided lookup in terms of database IO behavior.
+ */
+@Repository
+public class EmployeeRepository {
+
+    private final JdbcTemplate jdbc;
+
+    // BAD: Forces full heap scan — reads every page of the table
+    // Equivalent to: SELECT * FROM employees (no WHERE, no index)
+    public List&lt;Employee&gt; findAllEmployees() {
+        // Database reads ALL pages. With 10M rows, this is ~625,000 IOs.
+        return jdbc.query("SELECT * FROM employees",
+            new BeanPropertyRowMapper&lt;&gt;(Employee.class));
+    }
+
+    // BAD: SELECT * on a specific row — still reads full row unnecessarily
+    // Wastes memory bandwidth deserializing columns you don't use
+    public Employee findEmployeeById(Long id) {
+        // Index lookup: 3-4 IOs (B+ tree + heap fetch)
+        // But pulls all columns even if you only need the name
+        return jdbc.queryForObject(
+            "SELECT * FROM employees WHERE id = ?",
+            new BeanPropertyRowMapper&lt;&gt;(Employee.class), id);
+    }
+
+    // GOOD: Only fetch what you need — less deserialization cost
+    public String findEmployeeNameById(Long id) {
+        // Same IO cost as above, but database sends less data over the wire
+        // and application deserializes less
+        return jdbc.queryForObject(
+            "SELECT first_name, last_name FROM employees WHERE id = ?",
+            (rs, rowNum) -&gt; rs.getString("first_name") + " " + rs.getString("last_name"),
+            id);
+    }
+
+    // GOOD: Aggregation — let the database do the math
+    // Database reads salary column only (if columnar) or full rows (if row store)
+    // but computation happens in DB — no data transfer overhead
+    public BigDecimal getTotalSalary() {
+        return jdbc.queryForObject(
+            "SELECT SUM(salary) FROM employees",
+            BigDecimal.class);
+    }
+
+    // BEST: Bounded range query with specific columns
+    // Leverages clustered index range scan efficiency
+    // Returns only needed columns, bounded by LIMIT
+    public List&lt;Employee&gt; findEmployeesInIdRange(Long fromId, Long toId) {
+        return jdbc.query(
+            "SELECT id, first_name, last_name, salary FROM employees " +
+            "WHERE id BETWEEN ? AND ? ORDER BY id",
+            new BeanPropertyRowMapper&lt;&gt;(Employee.class),
+            fromId, toId);
+    }
+}</pre>
+
+                <h3>Explaining the IO Difference — EXPLAIN ANALYZE</h3>
+                <pre class="code-block">/**
+ * Use EXPLAIN ANALYZE to understand actual IO costs.
+ * This is the most important tool for understanding storage behavior.
+ */
+public void analyzeQueryPlan(Long employeeId) {
+    // Sequential scan (no index): many blocks read
+    String explainNoIndex = jdbc.queryForObject(
+        "EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM employees WHERE ssn = '666-66-6666'",
+        String.class);
+    // Output shows: "Seq Scan" — reads every page
+    // Buffers: shared hit=625000 (all pages)
+
+    // Index scan (with index on id): few blocks read
+    String explainWithIndex = jdbc.queryForObject(
+        "EXPLAIN (ANALYZE, BUFFERS) SELECT * FROM employees WHERE id = ?",
+        String.class, employeeId);
+    // Output shows: "Index Scan using employees_pkey"
+    // Buffers: shared hit=4 (index pages + heap page)
+
+    System.out.println(explainNoIndex);
+    System.out.println(explainWithIndex);
+}</pre>
+
+                <h3>Entity Design — Avoiding UUID Primary Key Issues in MySQL</h3>
+                <pre class="code-block">// BAD for MySQL clustered index performance:
+@Entity
+@Table(name = "orders")
+public class Order {
+    @Id
+    @GeneratedValue  // Defaults to UUID in some JPA configs
+    @Column(columnDefinition = "BINARY(16)")
+    private UUID id;  // Random UUID → random insertion point → page thrashing
+}
+
+// GOOD for MySQL — sequential ID:
+@Entity
+@Table(name = "orders")
+public class Order {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)  // AUTO_INCREMENT
+    private Long id;  // Sequential → append-only inserts → excellent clustering
+
+    // If you need a globally unique identifier for external exposure, add separately:
+    @Column(unique = true, nullable = false, updatable = false)
+    private String publicId = generateULID();  // ULID or UUID v7 for external use
+}
+
+// ULID generation (monotonic, sortable, URL-safe):
+private static String generateULID() {
+    // Use de.huxhorn.sulky:de.huxhorn.sulky.ulid library
+    return new ULID().nextULID();  // Time-ordered, lexicographically sortable
+}</pre>
+
+                <h3>Monitoring Buffer Pool Hit Rate</h3>
+                <pre class="code-block">/**
+ * Monitor how effectively the database's buffer pool is caching pages.
+ * Low hit rate → too many physical disk reads → performance problem.
+ */
+public void checkBufferPoolStats() {
+    // PostgreSQL: check buffer hit rate
+    Map&lt;String, Object&gt; stats = jdbc.queryForMap("""
+        SELECT
+            sum(heap_blks_read)  as heap_disk_reads,
+            sum(heap_blks_hit)   as heap_cache_hits,
+            round(
+                sum(heap_blks_hit)::numeric /
+                nullif(sum(heap_blks_hit) + sum(heap_blks_read), 0) * 100,
+                2
+            ) as cache_hit_pct
+        FROM pg_statio_user_tables
+        """);
+
+    double cacheHitPct = ((Number) stats.get("cache_hit_pct")).doubleValue();
+    if (cacheHitPct &lt; 95.0) {
+        log.warn("Low buffer pool hit rate: {}%. Consider increasing shared_buffers.", cacheHitPct);
+        // shared_buffers is the PostgreSQL equivalent of MySQL's innodb_buffer_pool_size
+        // Typically set to 25% of RAM for dedicated DB servers
+    }
+}</pre>
+            </section>
+
+            <!-- SECTION 10 -->
+            <section id="sec-10">
+                <h2>10. Important Interview Questions</h2>
+
+                <h3>Basic Questions</h3>
+                <p><strong>Q: What is a page in a database?</strong><br>
+                A: A page (or block) is a fixed-size chunk of disk storage — the fundamental unit that databases read and write. PostgreSQL uses 8KB pages, MySQL uses 16KB. A database IO always fetches at least one full page, never individual rows or bytes. A single page can contain many rows (or many column values in a columnar database).</p>
+
+                <p><strong>Q: What is the heap in database storage?</strong><br>
+                A: The heap is the primary data structure that stores all table data. It is a collection of pages containing the actual rows (in row-oriented databases). By default, the heap is unordered — rows are stored in insertion order, not sorted by any field. Querying the heap without an index requires a sequential scan of all pages.</p>
+
+                <p><strong>Q: What is an IO and why does it matter?</strong><br>
+                A: An IO (Input/Output) is a request to read or write data on disk. It fetches one or more pages. IOs are the primary bottleneck in database query performance — disk access is ~1000-100,000x slower than memory access. The goal of indexing and storage design is to minimize the number of IOs required to answer a query.</p>
+
+                <p><strong>Q: What is the difference between row-oriented and column-oriented storage?</strong><br>
+                A: Row-oriented stores all columns of a row contiguously. A single IO gives you all columns of several rows. Best for OLTP (point lookups, multi-column fetches). Column-oriented stores all values of each column contiguously. A single IO gives you many values of one column. Best for OLAP (aggregations on few columns across many rows).</p>
+
+                <p><strong>Q: What is a clustered index?</strong><br>
+                A: A clustered index physically orders the table's rows by the index key. The leaf nodes of the B+ tree contain the actual row data. This means the table IS the index. Only one clustered index is possible per table (because there's only one physical ordering). In MySQL, the primary key is always the clustered index. In PostgreSQL, all indexes are secondary.</p>
+
+                <h3>Intermediate Questions</h3>
+                <p><strong>Q: Why is SELECT * expensive in a column-oriented database?</strong><br>
+                A: In a column store, each column is stored separately. <span class="inline-code">SELECT *</span> requires a separate IO journey to each column's storage segment. If a table has 20 columns, <span class="inline-code">SELECT *</span> may require 20x more IOs than a single-column query. In row store, <span class="inline-code">SELECT *</span> is relatively cheap because all columns are co-located in the same page.</p>
+
+                <p><strong>Q: Why do UUIDs perform poorly as primary keys in MySQL?</strong><br>
+                A: MySQL's primary key is always a clustered index — the table is physically sorted by the PK. UUID v4 values are random (not time-ordered), so each new row inserts at a random position in the sorted order. This causes: random page access (cache misses), B+ tree page splits, and high IO on every insert. Sequential IDs (<span class="inline-code">BIGINT AUTO_INCREMENT</span>) or time-ordered UUIDs (UUID v7, ULID) avoid this by always inserting at the end.</p>
+
+                <p><strong>Q: Why does PostgreSQL have write amplification when rows are updated?</strong><br>
+                A: PostgreSQL uses MVCC — updates create a new row version with a new <span class="inline-code">ctid</span>. Since all indexes in PostgreSQL store <span class="inline-code">ctid</span> as the heap pointer, every index on the table must be updated to point to the new <span class="inline-code">ctid</span>, even if the indexed column didn't change. A table with 10 indexes requires 10 index page updates plus the heap page update for every single row modification.</p>
+
+                <p><strong>Q: What is an Index Organized Table (IOT)?</strong><br>
+                A: An IOT (Oracle terminology) or clustered index table is one where the B+ tree IS the table — the leaf nodes contain the full row data, not just pointers. This contrasts with a heap organized table (HOT) where the table and indexes are separate structures. IOTs provide excellent range query performance because rows in the range are physically adjacent on disk.</p>
+
+                <h3>Advanced Questions</h3>
+                <p><strong>Q: For a range query `WHERE id BETWEEN 1 AND 1000`, how does the IO cost differ between a clustered index and a secondary index?</strong><br>
+                A: With a clustered index, rows 1-1000 are physically adjacent on disk (sorted by id). The B+ tree traversal reaches the starting page, then sequentially reads ~125 pages (1000 rows ÷ 8 rows/page). This is highly efficient sequential IO. With a secondary index, the index lookup returns 1000 pointers, each potentially pointing to a different heap page (worst case: 1000 heap page IOs for 1000 rows — one random IO per row). PostgreSQL mitigates this with Bitmap Index Scans that batch and sort heap fetches by page number.</p>
+
+                <p><strong>Q: How does PostgreSQL's HOT (Heap Only Tuple) optimization reduce write amplification?</strong><br>
+                A: When a row is updated and the update does NOT change any indexed column, PostgreSQL creates a new tuple in the SAME heap page and leaves all indexes unchanged (they still point to the old ctid). The old ctid has a pointer chained to the new version within the same page. On lookup, the database follows the chain within the page to find the latest version. This avoids updating any indexes for non-indexed column changes, significantly reducing write amplification.</p>
+
+                <p><strong>Q: Why is compression more effective in column stores than row stores?</strong><br>
+                A: In column stores, adjacent stored values are the same data type and often represent the same attribute (e.g., all salaries, all department codes). This leads to:<br>
+                (1) Type homogeneity — compression algorithms can use type-specific encodings (delta encoding for timestamps, dictionary encoding for strings, bit packing for small integers).<br>
+                (2) Value locality — similar values cluster together (many people in "Engineering" dept, many salaries around $100k) enabling Run-Length Encoding and dictionary compression.<br>
+                Row stores mix types in every page (id, name, date, salary) — no opportunity for type-specific encoding and values are heterogeneous, making general compression less effective.</p>
+            </section>
+
+            <!-- SECTION 11 -->
+            <section id="sec-11">
+                <h2>11. Common Mistakes</h2>
+
+                <h3>Storage Fundamentals Mistakes</h3>
+                <ul>
+                    <li><strong>Thinking <span class="inline-code">SELECT col FROM table</span> avoids IO for other columns in row store.</strong> Wrong. The database fetches the full page (with all columns), then filters in memory. The IO cost is the same. The benefit is less memory pressure and network transfer, not fewer disk reads.</li>
+                    <li><strong>Assuming indexes are always faster than heap scans.</strong> For very small tables (&lt; 100 rows, fits in a few pages), a heap scan may be faster — the index traversal overhead exceeds the scan cost. The query planner handles this via <span class="inline-code">enable_indexscan</span> / statistics-based decisions.</li>
+                    <li><strong>Not knowing page size and its implications.</strong> If a row is 10KB and the page is 8KB, the row spans 2 pages. Reading that one row requires 2 IOs minimum. Knowing your page size helps estimate query IO costs.</li>
+                </ul>
+
+                <h3>Index Design Mistakes</h3>
+                <ul>
+                    <li><strong>UUID v4 as primary key in MySQL.</strong> As detailed above — catastrophic write performance at scale. Use sequential IDs or time-ordered UUIDs.</li>
+                    <li><strong>Too many indexes.</strong> Each index is an additional data structure that must be updated on every INSERT/UPDATE/DELETE. A table with 15 indexes has 15 structures to maintain on every write. Index write cost accumulates with write volume.</li>
+                    <li><strong>Not considering index size relative to buffer pool.</strong> An index that fits entirely in the buffer pool (RAM) is essentially free to query. An index larger than RAM requires physical IO on every lookup — no different from a heap scan at that point.</li>
+                    <li><strong>Indexing high-cardinality columns with low selectivity.</strong> Indexing <span class="inline-code">gender</span> (2 values) on a table — the index will match 50% of rows, making it useless (heap scan is cheaper).</li>
+                </ul>
+
+                <h3>Column vs Row Storage Mistakes</h3>
+                <ul>
+                    <li><strong>Using row storage for pure analytics workloads.</strong> If you are running GROUP BY + SUM queries across millions of rows, you should be using a column store or a column-oriented query engine.</li>
+                    <li><strong>Using column storage for transactional workloads.</strong> Column stores have poor write performance and poor single-row lookup performance. OLTP on a column store is a mistake.</li>
+                    <li><strong><span class="inline-code">SELECT *</span> in a column-oriented database.</strong> This is the absolute worst operation you can do on a column store — one IO per column per row matched.</li>
+                    <li><strong>Joining row store and column store tables.</strong> Some databases support it, but the optimizer cannot efficiently use both storage formats together. Design data models with the storage model in mind.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 12 -->
+            <section id="sec-12">
+                <h2>12. Performance & Scalability Notes</h2>
+
+                <h3>IO Minimization Strategies</h3>
+                <pre class="code-block">Reducing IO in queries:
+  1. Index-guided heap access    → from N pages to log(N) pages
+  2. Covering index              → eliminates heap fetch entirely
+  3. Column pruning (row store)  → fewer bytes deserialized, not fewer IOs
+  4. Column store (analytics)    → fewer IOs (only relevant columns)
+  5. Partition pruning           → skip entire partitions based on WHERE
+  6. Buffer pool hit rate        → serves IOs from RAM, not disk
+
+Most impactful: 1, 4, 6</pre>
+
+                <h3>Buffer Pool Sizing</h3>
+                <pre class="code-block">Rule of thumb: Buffer pool should hold your "hot data set"
+  - All frequently accessed index pages (almost always)
+  - Working set of heap pages (ideally)
+  - Active WAL buffer
+
+PostgreSQL shared_buffers:  25% of RAM for dedicated DB servers
+MySQL innodb_buffer_pool:   70-80% of RAM for dedicated DB servers
+
+Monitoring target:
+  Buffer pool hit rate > 99% for OLTP
+  > 95% for mixed OLTP/OLAP
+  < 95% → either buffer pool is too small or hot data set is too large</pre>
+
+                <h3>Index Size Impact</h3>
+                <pre class="code-block">Index size ≈ (indexed column bytes + row_id bytes) × number_of_rows
+
+Example: Index on INTEGER employee_id (4 bytes) + ctid (6 bytes) = 10 bytes/entry
+  10M rows × 10 bytes = 100MB for the index leaf pages
+  Plus ~15% overhead for internal B+ tree nodes ≈ 115MB total
+
+This fits easily in a buffer pool of 4GB.
+→ Index lookups are effectively free (RAM speed, not disk speed).
+
+Example: Index on TEXT email (avg 30 bytes) + ctid (6 bytes) = 36 bytes/entry
+  10M rows × 36 bytes = 360MB for leaf pages ≈ 414MB total
+  Still fits in 4GB buffer pool.
+
+Problematic: Composite index on (first_name, last_name, email, phone) = ~100 bytes/entry
+  10M rows × 100 bytes = 1GB+ → may exceed buffer pool → physical IO on lookups</pre>
+            </section>
+
+            <!-- SECTION 13 -->
+            <section id="sec-13">
+                <h2>13. System Design Connections</h2>
+
+                <h3>Choosing Storage Model for System Design Interviews</h3>
+                <pre class="code-block">Question: "Design a financial reporting system"
+  Data: Transactions table — 10B rows
+  Queries: "Total revenue by country by month"
+  Answer: Column store (Redshift/BigQuery) — aggregation on 2-3 columns of 10B rows
+  Reason: Row store would read 10B × average row size = petabytes per query
+
+Question: "Design a banking transaction system"
+  Data: Accounts, Transactions — 100M rows
+  Queries: Point lookups, balance updates, recent 10 transactions per user
+  Answer: Row store (PostgreSQL/MySQL) — multi-column row access, OLTP writes
+  Reason: Column store would do 15+ IOs per transaction (one per column)
+
+Question: "Design a real-time analytics dashboard"
+  Data: Events — 100B rows, written continuously
+  Queries: "DAU for last 30 days", "Revenue by hour today"
+  Answer: Dual path — events written to row store (Kafka → PostgreSQL) for freshness,
+          then ETL'd to column store (Redshift) for historical analytics
+  Reason: Column store has poor write performance for continuous high-throughput ingestion</pre>
+
+                <h3>Lambda Architecture — Row + Column Together</h3>
+                <pre class="code-block">Real-time writes:
+  App → Kafka → PostgreSQL (row store)
+         ↓ (batch ETL every hour)
+         ▼
+  Analytical queries:
+  BI Tool → Redshift / BigQuery (column store)
+
+  Real-time dashboard: reads from PostgreSQL (seconds of lag)
+  Historical reports: reads from Redshift (hours lag acceptable, much cheaper)</pre>
+            </section>
+
+            <!-- SECTION 14 -->
+            <section id="sec-14">
+                <h2>14. Visual Mental Models</h2>
+
+                <h3>The Complete Storage Picture</h3>
+                <pre class="code-block">User Query:  SELECT first_name FROM employees WHERE id = 10000
+
+                    SQL Query
+                        │
+                   Query Planner
+               (checks statistics, picks plan)
+                        │
+               ┌────────┴────────┐
+           Has index?          No index?
+               │                  │
+        Index Scan           Sequential Scan
+               │                  │
+        B+ Tree Traversal    Read ALL pages
+        (3-4 IOs)            (3,334 IOs for 10k rows)
+               │
+        Leaf node: id=10000 → (page=3333, row=10000)
+               │
+        Heap Page Fetch
+        (1 IO: page 3333)
+               │
+        Filter: find row 10000
+        Extract: first_name column
+               │
+        Return result to client</pre>
+
+                <h3>Row vs Column IO Pattern</h3>
+                <pre class="code-block">Table: 6 rows × 8 columns
+
+ROW STORE:
+Page 0: [id=1,Alice,Smith,111,50k,1990,Eng,2020] [id=2,Bob,Jones,222,60k,1985,HR,2019]
+Page 1: [id=3,Carol,White,333,55k,1992,Eng,2021] [id=4,Dave,Black,444,70k,1988,Fin,2018]
+
+Query: SELECT SUM(salary) — reads BOTH pages, uses only salary bytes
+IO: 2 pages, salary utilization: 8 bytes / ~200 bytes per page = 4% efficiency
+
+COLUMN STORE:
+Page A: [salary: 50k, 60k, 55k, 70k, 65k, 80k]
+
+Query: SELECT SUM(salary) — reads ONLY Page A
+IO: 1 page, salary utilization: 100% efficiency</pre>
+
+                <h3>Primary vs Secondary Index</h3>
+                <pre class="code-block">PRIMARY (Clustered) Index:
+B+ Tree leaf nodes contain actual row data:
+  [id=1, Alice, Smith, 50k, ...] ← [id=2, Bob, Jones, 60k, ...] ← [id=3, Carol, White, 55k, ...]
+  Consecutive pages → Range queries read consecutive disk blocks → fast
+
+SECONDARY Index:
+B+ Tree leaf nodes contain pointers:
+  [last_name=Black → ctid=(p3,r2)] [last_name=Brown → ctid=(p1,r3)] [last_name=Green → ctid=(p5,r1)]
+                                        ↓                   ↓                   ↓
+  Heap (unordered):                  p3: [...]          p1: [...]           p5: [...]
+                                     ← Random IO jumps across heap pages →</pre>
+            </section>
+
+            <!-- SECTION 15 -->
+            <section id="sec-15">
+                <h2>15. Revision Notes (One Page)</h2>
+                <pre class="code-block bg-blue-900 border border-blue-800 text-blue-50 shadow-md">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  DATABASE STORAGE FUNDAMENTALS — QUICK REVISION SHEET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+STORAGE BUILDING BLOCKS:
+  Row ID:   System-maintained row locator (ctid in PG, PK in MySQL)
+  Page:     Fixed-size storage unit (PG=8KB, MySQL=16KB)
+            → Database always reads/writes in pages, never single rows
+  IO:       One request to disk → returns ≥1 page
+            → Minimize IOs = maximize query performance
+  Heap:     Collection of all table pages (the actual data)
+            → Unordered by default, expensive to scan fully
+  Index:    Separate B+ tree data structure
+            → Stores column values + pointers to heap
+            → Costs IOs too (stored as pages)
+
+ROW vs COLUMN STORAGE:
+  ROW STORE (PostgreSQL, MySQL):
+    + Point lookups: fast (all columns in one page)
+    + Writes: fast (one page to update)
+    + Multi-column fetch: free after finding the row
+    - Aggregations: slow (reads all columns to get one)
+    - Analytics: wasteful IO
+    Use for: OLTP, transactional workloads
+
+  COLUMN STORE (Redshift, BigQuery, Snowflake):
+    + Aggregations: fast (read only target columns)
+    + Compression: excellent (homogeneous adjacent values)
+    + Analytics: highly IO efficient
+    - Writes: slow (update every column segment)
+    - SELECT *: very expensive (N IOs for N columns)
+    - Point lookups: poor
+    Use for: OLAP, analytics, data warehouses
+
+PRIMARY vs SECONDARY INDEX:
+  Primary (Clustered):
+    • Table IS the index (leaf nodes = row data)
+    • Physically ordered by key
+    • Range queries: excellent (adjacent on disk)
+    • Only one per table
+    • MySQL: PK is always clustered
+    • PostgreSQL: NO native clustered index (all secondary)
+
+  Secondary:
+    • Separate structure with pointers to heap
+    • Extra hop: index → heap on lookup
+    • Multiple per table
+    • PostgreSQL: ALL indexes are secondary (point to ctid)
+
+UUID vs Sequential PK (MySQL):
+  UUID v4: Random → random page inserts → cache misses → slow writes
+  BIGINT AUTO_INCREMENT: Sequential → append inserts → hot page caching → fast
+  UUID v7 / ULID: Time-ordered → near-sequential → good clustering
+
+PostgreSQL Write Amplification:
+  UPDATE any column → new ctid (new row version)
+  ALL indexes point to ctid → ALL indexes must be updated
+  10 indexes → 10 index page writes per row update
+
+IO Cost Reference:
+  Full heap scan (10M rows): ~625,000 IOs
+  Index + heap fetch (one row): ~4 IOs
+  Covering index (one row, no heap): ~3 IOs
+
+Production Rules:
+  ✅ Minimize SELECT * especially in column stores
+  ✅ Use EXPLAIN (ANALYZE, BUFFERS) to measure actual IOs
+  ✅ Monitor buffer pool hit rate (target > 99%)
+  ✅ Use sequential IDs in MySQL (not UUID v4)
+  ✅ Use column store for analytics (>10M rows, few columns queried)
+  ❌ Never full scan large tables without index in OLTP
+  ❌ Don't over-index (every index = write overhead)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</pre>
+            </section>
+
+            <footer class="mt-16 pt-8 border-t border-gray-200 text-center text-gray-500 text-sm pb-16">
+                End of Notes — Database Storage Fundamentals: Pages, Heap, IO, Row vs Column, Primary vs Secondary Indexes
+            </footer>
+        </div>
+    </main>
+
+</body>
+</html>
