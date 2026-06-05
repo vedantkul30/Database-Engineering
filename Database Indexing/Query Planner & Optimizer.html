@@ -1,0 +1,1372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Query Planner & Optimizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            color: #111827;
+        }
+        pre {
+            font-family: 'Fira Code', monospace;
+        }
+        .prose h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin-top: 3rem;
+            margin-bottom: 1.5rem;
+            color: #1e3a8a;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        .prose h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: #1f2937;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        .prose h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: #374151;
+        }
+        .prose h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: #4b5563;
+        }
+        .prose p {
+            margin-bottom: 1rem;
+            line-height: 1.75;
+            color: #4b5563;
+        }
+        .prose ul, .prose ol {
+            padding-left: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #4b5563;
+        }
+        .prose ul { list-style-type: disc; }
+        .prose ol { list-style-type: decimal; }
+        .prose li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        .prose strong {
+            color: #111827;
+            font-weight: 600;
+        }
+        .prose blockquote {
+            border-left: 4px solid #3b82f6;
+            background-color: #eff6ff;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            font-style: normal;
+            color: #1e40af;
+            border-radius: 0 0.5rem 0.5rem 0;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        .prose table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+            background-color: white;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .prose th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #374151;
+        }
+        .prose td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #4b5563;
+            vertical-align: top;
+        }
+        .prose tr:last-child td {
+            border-bottom: none;
+        }
+        .code-block {
+            background-color: #1f2937;
+            color: #e5e7eb;
+            padding: 1.25rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            white-space: pre;
+        }
+        .inline-code {
+            background-color: #f3f4f6;
+            color: #ef4444;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.875rem;
+        }
+        .nav-link {
+            transition: all 0.2s ease;
+        }
+        .nav-link:hover {
+            color: #2563eb;
+            background-color: #eff6ff;
+            padding-left: 0.5rem;
+        }
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body class="antialiased flex flex-col md:flex-row h-screen overflow-hidden">
+
+    <!-- Sidebar / Table of Contents -->
+    <aside class="w-full md:w-72 bg-white border-r border-gray-200 h-1/4 md:h-full overflow-y-auto flex-shrink-0 z-10 shadow-sm">
+        <div class="p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Contents</h2>
+            
+            <nav class="space-y-1 text-sm font-medium text-gray-600">
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Core Concepts</p>
+                <a href="#sec-1" class="block py-1.5 nav-link rounded-md">1. Big Picture</a>
+                <a href="#sec-2" class="block py-1.5 nav-link rounded-md">2. The EXPLAIN Command</a>
+                <a href="#sec-3" class="block py-1.5 nav-link rounded-md">3. Scan Types Reference</a>
+                <a href="#sec-4" class="block py-1.5 nav-link rounded-md">4. The Query Optimizer</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Deep Dives & Practice</p>
+                <a href="#sec-5" class="block py-1.5 nav-link rounded-md">5. Composite Index Practices</a>
+                <a href="#sec-6" class="block py-1.5 nav-link rounded-md">6. Planner Cost Parameters</a>
+                <a href="#sec-7" class="block py-1.5 nav-link rounded-md">7. Practical Java Implementation</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Review</p>
+                <a href="#sec-8" class="block py-1.5 nav-link rounded-md">8. Interview Questions</a>
+                <a href="#sec-9" class="block py-1.5 nav-link rounded-md">9. Common Mistakes</a>
+                <a href="#sec-10" class="block py-1.5 nav-link rounded-md">10. Performance & Scalability</a>
+                <a href="#sec-11" class="block py-1.5 nav-link rounded-md">11. System Design Connections</a>
+                <a href="#sec-12" class="block py-1.5 nav-link rounded-md">12. Visual Mental Models</a>
+                <a href="#sec-13" class="block py-1.5 nav-link rounded-md">13. Revision Notes (One Page)</a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 h-3/4 md:h-full overflow-y-auto bg-gray-50 p-6 md:p-12 lg:p-16">
+        <div class="max-w-4xl mx-auto prose">
+            
+            <header class="mb-12 text-center md:text-left">
+                <p class="text-blue-600 font-semibold tracking-wide uppercase text-sm mb-2">Complete Learning Notes | PostgreSQL Focus | Interview Prep</p>
+                <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 mt-0 border-none pb-0">Query Planner & Optimizer</h1>
+            </header>
+
+            <!-- SECTION 1 -->
+            <section id="sec-1">
+                <h2>1. Big Picture</h2>
+                
+                <h3>Why the Query Planner Exists</h3>
+                <p>When you write SQL, you describe <strong>what</strong> you want — not <strong>how</strong> to get it. The query planner (also called the query optimizer) is the component that figures out the "how." For any given query, there may be dozens of valid execution plans. The planner's job is to estimate the cost of each plan and choose the cheapest one.</p>
+                <p>This distinction is fundamental: <strong>SQL is declarative</strong>. The programmer says "give me all students with grade > 90" — not "go to page 4500, read every row, check grade field, keep it if it's greater than 90." The planner translates the declaration into an efficient imperative execution plan.</p>
+                <p>Without a planner, every query would require the programmer to manually specify which indexes to use, in what order, with what join strategies. Databases would be unusable at scale.</p>
+
+                <h3>The Problem It Solves</h3>
+                <pre class="code-block">Same query, three possible plans:
+
+Plan A: Full table scan (seq scan)
+  → Read all 10M rows, filter in memory
+  → Cost: 625,000 IOs
+
+Plan B: Index scan on grade
+  → Traverse B+ tree, fetch each matching row from heap
+  → For 10,000 matching rows: 10,003 IOs (3 tree + 10,000 heap)
+
+Plan C: Index only scan on grade (covering index)
+  → Traverse B+ tree, all data in index
+  → 3 IOs
+
+The planner selects Plan C. Without a planner, you'd have to specify this manually every time.</pre>
+
+                <h3>Where the Planner Appears in Daily Backend Work</h3>
+                <ul>
+                    <li>Understanding why a query is slow ("why isn't it using my index?")</li>
+                    <li>Explaining performance regressions after data volume increases</li>
+                    <li>Diagnosing stale statistics causing wrong plan choices</li>
+                    <li>Designing indexes based on how the planner will use them</li>
+                    <li>Writing non-SARGable queries that accidentally bypass indexes</li>
+                </ul>
+
+                <h3>Why Backend Engineers Must Understand the Planner</h3>
+                <p>The planner is not perfect. It makes decisions based on <strong>statistics</strong> — approximations of the data distribution. When statistics are stale, wrong, or when data skew is extreme, the planner makes bad choices. Engineers who understand the planner can:</p>
+                <ul>
+                    <li>Read EXPLAIN output and immediately diagnose why a query is slow</li>
+                    <li>Anticipate when a newly created index won't be used</li>
+                    <li>Know when to run ANALYZE / update statistics</li>
+                    <li>Avoid query patterns that make plans unpredictable</li>
+                    <li>Know when and how to use query hints as a last resort</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 2 -->
+            <section id="sec-2">
+                <h2>2. The EXPLAIN Command — Deep Dive</h2>
+
+                <h3>What EXPLAIN Does</h3>
+                <p><span class="inline-code">EXPLAIN</span> shows the <strong>query execution plan</strong> the planner has chosen — without actually executing the query. It answers: "If I run this query, what will the database do?"</p>
+                <p><span class="inline-code">EXPLAIN ANALYZE</span> executes the query AND shows both the estimated and actual costs.<br>
+                <span class="inline-code">EXPLAIN (ANALYZE, BUFFERS)</span> adds IO statistics (cache hits vs disk reads).</p>
+
+                <pre class="code-block">-- Just the plan (no execution):
+EXPLAIN SELECT * FROM grades WHERE id = 10;
+
+-- Plan + actual execution (runs the query):
+EXPLAIN ANALYZE SELECT * FROM grades WHERE id = 10;
+
+-- Plan + actual + IO stats (most detailed):
+EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) SELECT * FROM grades WHERE id = 10;</pre>
+
+                <h3>The Anatomy of an EXPLAIN Output</h3>
+                <pre class="code-block">Seq Scan on grades  (cost=0.00..289467.20 rows=12500000 width=31)
+│              │      ├──────────┘   └──────────┘         └────────┘
+│              │      │              │                      │
+Node type   Table     Startup cost   Total cost estimate   Row width (bytes)
+                        (ms)           (ms)</pre>
+
+                <p><strong>Breaking down each field:</strong></p>
+
+                <h4>Node Type (Scan Strategy)</h4>
+                <p>The first word(s) of each line describe what operation the database chose:</p>
+                <table>
+                    <thead>
+                        <tr><th>Node Type</th><th>Meaning</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="inline-code">Seq Scan</span></td><td>Full table scan — reads every page in the heap</td></tr>
+                        <tr><td><span class="inline-code">Index Scan</span></td><td>B+ tree traversal → heap fetch per row</td></tr>
+                        <tr><td><span class="inline-code">Index Only Scan</span></td><td>B+ tree traversal → no heap access</td></tr>
+                        <tr><td><span class="inline-code">Bitmap Index Scan</span></td><td>Build bitmap of matching pages from index</td></tr>
+                        <tr><td><span class="inline-code">Bitmap Heap Scan</span></td><td>Fetch heap pages using the bitmap</td></tr>
+                        <tr><td><span class="inline-code">Sort</span></td><td>Sort the result set (triggered by ORDER BY)</td></tr>
+                        <tr><td><span class="inline-code">Hash Join</span> / <span class="inline-code">Merge Join</span></td><td>Join strategies</td></tr>
+                        <tr><td><span class="inline-code">Parallel Seq Scan</span></td><td>Multi-threaded sequential scan</td></tr>
+                    </tbody>
+                </table>
+
+                <h4>Cost Numbers — <span class="inline-code">cost=startup..total</span></h4>
+                <pre class="code-block">cost=0.00..289467.20
+      │       └── Total estimated cost to return ALL rows
+      └────────── Startup cost — work done BEFORE returning first row</pre>
+                
+                <p><strong>Startup cost</strong> is the time before the first row is returned. It increases when the planner must do pre-fetch work:</p>
+                <ul>
+                    <li><span class="inline-code">ORDER BY</span> without a matching index → must sort all rows before returning any (high startup)</li>
+                    <li>Aggregations (<span class="inline-code">SUM</span>, <span class="inline-code">COUNT</span>) → must scan everything first</li>
+                    <li>Hash builds in Hash Joins</li>
+                </ul>
+                <p><strong>Total cost</strong> is the planner's estimated cost to return the complete result set. The unit is <strong>arbitrary</strong> — it is not milliseconds. It is a dimensionless cost unit used to compare plans relative to each other. Larger = more expensive.</p>
+
+                <pre class="code-block">No ORDER BY:  cost=0.00..289467.20
+              ↑ Zero startup — immediately returns first row from heap
+
+ORDER BY name (no index):  cost=1023456.00..1456789.00
+                            ↑ Must sort EVERYTHING before returning row 1
+                            High startup → bad for LIMIT queries</pre>
+
+                <p><strong>Why startup cost matters for LIMIT queries:</strong></p>
+                <pre class="code-block">-- Without index on name, ORDER BY name forces sort of all rows:
+SELECT * FROM grades ORDER BY name LIMIT 10;
+-- Startup cost: ~1,000,000 (must sort 200M rows to return top 10)
+
+-- With index on name, B+ tree is pre-sorted:
+SELECT * FROM grades ORDER BY name LIMIT 10;
+-- Startup cost: ~0.4 (walk to first leaf node, return 10 rows)</pre>
+                <p>If startup cost is high and you're doing <span class="inline-code">LIMIT</span>, you're paying the full sort cost even to return just one row. <strong>An index on ORDER BY columns eliminates the sort entirely.</strong></p>
+
+                <h4><span class="inline-code">rows</span> — Estimated Row Count</h4>
+                <pre class="code-block">rows=12500000</pre>
+                <p>This is the planner's estimate of how many rows this node will return. It comes from <strong>table statistics</strong> — the histogram, distinct value counts, and correlation data maintained by <span class="inline-code">ANALYZE</span>. This number is CRITICAL:</p>
+                <ul>
+                    <li><strong>If rows estimate ≈ actual rows</strong> → planner has accurate statistics → good plan.</li>
+                    <li><strong>If rows estimate &lt;&lt; actual rows</strong> → planner underestimates, may choose wrong plan.</li>
+                    <li><strong>If rows estimate &gt;&gt; actual rows</strong> → planner overestimates, may avoid index unnecessarily.</li>
+                </ul>
+
+                <h4><span class="inline-code">width</span> — Row Width in Bytes</h4>
+                <pre class="code-block">width=31</pre>
+                <p>The average number of bytes per returned row. This is the sum of the average sizes of all selected columns.</p>
+                <pre class="code-block">EXPLAIN SELECT id FROM grades;           -- width=4   (INTEGER = 4 bytes)
+EXPLAIN SELECT name FROM grades;         -- width=19  (TEXT average, varies by data)
+EXPLAIN SELECT grade FROM grades;        -- width=8   (DOUBLE = 8 bytes)
+EXPLAIN SELECT id, grade, name FROM ...; -- width=31  (4 + 8 + 19)</pre>
+                <p><strong>Why width matters:</strong></p>
+                <ul>
+                    <li>Larger width → more bytes transferred over network (TCP packets)</li>
+                    <li>Larger width → more memory used to hold the result set</li>
+                    <li>SELECT only what you need — large BLOBs in SELECT * are especially wasteful</li>
+                </ul>
+
+                <h3>Reading Multi-Node Plans (Inner to Outer)</h3>
+                <p>PostgreSQL's EXPLAIN output is a <strong>tree</strong> of nodes. You read it from the <strong>innermost (most indented) node upward</strong> — each node feeds its output to the node above it.</p>
+                <pre class="code-block">EXPLAIN SELECT * FROM grades ORDER BY name;</pre>
+                <pre class="code-block">Gather Merge  (cost=... rows=...)         ← 4. Merge results from all workers
+  Workers Planned: 2
+  ->  Sort  (cost=... rows=...)           ← 3. Each worker sorts its partition
+        Sort Key: name
+        ->  Parallel Seq Scan on grades   ← 2. Each worker scans a portion
+              (cost=0.00..218000 rows=...)
+                                          ← 1. START HERE (innermost)</pre>
+                <p><strong>Reading order: bottom-up, innermost first.</strong></p>
+                <pre class="code-block">Step 1: Parallel Seq Scan — 2 workers each read a portion of the heap
+Step 2: Each worker sorts its portion (Sort node)
+Step 3: Gather Merge — merges the sorted streams from all workers
+Step 4: Final result returned to client</pre>
+
+                <h3>EXPLAIN ANALYZE — Actual vs Estimated</h3>
+                <p><span class="inline-code">EXPLAIN ANALYZE</span> adds actual execution statistics next to the estimates:</p>
+                <pre class="code-block">EXPLAIN ANALYZE SELECT name FROM grades WHERE id = 10;</pre>
+                <pre class="code-block">Index Scan using grades_pkey on grades
+  (cost=0.43..8.45 rows=1 width=19)
+  (actual time=0.052..0.054 rows=1 loops=1)
+  Index Cond: (id = 10)
+  Heap Fetches: 1
+Planning Time: 0.234 ms
+Execution Time: 0.089 ms</pre>
+                
+                <p><strong>New fields in ANALYZE output:</strong></p>
+                <table>
+                    <thead>
+                        <tr><th>Field</th><th>Meaning</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="inline-code">actual time=0.052..0.054</span></td><td>Real time: startup..total (milliseconds)</td></tr>
+                        <tr><td><span class="inline-code">rows=1</span> (second one)</td><td>Actual rows returned</td></tr>
+                        <tr><td><span class="inline-code">loops=1</span></td><td>How many times this node ran (>1 in nested loop joins)</td></tr>
+                        <tr><td><span class="inline-code">Heap Fetches: 1</span></td><td>How many heap pages were accessed</td></tr>
+                        <tr><td><span class="inline-code">Planning Time</span></td><td>How long the planner took to choose the plan</td></tr>
+                        <tr><td><span class="inline-code">Execution Time</span></td><td>Total wall-clock time including planning</td></tr>
+                    </tbody>
+                </table>
+
+                <p><strong>Diagnosing plan problems with ANALYZE:</strong></p>
+                <pre class="code-block">Estimated: rows=100
+Actual:    rows=9,500,000
+
+→ Planner severely underestimated row count
+→ May have chosen index scan (thinking 100 rows) when seq scan would be better
+→ Solution: Run ANALYZE to update statistics</pre>
+
+                <h3>EXPLAIN (ANALYZE, BUFFERS) — IO Statistics</h3>
+                <pre class="code-block">EXPLAIN (ANALYZE, BUFFERS) SELECT id, grade FROM students
+WHERE grade > 10 AND grade < 20 LIMIT 10000;</pre>
+                <pre class="code-block">Index Only Scan Backward using students_grade_id_idx on students
+  Buffers: shared hit=20 read=602</pre>
+                
+                <table>
+                    <thead>
+                        <tr><th>Buffer Stat</th><th>Meaning</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="inline-code">shared hit=20</span></td><td>20 pages served from the buffer pool (RAM) — no disk IO</td></tr>
+                        <tr><td><span class="inline-code">shared read=602</span></td><td>602 pages read from disk (physical IO operations)</td></tr>
+                        <tr><td><span class="inline-code">shared dirtied</span></td><td>Pages written (even reads can dirty pages in PostgreSQL — hint bits)</td></tr>
+                        <tr><td><span class="inline-code">local hit/read</span></td><td>Temporary tables buffer stats</td></tr>
+                    </tbody>
+                </table>
+
+                <p><strong>Why this matters:</strong></p>
+                <ul>
+                    <li>High <span class="inline-code">shared hit</span> + low <span class="inline-code">shared read</span> → good cache utilization → fast query.</li>
+                    <li>High <span class="inline-code">shared read</span> → lots of physical disk IO → potentially slow, especially on HDD.</li>
+                    <li>When you run the same query twice and it gets faster: <span class="inline-code">shared read</span> becomes <span class="inline-code">shared hit</span> because the OS/database page cache now holds those pages in RAM.</li>
+                </ul>
+
+                <p><strong>This explains the "second run is faster" phenomenon from the lecture:</strong></p>
+                <pre class="code-block">First run:  shared hit=0, shared read=90000  → 90,000 disk reads → 11 seconds
+Second run: shared hit=90000, shared read=0  → 0 disk reads → 1 second
+
+The data is now in the OS page cache → RAM speed instead of disk speed.</pre>
+            </section>
+
+            <!-- SECTION 3 -->
+            <section id="sec-3">
+                <h2>3. Scan Types — Complete Reference</h2>
+
+                <h3>Sequential Scan (Full Table Scan)</h3>
+                <pre class="code-block">Strategy: Read every page of the heap in order.
+Trigger:  No usable index, or too many rows match to justify index overhead.
+Cost:     O(N) — proportional to total table size.</pre>
+                <pre class="code-block">EXPLAIN SELECT * FROM grades;
+-- Seq Scan on grades (cost=0.00..289467.20 rows=12500000 width=31)</pre>
+                
+                <p><strong>When the planner chooses sequential scan over index:</strong></p>
+                <ul>
+                    <li>No index exists on the WHERE column.</li>
+                    <li>Query matches too many rows (high selectivity → index overhead exceeds scan cost).</li>
+                    <li>Table is small (few pages → scan costs same as index traversal).</li>
+                    <li>Non-SARGable predicate (function on column, leading wildcard LIKE).</li>
+                    <li>Statistics say the index will return > ~10-20% of rows.</li>
+                </ul>
+
+                <p><strong>Parallel Sequential Scan:</strong><br>
+                PostgreSQL can spin up multiple background workers to scan portions of the table in parallel, then merge results with <span class="inline-code">Gather</span> or <span class="inline-code">Gather Merge</span>.</p>
+                <pre class="code-block">Gather (cost=1000...)
+  Workers Planned: 2
+  -> Parallel Seq Scan on grades
+       Filter: (name = 'XZ')
+       Rows Removed by Filter: 6249890</pre>
+                <p>The <span class="inline-code">Rows Removed by Filter</span> line shows how much work was wasted. Here, 6.25M rows were read and discarded — the signature of a missing index.</p>
+
+                <h3>Index Scan</h3>
+                <pre class="code-block">Strategy: Traverse B+ tree to find matching rows, then fetch each matching row
+          from the heap (one heap page access per matching row).
+Trigger:  Index exists on WHERE column, query is selective (few matching rows).
+Cost:     O(log N + K) where K = number of matching rows.</pre>
+                <pre class="code-block">EXPLAIN SELECT name FROM grades WHERE id = 1000;
+-- Index Scan using grades_pkey on grades (cost=0.43..8.45 rows=1 width=19)
+--   Index Cond: (id = 1000)
+--   Heap Fetches: 1</pre>
+                
+                <p><strong>The heap fetch cost:</strong> Each row found in the index requires a SEPARATE fetch to the heap to retrieve columns not stored in the index. For K matching rows, this is K random IOs.</p>
+                <pre class="code-block">Index scan breakdown for 99 rows:
+  B+ tree traversal: 3 IOs
+  99 heap page fetches: up to 99 IOs (if each row is on a different page)
+  Total: ~102 IOs
+
+vs. Sequential scan (small table):
+  All pages: say 10 IOs
+  Winner: Sequential scan for small tables or low-selectivity queries.</pre>
+                <p><strong>This is why the planner switches to sequential scan when many rows match</strong> — the 99+ heap fetches become more expensive than just scanning the whole table sequentially.</p>
+
+                <h3>Index Only Scan</h3>
+                <pre class="code-block">Strategy: Traverse B+ tree. All needed columns are in the index.
+          The heap is NEVER accessed.
+Trigger:  All SELECT + WHERE columns are covered by the index.
+Cost:     O(log N + K) — but the K heap fetches are eliminated.
+Goal:     Heap Fetches: 0 — this is the performance ideal.</pre>
+                <pre class="code-block">EXPLAIN SELECT id FROM grades WHERE id = 10;
+-- Index Only Scan using grades_pkey on grades (cost=0.43..4.45 rows=1 width=4)
+--   Index Cond: (id = 10)
+--   Heap Fetches: 0</pre>
+
+                <p><strong>PostgreSQL-specific: why Heap Fetches can be > 0 even on Index Only Scan:</strong></p>
+                <p>PostgreSQL's MVCC uses a <strong>visibility map</strong> — a per-page bitmap recording whether all rows on a page are visible to all transactions. For an Index Only Scan, PostgreSQL checks the visibility map before returning a row. If the page is marked "all visible," no heap fetch is needed. If not (e.g., after recent writes or before VACUUM), PostgreSQL must fetch the heap page to determine row visibility.</p>
+                <pre class="code-block">Heap Fetches: 847 on an Index Only Scan
+→ Visibility map is out of date
+→ Solution: VACUUM students; (updates visibility map → Heap Fetches drops to 0)</pre>
+
+                <pre class="code-block">-- Fix index only scan heap fetches:
+VACUUM students;                        -- Quick, non-blocking
+VACUUM VERBOSE students;               -- Shows details of what was cleaned
+VACUUM ANALYZE students;               -- Vacuum + update statistics</pre>
+
+                <h3>Bitmap Index Scan + Bitmap Heap Scan</h3>
+                <p>This is PostgreSQL's clever middle ground between index scan and sequential scan. It is the most subtle and most misunderstood scan type.</p>
+
+                <h4>The Problem It Solves</h4>
+                <pre class="code-block">Index Scan weakness: K random heap page IOs for K matching rows.
+If K = 10,000 rows scattered across 10,000 different pages → 10,000 random IOs.
+
+Sequential Scan weakness: reads ALL pages including irrelevant ones.
+If only 10% of rows match → 90% of IO is wasted.
+
+Bitmap Scan: "I'll scan the index to find WHICH pages I need,
+              then fetch only those pages in sorted order."</pre>
+
+                <h4>How Bitmap Index Scan Works — Step by Step</h4>
+                <pre class="code-block">Query: SELECT name FROM grades WHERE grade > 95
+
+Step 1: Bitmap Index Scan on grade index
+  Walk the B+ tree for grade > 95.
+  For each matching entry:
+    - Don't immediately fetch the heap row.
+    - Instead, record the HEAP PAGE NUMBER in a bitmap.
+
+  Bitmap (one bit per heap page, total pages ≈ 625,000):
+  Bit 0: 0 (no matching rows on page 0)
+  Bit 1: 0
+  ...
+  Bit 9: 1  ← page 9 has at least one grade > 95 row
+  Bit 10: 0
+  Bit 11: 1 ← page 11 has at least one grade > 95 row
+  ...
+
+Step 2: Sort bitmap by page number
+  Pages to fetch (sorted): [9, 11, 47, 83, 102, ...]
+
+Step 3: Bitmap Heap Scan
+  Read heap pages in ORDER (page 9, then 11, then 47, ...)
+  For each page, check ALL rows on that page against grade > 95.
+  (Some rows on the page may not match → Recheck Cond)
+  Return matching rows.</pre>
+
+                <pre class="code-block">EXPLAIN SELECT name FROM grades WHERE grade > 95;</pre>
+                <pre class="code-block">Bitmap Heap Scan on grades
+  Recheck Cond: (grade > 95)
+  -> Bitmap Index Scan on idx_grade
+       Index Cond: (grade > 95)</pre>
+
+                <p><strong>Why "Recheck Cond"?</strong> When a bitmap page is marked "1," it means "at least one row on this page matches." But the page may contain OTHER rows that don't match. After fetching the page, PostgreSQL rechecks every row against the predicate to filter out non-matches. This recheck is cheap because the page data is already in memory from the fetch.</p>
+
+                <h3>Bitmap AND / Bitmap OR — Multi-Index Magic</h3>
+                <p>The most powerful feature of bitmap scans: <strong>multiple indexes can be combined.</strong></p>
+                <pre class="code-block">Query: SELECT name FROM grades WHERE grade > 95 AND id < 10000
+
+PostgreSQL can use BOTH indexes:
+  Bitmap 1: from grade index → pages with grade > 95 rows
+  Bitmap 2: from id index → pages with id < 10000 rows
+
+AND operation (BitmapAnd):
+  Bit 0: Bitmap1=0, Bitmap2=1 → 0 AND 1 = 0 (skip this page)
+  Bit 9: Bitmap1=1, Bitmap2=1 → 1 AND 1 = 1 (fetch this page)
+  Bit 11: Bitmap1=1, Bitmap2=0 → 1 AND 0 = 0 (skip this page)
+
+Result: Only pages where BOTH conditions might be true get fetched.</pre>
+
+                <pre class="code-block">EXPLAIN SELECT name FROM grades WHERE grade > 95 AND id < 10000;</pre>
+                <pre class="code-block">Bitmap Heap Scan on grades
+  Recheck Cond: ((grade > 95) AND (id < 10000))
+  -> BitmapAnd
+       -> Bitmap Index Scan on idx_grade
+            Index Cond: (grade > 95)
+       -> Bitmap Index Scan on grades_pkey
+            Index Cond: (id < 10000)</pre>
+
+                <p><strong>Why this is genius:</strong> Before bitmap AND, 9,000 rows matched <span class="inline-code">grade > 95</span>. Before bitmap AND, hundreds of thousands matched <span class="inline-code">id < 10000</span>. After the AND operation, only the intersection (~394 rows in the lecture demo) needed to be fetched from the heap. Neither condition alone was selective enough — but together they are.</p>
+                <pre class="code-block">BitmapAnd result: rows to fetch reduced from ~9,000 + ~100,000 → ~394
+Heap IO reduction: ~99.7% fewer random heap page reads</pre>
+
+                <p><strong>OR operation (BitmapOr):</strong></p>
+                <pre class="code-block">EXPLAIN SELECT name FROM grades WHERE grade > 95 OR id < 10000;</pre>
+                <pre class="code-block">Bitmap Heap Scan on grades
+  -> BitmapOr
+       -> Bitmap Index Scan on idx_grade
+       -> Bitmap Index Scan on grades_pkey</pre>
+                <p>OR creates the union of both bitmaps — more pages to fetch than AND, but still better than two separate sequential scans or two separate index scans without combining.</p>
+
+                <h3>Scan Type Decision Summary</h3>
+                <pre class="code-block">Planner decides which scan to use based on estimated row count and statistics:
+
+Very few rows (high selectivity):
+  → Index Scan (traverse tree, fetch each row individually)
+  → If all cols in index: Index Only Scan
+
+Medium rows (medium selectivity):
+  → Bitmap Index Scan + Bitmap Heap Scan
+  → Multiple indexes can be BitmapAnd / BitmapOr combined
+
+Many rows (low selectivity) or no index:
+  → Sequential Scan (Parallel Seq Scan if parallel_workers > 0)
+
+The threshold is approximate: typically:
+  < ~1% of table → Index Scan
+  1% - 10% of table → Bitmap Scan
+  > 10% of table → Sequential Scan
+(These percentages are heuristic; actual thresholds depend on table size, random_page_cost,
+effective_cache_size, and other planner cost parameters.)</pre>
+            </section>
+
+            <!-- SECTION 4 -->
+            <section id="sec-4">
+                <h2>4. The Query Optimizer — How Index Selection Works</h2>
+
+                <h3>The Core Question</h3>
+                <p>When multiple indexes exist on a table, the optimizer must decide:</p>
+                <ol>
+                    <li>Which index(es) to use?</li>
+                    <li>Should it use one, both, or none?</li>
+                    <li>In what order (for multi-index queries)?</li>
+                </ol>
+
+                <h3>Optimizer Input: Table Statistics</h3>
+                <p>The optimizer cannot look at every row to make its decision. Instead it uses <strong>statistics</strong> — metadata about the table's data distribution maintained automatically (or on demand) by the database.</p>
+
+                <p><strong>What statistics contain:</strong></p>
+                <table>
+                    <thead>
+                        <tr><th>Statistic</th><th>Description</th><th>Used For</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="inline-code">n_distinct</span></td><td>Number of distinct values per column</td><td>Selectivity estimate</td></tr>
+                        <tr><td><span class="inline-code">correlation</span></td><td>Physical order correlation (0=random, 1=sorted)</td><td>Sequential vs random IO preference</td></tr>
+                        <tr><td><span class="inline-code">null_frac</span></td><td>Fraction of NULLs</td><td>NULL predicate cost</td></tr>
+                        <tr><td><span class="inline-code">avg_width</span></td><td>Average column width in bytes</td><td>Network/memory cost</td></tr>
+                        <tr><td><span class="inline-code">n_live_tup</span></td><td>Estimated live row count</td><td>Index vs scan threshold</td></tr>
+                        <tr><td><span class="inline-code">histogram_bounds</span></td><td>Value distribution histogram (100 buckets)</td><td>Range query selectivity</td></tr>
+                        <tr><td><span class="inline-code">most_common_vals</span></td><td>Most frequent values + their frequencies</td><td>Equality predicate selectivity</td></tr>
+                    </tbody>
+                </table>
+
+                <pre class="code-block">-- View column statistics (PostgreSQL)
+SELECT attname, n_distinct, correlation, null_frac, avg_width
+FROM pg_stats
+WHERE tablename = 'grades';
+
+-- View histogram and most common values
+SELECT attname, most_common_vals, most_common_freqs, histogram_bounds
+FROM pg_stats
+WHERE tablename = 'grades' AND attname = 'grade';</pre>
+
+                <h3>The Three Index Selection Cases</h3>
+
+                <h4>Case 1: Use Both Indexes (BitmapAnd / BitmapOr)</h4>
+                <pre class="code-block">When: AND query, both indexes are moderately selective.
+      Neither index alone filters enough, but together they drastically reduce the result set.
+
+Example:
+  Table: 10M rows
+  grade > 95: returns 500,000 rows (5%) → borderline for index use
+  id < 100000: returns 100,000 rows (1%) → worth indexing
+  grade > 95 AND id < 100000: returns ~5,000 rows → very selective
+
+  Plan: BitmapAnd(idx_grade, idx_id) → 5,000 heap fetches
+  vs single index: 100,000-500,000 heap fetches
+  vs seq scan: 625,000 page IOs</pre>
+
+                <h4>Case 2: Use One Index, Filter on the Other</h4>
+                <pre class="code-block">When: AND query, one index is MUCH more selective than the other.
+      Using the highly selective index + filtering in memory is cheaper than using both.
+
+Example:
+  id = 42 (primary key): returns EXACTLY 1 row
+  grade > 50: returns 5,000,000 rows (50%) → index useless
+
+  Plan: Index Scan on id → 1 row → check grade > 50 in memory → done
+  Using both: PK lookup returns 1 row immediately, 0 reason to use grade index.
+
+OR example:
+  Primary key lookup almost always wins in AND conditions.
+  The optimizer sees "id = 42 AND anything" → use PK, filter everything else.</pre>
+
+                <h4>Case 3: Ignore All Indexes (Sequential Scan)</h4>
+                <pre class="code-block">When: Query returns too many rows for any index to help.
+      OR statistics say both conditions are low-selectivity.
+
+Example:
+  status IN ('active', 'inactive') → covers 100% of rows → useless index
+  grade BETWEEN 0 AND 100 → covers 100% of rows → useless
+
+  Plan: Seq Scan (Parallel Seq Scan if workers available)
+  Reason: Index traversal + heap fetch overhead exceeds simple page scan cost.
+
+Practical rule: If the optimizer estimates > ~10-20% of rows will match,
+                sequential scan often wins over index scan.</pre>
+
+                <h3>The Skew Problem — When Statistics Lie</h3>
+                <p>The most dangerous scenario for optimizer decisions:</p>
+                <pre class="code-block">Table: customers (10M rows)
+Column: state VARCHAR
+Index: idx_state on (state)
+Data distribution: California = 9,900,000 rows (99%), Texas = 50,000, Florida = 1, ...
+
+Statistics: most_common_vals = ['California', 'Texas', ...]
+            most_common_freqs = [0.99, 0.005, ...]
+
+Query A: WHERE state = 'California'
+  Optimizer: estimates 9,900,000 rows → IGNORES index → Sequential Scan ✅ (correct)
+
+Query B: WHERE state = 'Florida'
+  Optimizer: estimates... it depends on histogram accuracy.
+  If statistics are accurate: estimates 1 row → uses index ✅ (correct, very fast)
+  If statistics are stale: may estimate 100,000 rows → may do seq scan ❌ (wrong, slow)</pre>
+                <p><strong>The California problem:</strong> An index on a heavily skewed column is useless for the majority value. It's only valuable for the rare values. This is why:</p>
+                <ul>
+                    <li>Low-cardinality columns (status: active/inactive) rarely benefit from plain B-tree indexes.</li>
+                    <li>Filtered/partial indexes (<span class="inline-code">WHERE state != 'California'</span>) are perfect for rare-value queries.</li>
+                </ul>
+
+                <h3>The Stale Statistics Problem — A Production Danger</h3>
+                <pre class="code-block">Scenario: Fresh table created. Statistics: rows=0.
+  You insert 300M rows via bulk load.
+  You immediately run queries WITHOUT running ANALYZE.
+
+  Statistics still say: rows=0 (or rows=3 from last analyze)
+  Optimizer thinks: "This table is tiny → full scan is fine."
+  Query plan: Seq Scan on 300M rows → pulls all 300M rows.
+  Time: 5 minutes instead of milliseconds.
+
+This scenario is real and common after ETL loads, migrations, and bulk inserts.</pre>
+                
+                <p><strong>Always run ANALYZE after significant data changes:</strong></p>
+                <pre class="code-block">-- PostgreSQL
+ANALYZE grades;                        -- Update statistics for one table
+ANALYZE;                              -- Update statistics for all tables
+VACUUM ANALYZE grades;                -- Clean dead tuples + update stats
+
+-- Oracle
+EXEC DBMS_STATS.GATHER_TABLE_STATS('schema', 'table');
+
+-- SQL Server
+UPDATE STATISTICS table_name;
+-- Or rebuild indexes (which also updates stats):
+ALTER INDEX ALL ON table_name REBUILD;
+
+-- MySQL
+ANALYZE TABLE grades;</pre>
+            </section>
+
+            <!-- SECTION 5 -->
+            <section id="sec-5">
+                <h2>5. Composite Index Best Practices — Full Analysis</h2>
+
+                <h3>The Test Setup (from lectures)</h3>
+                <pre class="code-block">Table: test (a INTEGER, b INTEGER, c INTEGER)
+Rows: ~12 million
+
+Test queries:
+  Q1: SELECT c FROM test WHERE a = 70
+  Q2: SELECT c FROM test WHERE b = 100
+  Q3: SELECT c FROM test WHERE a = 100 AND b = 100
+  Q4: SELECT c FROM test WHERE a = 100 OR b = 100</pre>
+
+                <h3>Configuration 1: Two Separate Indexes <span class="inline-code">(a)</span> + <span class="inline-code">(b)</span></h3>
+                <pre class="code-block">CREATE INDEX idx_a ON test (a);
+CREATE INDEX idx_b ON test (b);</pre>
+
+                <table>
+                    <thead>
+                        <tr><th>Query</th><th>Plan</th><th>Result</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="inline-code">WHERE a = 70</span></td><td>Bitmap Index Scan on idx_a → Bitmap Heap Scan</td><td>~250ms, 9,000 rows</td></tr>
+                        <tr><td><span class="inline-code">WHERE b = 100</span></td><td>Bitmap Index Scan on idx_b → Bitmap Heap Scan</td><td>~250ms</td></tr>
+                        <tr><td><span class="inline-code">WHERE a=100 AND b=100</span></td><td>BitmapAnd(idx_a, idx_b) → Bitmap Heap Scan</td><td>Fast, ~6 rows</td></tr>
+                        <tr><td><span class="inline-code">WHERE a=100 OR b=100</span></td><td>BitmapOr(idx_a, idx_b) → Bitmap Heap Scan</td><td>Slower, more rows</td></tr>
+                    </tbody>
+                </table>
+                <p><strong>For the AND case:</strong> PostgreSQL builds two bitmaps, ANDs them, fetches only pages where BOTH conditions might be satisfied. Very efficient.</p>
+                <p><strong>For the OR case:</strong> PostgreSQL builds two bitmaps, ORs them, fetches the union. More rows to fetch than AND, but still avoids two separate table scans.</p>
+
+                <h3>Configuration 2: Composite Index <span class="inline-code">(a, b)</span> Only</h3>
+                <pre class="code-block">CREATE INDEX idx_ab ON test (a, b);</pre>
+
+                <table>
+                    <thead>
+                        <tr><th>Query</th><th>Plan</th><th>Result</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="inline-code">WHERE a = 70</span></td><td>Bitmap Index Scan on idx_ab (left prefix works)</td><td>~250ms</td></tr>
+                        <tr><td><span class="inline-code">WHERE b = 100</span></td><td><strong>Parallel Seq Scan</strong> (no left prefix — index ignored)</td><td>SLOW</td></tr>
+                        <tr><td><span class="inline-code">WHERE a=100 AND b=100</span></td><td>Index Scan on idx_ab</td><td><strong>0.5ms — blazing fast</strong></td></tr>
+                        <tr><td><span class="inline-code">WHERE a=100 OR b=100</span></td><td>Seq Scan (OR with composite: difficult to use)</td><td>Slow</td></tr>
+                    </tbody>
+                </table>
+                
+                <p><strong>The left-prefix rule in action:</strong></p>
+                <pre class="code-block">Composite index idx_ab on (a, b):
+
+B+ Tree leaf nodes: [(a=1,b=5), (a=1,b=8), (a=2,b=3), (a=2,b=7), (a=3,b=1), ...]
+                     ↑
+                     Sorted by a first, then by b within each a value.
+
+Searching WHERE a = 70:
+  Can use index: scan to where a=70 starts, walk forward until a≠70. ✅
+  All a=70 entries are contiguous in the B+ tree.
+
+Searching WHERE b = 100:
+  Cannot use index efficiently: b=100 is scattered throughout the tree.
+  b=100 appears in (a=1,b=100), (a=2,b=100), (a=5,b=100), etc. — everywhere.
+  Would require scanning the ENTIRE index to find all b=100 entries.
+  → Planner correctly chooses sequential scan instead. ❌</pre>
+
+                <p><strong>AND performance with composite index:</strong><br>
+                When querying <span class="inline-code">a=100 AND b=100</span>, the composite index is perfect:</p>
+                <ul>
+                    <li>Navigate to the exact leaf node where <span class="inline-code">a=100 AND b=100</span>.</li>
+                    <li>This is a point lookup — O(log n) to find exactly those rows.</li>
+                    <li>Result: 0.5ms vs 250ms with two separate indexes. 500x faster for the AND case.</li>
+                </ul>
+
+                <h3>Configuration 3: Composite <span class="inline-code">(a, b)</span> + Separate <span class="inline-code">(b)</span> — The Best of Both</h3>
+                <pre class="code-block">CREATE INDEX idx_ab ON test (a, b);  -- For a alone, and a+b together
+CREATE INDEX idx_b  ON test (b);     -- For b alone</pre>
+
+                <table>
+                    <thead>
+                        <tr><th>Query</th><th>Plan</th><th>Result</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="inline-code">WHERE a = 70</span></td><td>Bitmap Index Scan on idx_ab</td><td>✅ Fast</td></tr>
+                        <tr><td><span class="inline-code">WHERE b = 100</span></td><td>Bitmap Index Scan on idx_b</td><td>✅ Fast (now has its own index)</td></tr>
+                        <tr><td><span class="inline-code">WHERE a=100 AND b=100</span></td><td>Index Scan on idx_ab</td><td>✅ Blazing (0.5ms)</td></tr>
+                        <tr><td><span class="inline-code">WHERE a=100 OR b=100</span></td><td>BitmapOr(idx_ab, idx_b) → Bitmap Heap Scan</td><td>✅ Now works!</td></tr>
+                    </tbody>
+                </table>
+                <p><strong>For the OR case with Configuration 3:</strong></p>
+                <ul>
+                    <li><span class="inline-code">a=100</span>: uses idx_ab (left prefix, a is first column) → builds bitmap 1.</li>
+                    <li><span class="inline-code">b=100</span>: uses idx_b (dedicated b index) → builds bitmap 2.</li>
+                    <li>BitmapOr merges bitmaps → fetches union.</li>
+                </ul>
+                <p>Without the dedicated <span class="inline-code">idx_b</span>, the OR query on <span class="inline-code">b=100</span> would force a full table scan.</p>
+
+                <p><strong>The engineering decision:</strong></p>
+                <pre class="code-block">Ask: Which queries need to be fast?
+  a alone?           → idx_ab covers this (left prefix)
+  b alone?           → needs idx_b
+  a AND b?           → idx_ab is perfect
+  a OR b?            → needs both idx_ab AND idx_b
+  All four?          → Configuration 3: idx_ab + idx_b
+
+Cost: Two indexes = two structures to maintain on every write.
+      More inserts = more write overhead.
+      Pick only the indexes that real queries use.</pre>
+
+                <h3>Configuration Summary Table</h3>
+                <table>
+                    <thead>
+                        <tr><th>Query</th><th>idx_a + idx_b</th><th>idx_ab only</th><th>idx_ab + idx_b</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="inline-code">WHERE a = ?</span></td><td>✅ Bitmap scan</td><td>✅ Left prefix</td><td>✅ Left prefix</td></tr>
+                        <tr><td><span class="inline-code">WHERE b = ?</span></td><td>✅ Bitmap scan</td><td>❌ Seq scan</td><td>✅ idx_b</td></tr>
+                        <tr><td><span class="inline-code">WHERE a=? AND b=?</span></td><td>✅ BitmapAnd</td><td>✅✅ Best (0.5ms)</td><td>✅✅ Best</td></tr>
+                        <tr><td><span class="inline-code">WHERE a=? OR b=?</span></td><td>✅ BitmapOr</td><td>❌ Seq scan</td><td>✅ BitmapOr</td></tr>
+                        <tr><td>Write cost</td><td>2 index updates</td><td>1 (larger) index update</td><td>2 index updates</td></tr>
+                        <tr><td>Index storage</td><td>2 separate</td><td>1 composite</td><td>3 structures total</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- SECTION 6 -->
+            <section id="sec-6">
+                <h2>6. Planner Cost Parameters — What Drives the Decisions</h2>
+                <p>The planner's cost model uses configurable parameters that model the relative cost of different operations on your specific hardware:</p>
+                <pre class="code-block">-- View current cost parameters:
+SHOW random_page_cost;    -- Default: 4.0 (relative cost of random disk IO)
+SHOW seq_page_cost;       -- Default: 1.0 (relative cost of sequential disk IO)
+SHOW cpu_tuple_cost;      -- Default: 0.01 (cost per row processed)
+SHOW effective_cache_size; -- Default: 4GB (estimate of OS cache size)</pre>
+
+                <p><strong>The most important: <span class="inline-code">random_page_cost</span> / <span class="inline-code">seq_page_cost</span> ratio</strong></p>
+                <pre class="code-block">Default: random_page_cost = 4.0, seq_page_cost = 1.0
+Ratio: 4:1 — random IO is 4x more expensive than sequential IO
+
+For NVMe SSDs (random ≈ sequential): set random_page_cost = 1.1 (nearly equal)
+For HDD (random MUCH slower): leave at 4.0 or increase to 8.0
+
+Effect:
+  Higher random_page_cost → optimizer avoids index scans with many heap fetches
+                          → prefers sequential scans and bitmap scans
+  Lower random_page_cost  → optimizer more willing to use index scans
+                          → set to 1.1 on SSDs to unlock more index usage</pre>
+                
+                <pre class="code-block">-- Tune for SSD storage:
+SET random_page_cost = 1.1;
+-- or in postgresql.conf:
+-- random_page_cost = 1.1</pre>
+            </section>
+
+            <!-- SECTION 7 -->
+            <section id="sec-7">
+                <h2>7. Practical Java Implementation</h2>
+
+                <h3>Reading EXPLAIN Output Programmatically</h3>
+                <pre class="code-block">import java.sql.*;
+
+public class QueryPlanAnalyzer {
+
+    private final Connection conn;
+
+    /**
+     * Retrieves and logs the query execution plan for a given SQL statement.
+     * Use this during development to verify index usage.
+     */
+    public String explainQuery(String sql, Object... params) throws SQLException {
+        StringBuilder plan = new StringBuilder();
+        String explainSql = "EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) " + sql;
+
+        try (PreparedStatement stmt = conn.prepareStatement(explainSql)) {
+            for (int i = 0; i < params.length; i++) {
+                stmt.setObject(i + 1, params[i]);
+            }
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    plan.append(rs.getString(1)).append("\n");
+                }
+            }
+        }
+        return plan.toString();
+    }
+
+    /**
+     * Checks whether a query uses a sequential scan (potential performance issue).
+     * In production: trigger an alert or log a warning when seq scans appear
+     * on large tables in critical code paths.
+     */
+    public boolean usesSeqScan(String sql, Object... params) throws SQLException {
+        String plan = explainQuery(sql, params);
+        return plan.contains("Seq Scan") || plan.contains("Parallel Seq Scan");
+    }
+
+    /**
+     * Checks whether the query achieves an Index Only Scan (ideal).
+     */
+    public boolean isIndexOnlyScan(String sql, Object... params) throws SQLException {
+        String plan = explainQuery(sql, params);
+        return plan.contains("Index Only Scan");
+    }
+
+    /**
+     * Extracts actual execution time from EXPLAIN ANALYZE output.
+     * Useful for automated performance regression testing.
+     */
+    public double getExecutionTimeMs(String sql, Object... params) throws SQLException {
+        String plan = explainQuery(sql, params);
+        // Extract "Execution Time: X.XXX ms" from the plan
+        for (String line : plan.split("\n")) {
+            if (line.startsWith("Execution Time:")) {
+                return Double.parseDouble(
+                    line.replace("Execution Time:", "").replace("ms", "").trim()
+                );
+            }
+        }
+        return -1;
+    }
+}</pre>
+
+                <h3>Integration Test — Verifying Index Usage</h3>
+                <pre class="code-block">import org.junit.jupiter.api.Test;
+import static org.assertj.core.api.Assertions.*;
+
+/**
+ * Performance tests that verify index usage.
+ * Run these in CI to catch accidental query plan regressions.
+ */
+class QueryPlanTest {
+
+    @Autowired
+    private QueryPlanAnalyzer analyzer;
+
+    @Test
+    void studentGradeRangeQuery_shouldUseIndexOnlyScan() throws Exception {
+        String sql = "SELECT id, grade FROM students WHERE grade > ? AND grade < ? ORDER BY grade DESC";
+        String plan = analyzer.explainQuery(sql, 80, 95);
+
+        // Verify no sequential scan — would indicate missing or unused index
+        assertThat(plan).doesNotContain("Seq Scan");
+        assertThat(plan).doesNotContain("Parallel Seq Scan");
+
+        // Ideal: Index Only Scan (covering index exists)
+        assertThat(plan).contains("Index Only Scan");
+
+        // Verify heap fetches are minimal
+        assertThat(plan).contains("Heap Fetches: 0");
+    }
+
+    @Test
+    void employeeLookupByName_shouldNotUseSeqScan() throws Exception {
+        String sql = "SELECT id FROM employees WHERE name = ?";
+        assertThat(analyzer.usesSeqScan(sql, "Alice")).isFalse();
+    }
+
+    @Test
+    void compositeIndexQuery_andCondition_shouldBeSubMillisecond() throws Exception {
+        String sql = "SELECT c FROM test WHERE a = ? AND b = ?";
+        double timeMs = analyzer.getExecutionTimeMs(sql, 100, 100);
+
+        // Composite index on (a,b) should make this extremely fast
+        assertThat(timeMs).isLessThan(1.0);
+    }
+}</pre>
+
+                <h3>Statistics Refresh After Bulk Load</h3>
+                <pre class="code-block">import org.springframework.jdbc.core.JdbcTemplate;
+
+@Service
+public class BulkDataService {
+
+    private final JdbcTemplate jdbc;
+
+    /**
+     * Bulk inserts data and updates statistics afterward.
+     * CRITICAL: Without ANALYZE after bulk insert, the optimizer may use
+     * stale statistics and choose wrong query plans for subsequent queries.
+     */
+    @Transactional
+    public void bulkInsertAndRefreshStats(List&lt;Student&gt; students) {
+        // Bulk insert
+        jdbc.batchUpdate(
+            "INSERT INTO students (id, name, grade) VALUES (?, ?, ?)",
+            students,
+            1000,
+            (ps, student) -> {
+                ps.setLong(1, student.getId());
+                ps.setString(2, student.getName());
+                ps.setInt(3, student.getGrade());
+            }
+        );
+
+        // CRITICAL: Update statistics after bulk load
+        // Without this, optimizer may choose full table scan on the fresh data
+        jdbc.execute("ANALYZE students");
+
+        log.info("Bulk inserted {} rows and updated statistics.", students.size());
+    }
+
+    /**
+     * For very large bulk loads, VACUUM ANALYZE is more thorough.
+     * Cleans dead tuples + updates visibility map + updates statistics.
+     * Needed for Index Only Scan to work at Heap Fetches: 0.
+     */
+    public void fullMaintenance(String tableName) {
+        // Cannot run VACUUM inside a transaction
+        jdbc.execute("VACUUM ANALYZE " + tableName);
+        log.info("Vacuum analyze completed for table: {}", tableName);
+    }
+}</pre>
+
+                <h3>Forcing Statistics Update (Oracle/SQL Server Equivalents)</h3>
+                <pre class="code-block">// PostgreSQL
+jdbcTemplate.execute("ANALYZE " + tableName);
+
+// Oracle
+jdbcTemplate.execute(
+    "BEGIN DBMS_STATS.GATHER_TABLE_STATS('" + schema + "', '" + tableName + "'); END;"
+);
+
+// SQL Server
+jdbcTemplate.execute("UPDATE STATISTICS " + tableName);
+
+// MySQL
+jdbcTemplate.execute("ANALYZE TABLE " + tableName);</pre>
+            </section>
+
+            <!-- SECTION 8 -->
+            <section id="sec-8">
+                <h2>8. Important Interview Questions</h2>
+
+                <h3>Basic Questions</h3>
+                <p><strong>Q: What is the query planner and why does it exist?</strong><br>
+                A: The query planner (optimizer) is the database component that takes a SQL statement and determines the most efficient execution plan. SQL is declarative — it describes what data to retrieve, not how. The planner evaluates multiple possible plans (different indexes, join orders, scan strategies), estimates the cost of each using table statistics, and executes the cheapest one.</p>
+
+                <p><strong>Q: What is the difference between <span class="inline-code">cost=startup..total</span> in EXPLAIN output?</strong><br>
+                A: The startup cost is work done before returning the first row — high for ORDER BY without an index (must sort everything first), aggregations, and hash joins. The total cost is the estimated work to return all rows. Both are in arbitrary cost units, not milliseconds. For LIMIT queries, a high startup cost is particularly damaging because you pay the full pre-processing cost even for a small result.</p>
+
+                <p><strong>Q: What does <span class="inline-code">rows=</span> in EXPLAIN output represent?</strong><br>
+                A: The planner's estimated number of rows this node will return, derived from table statistics. If the estimate is very different from actual rows (visible with EXPLAIN ANALYZE), the statistics are stale. Run <span class="inline-code">ANALYZE table_name</span> to fix. Wrong row estimates lead to wrong plan choices (e.g., choosing index scan for a query that will return 5M rows).</p>
+
+                <p><strong>Q: What causes "Rows Removed by Filter" in EXPLAIN output?</strong><br>
+                A: This appears when the database reads rows from the heap or index but they fail the WHERE clause filter and are discarded. A high number means a lot of wasted IO. The typical cause is a missing index on the filter column, or a non-SARGable predicate that prevents index use.</p>
+
+                <h3>Intermediate Questions</h3>
+                <p><strong>Q: What is a Bitmap Index Scan and why does PostgreSQL use it instead of a regular Index Scan?</strong><br>
+                A: A Bitmap Index Scan is used when a query matches enough rows that random heap fetches per row (Index Scan) would be slower than a sequential scan, but not so many rows that a full sequential scan is preferred. The bitmap scan first scans the index to build a bitmap of matching page numbers, then fetches those heap pages in sorted (sequential) order. This converts expensive random IO into cheaper sequential IO. It also allows BitmapAnd/Or operations to combine multiple indexes before touching the heap.</p>
+
+                <p><strong>Q: Explain the left-prefix rule for composite indexes.</strong><br>
+                A: A composite index on <span class="inline-code">(a, b)</span> sorts entries first by <span class="inline-code">a</span>, then by <span class="inline-code">b</span> within each <span class="inline-code">a</span> value. A query filtering only on <span class="inline-code">a</span> can use this index because all matching entries are contiguous in the B+ tree (starting from where <span class="inline-code">a</span> equals the search value). A query filtering only on <span class="inline-code">b</span> cannot use this index efficiently because <span class="inline-code">b</span> values are spread throughout the tree, interleaved with different <span class="inline-code">a</span> values. The index is useful only when a left-side prefix of the indexed columns is in the query's WHERE clause.</p>
+
+                <p><strong>Q: When does the optimizer choose a sequential scan over an index scan, even when an index exists?</strong><br>
+                A: The planner estimates the fraction of rows matching the query. When many rows match (roughly > 10-20% of the table), the cost of K random heap fetches via the index exceeds the cost of a single sequential scan. The planner also considers <span class="inline-code">random_page_cost</span> vs <span class="inline-code">seq_page_cost</span> configuration. On SSDs, lowering <span class="inline-code">random_page_cost</span> to 1.1 tells the planner that random and sequential IO have similar cost, encouraging more index use.</p>
+
+                <p><strong>Q: What are stale statistics and how do they cause production problems?</strong><br>
+                A: Statistics are metadata about table data distribution (row counts, distinct values, value histograms) used by the planner to estimate how many rows a predicate will match. After bulk data loads, statistics may be stale — the planner thinks the table has 3 rows when it actually has 300 million. It then chooses a sequential scan thinking it's fast (3 rows), but actually scans 300M rows. Fix: always run <span class="inline-code">ANALYZE</span> after significant data changes. Auto-analyze runs in the background but may lag behind large bulk operations.</p>
+
+                <h3>Advanced Questions</h3>
+                <p><strong>Q: Explain how BitmapAnd reduces IO compared to two separate index scans.</strong><br>
+                A: With two separate indexes (idx_a and idx_b) for a query <span class="inline-code">WHERE a=100 AND b=100</span>, a naive approach would scan idx_a → find 10,000 matching rows → for each, fetch the heap page and check <span class="inline-code">b=100</span>. BitmapAnd instead scans both indexes to build two page bitmaps, then ANDs the bitmaps to find pages where BOTH conditions might be satisfied. If idx_a points to 1,000 pages and idx_b points to 500 pages, and their intersection is only 50 pages, we fetch only 50 heap pages instead of 1,000. The bitmap AND is a simple bitwise operation on the page bitmaps — essentially free — while eliminating most random heap IO.</p>
+
+                <p><strong>Q: How does the visibility map affect Index Only Scan performance in PostgreSQL, and how do you fix it?</strong><br>
+                A: PostgreSQL uses MVCC — each row has <span class="inline-code">xmin/xmax</span> visibility metadata. An Index Only Scan would ideally return data without touching the heap. But PostgreSQL must verify that each row is visible to the current transaction. The visibility map records, per heap page, whether all rows on that page are known visible to all transactions (meaning no live MVCC row version ambiguity). If a page is marked "all visible," the Index Only Scan can skip the heap fetch. If not (stale visibility map after writes), it must fetch the heap page — appearing as <span class="inline-code">Heap Fetches &gt; 0</span> even on an Index Only Scan. Running <span class="inline-code">VACUUM</span> updates the visibility map, setting all-visible bits, and eliminates the extra heap fetches.</p>
+
+                <p><strong>Q: How does <span class="inline-code">random_page_cost</span> affect the planner's index vs scan decision?</strong><br>
+                A: The planner computes the estimated cost of each plan using cost constants. An index scan on K rows costs approximately <span class="inline-code">K × random_page_cost</span> for heap fetches. A sequential scan costs <span class="inline-code">total_pages × seq_page_cost</span>. PostgreSQL defaults to <span class="inline-code">random_page_cost=4.0</span> and <span class="inline-code">seq_page_cost=1.0</span> (4:1 ratio — reflecting HDD characteristics). On NVMe SSDs where random and sequential IO have nearly identical latency, this ratio makes index scans appear 4x more expensive than they actually are, causing the planner to prefer sequential scans when it shouldn't. Setting <span class="inline-code">random_page_cost=1.1</span> corrects this for SSD environments, enabling the optimizer to choose index scans for a much larger fraction of queries.</p>
+            </section>
+
+            <!-- SECTION 9 -->
+            <section id="sec-9">
+                <h2>9. Common Mistakes</h2>
+
+                <h3>Reading EXPLAIN Wrong</h3>
+                <ul>
+                    <li><strong>Reading top-to-bottom instead of bottom-up.</strong> The leaf nodes (most indented) execute first. Read from the innermost node outward to understand execution order.</li>
+                    <li><strong>Treating cost numbers as milliseconds.</strong> The <span class="inline-code">cost=</span> values are not milliseconds. They are relative cost units. Only <span class="inline-code">EXPLAIN ANALYZE</span> shows actual milliseconds in the <span class="inline-code">actual time=</span> field.</li>
+                    <li><strong>Ignoring the startup cost.</strong> Engineers often focus on total cost and miss the startup cost. For LIMIT queries, a high startup cost (caused by sorting or aggregation) means the database does ALL the expensive work before returning even one row.</li>
+                </ul>
+
+                <h3>Statistics and Planning Mistakes</h3>
+                <ul>
+                    <li><strong>Not running ANALYZE after bulk loads.</strong> This is the most common production mistake. Fresh tables after ETL have zero or minimal statistics. Every query on them may choose the wrong plan until ANALYZE runs.</li>
+                    <li><strong>Forgetting that <span class="inline-code">EXPLAIN</span> (without ANALYZE) doesn't execute the query.</strong> The <span class="inline-code">rows=</span> and <span class="inline-code">cost=</span> values in plain <span class="inline-code">EXPLAIN</span> are estimates, not measurements. They can be significantly wrong. Always use <span class="inline-code">EXPLAIN ANALYZE</span> to see actual numbers.</li>
+                    <li><strong>Trusting one execution of EXPLAIN ANALYZE.</strong> The first run may show high IO because data is cold (not cached). The second run is faster due to OS page cache. Profile with cache cleared (<span class="inline-code">pg_prewarm</span> extension or testing with <span class="inline-code">pg_stat_reset</span>) for realistic estimates.</li>
+                </ul>
+
+                <h3>Index Design Mistakes (From Planner Perspective)</h3>
+                <ul>
+                    <li><strong>Creating a composite index on (a, b) and expecting it to help queries on b alone.</strong> As demonstrated: the left-prefix rule means <span class="inline-code">WHERE b = ?</span> will do a full table scan with composite index <span class="inline-code">(a, b)</span>. Always add a separate index on <span class="inline-code">b</span> if you query <span class="inline-code">b</span> alone.</li>
+                    <li><strong>Expecting the planner to use an index on a low-cardinality column.</strong> An index on <span class="inline-code">status</span> with values 'active'/'inactive' (50% each) will be ignored for equality predicates. The planner knows a seq scan is cheaper. Use filtered/partial indexes for these cases.</li>
+                    <li><strong>Creating indexes and not running ANALYZE.</strong> A newly created index is visible to the planner but the statistics haven't been updated to reflect the new index's selectivity information. Run <span class="inline-code">ANALYZE table_name</span> after creating indexes to ensure optimal plan generation.</li>
+                </ul>
+
+                <h3>Production Mistakes</h3>
+                <ul>
+                    <li><strong>Using query hints in application code permanently.</strong> Hints override the planner. If the data distribution changes (new scale, different data patterns), the hint may force a suboptimal plan. Hints are debugging tools, not architectural solutions. Fix the underlying statistics or index design instead.</li>
+                    <li><strong>Not monitoring for sequential scans on large tables.</strong>
+<pre class="code-block">-- Find tables with high sequential scan ratios (missing indexes)
+SELECT relname, seq_scan, idx_scan,
+       round(seq_scan::numeric/(seq_scan+idx_scan+1)*100,1) as seq_pct
+FROM pg_stat_user_tables
+WHERE seq_scan > 1000
+ORDER BY seq_scan DESC;</pre>
+                    </li>
+                    <li><strong>Assuming the planner is always right.</strong> The planner's cost model has blind spots: correlated columns (WHERE city='NYC' AND state='NY' — not independent), complex join cardinality with many tables, and cases where <span class="inline-code">n_distinct</span> is wrong. When you KNOW your data, judicious hints can outperform the planner.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 10 -->
+            <section id="sec-10">
+                <h2>10. Performance & Scalability Notes</h2>
+
+                <h3>Cost of Wrong Plan Selection</h3>
+                <pre class="code-block">Table: 50M rows
+Correct plan: Index Only Scan → 4 seconds
+Wrong plan (stale stats): Seq Scan → 21 seconds
+
+5x performance regression from a single missing ANALYZE call.
+
+At scale (1B rows):
+Correct plan: ~8 seconds
+Wrong plan: ~7 minutes
+
+87x performance regression.</pre>
+
+                <h3>Parallel Query Scaling</h3>
+                <pre class="code-block">Workers: 1 (serial) → baseline
+Workers: 2 → ~1.7x speedup (not linear — merge overhead)
+Workers: 4 → ~3.2x speedup
+Workers: 8 → ~5-6x speedup (diminishing returns)
+
+Configure in PostgreSQL:
+  max_parallel_workers_per_gather = 4  (default: 2)
+  min_parallel_table_scan_size = 8MB  (tables smaller than this don't parallelize)
+  parallel_setup_cost = 1000          (overhead of spawning workers)</pre>
+
+                <h3>Memory for Sort and Hash Operations</h3>
+                <pre class="code-block">sort_mem (work_mem in PostgreSQL): Memory for each sort/hash operation per connection.
+  Default: 4MB
+  Too low: Spills sort to disk → very slow ("external sort")
+  
+For a query sorting 10M rows × 31 bytes/row = 310MB:
+  work_mem = 4MB → sort spills to disk → 10x slower
+  work_mem = 512MB → sort stays in memory → fast
+  
+SET work_mem = '256MB';  -- Per-session tuning for heavy analytical queries
+-- Or in postgresql.conf for global default</pre>
+            </section>
+
+            <!-- SECTION 11 -->
+            <section id="sec-11">
+                <h2>11. System Design Connections</h2>
+
+                <h3>Query Plan Monitoring in Production</h3>
+                <pre class="code-block">// Spring Boot actuator endpoint to expose slow query stats
+@Component
+public class SlowQueryMonitor {
+
+    private final JdbcTemplate jdbc;
+    private final MeterRegistry metrics;
+
+    @Scheduled(fixedDelay = 60000)  // Every minute
+    public void checkForMissingIndexes() {
+        // pg_stat_statements extension required
+        List&lt;Map&lt;String, Object&gt;&gt; slowQueries = jdbc.queryForList("""
+            SELECT query, calls, total_exec_time/calls as avg_ms,
+                   rows/calls as avg_rows
+            FROM pg_stat_statements
+            WHERE total_exec_time/calls > 100     -- avg > 100ms
+            AND calls > 100                        -- called frequently
+            ORDER BY total_exec_time DESC
+            LIMIT 10
+            """);
+
+        for (Map&lt;String, Object&gt; q : slowQueries) {
+            double avgMs = (double) q.get("avg_ms");
+            String query = (String) q.get("query");
+
+            metrics.gauge("db.slow_query.avg_ms",
+                Tags.of("query", query.substring(0, Math.min(50, query.length()))),
+                avgMs);
+
+            if (avgMs > 1000) {
+                log.warn("SLOW QUERY DETECTED (avg {}ms): {}", avgMs, query);
+            }
+        }
+    }
+
+    @Scheduled(fixedDelay = 300000)  // Every 5 minutes
+    public void refreshStaleStatistics() {
+        // Find tables where auto-analyze may be lagging
+        jdbc.queryForList("""
+            SELECT relname, n_dead_tup, n_live_tup, last_analyze
+            FROM pg_stat_user_tables
+            WHERE n_dead_tup > n_live_tup * 0.1   -- >10% dead tuples
+            OR last_analyze < NOW() - INTERVAL '1 hour'
+            """).forEach(table -> {
+                String tableName = (String) table.get("relname");
+                log.info("Triggering ANALYZE on stale table: {}", tableName);
+                jdbc.execute("ANALYZE " + tableName);
+            });
+    }
+}</pre>
+
+                <h3>Read Replica — Planner Implications</h3>
+                <p>In a primary-replica setup, each node has its own planner and its own statistics. If a read replica's statistics are behind the primary (e.g., replica hasn't run ANALYZE recently), it may choose different query plans for the same query than the primary does. A query that runs in 10ms on the primary may run in 3 seconds on the replica due to a stale statistics plan choice. Always run ANALYZE on replicas after significant schema or data changes.</p>
+            </section>
+
+            <!-- SECTION 12 -->
+            <section id="sec-12">
+                <h2>12. Visual Mental Models</h2>
+
+                <h3>EXPLAIN Node Tree — Execution Order</h3>
+                <pre class="code-block">Gather Merge                          ← Execute LAST (outermost)
+  Workers: 2
+  -> Sort
+       Sort Key: name
+       -> Parallel Seq Scan on grades
+            Filter: (grade > 90)      ← Execute FIRST (innermost)
+
+Reading order: BOTTOM UP
+  Step 1: Two workers each scan a portion of 'grades', filtering grade > 90
+  Step 2: Each worker sorts its partition by name
+  Step 3: Gather Merge merges the two sorted streams into one sorted result</pre>
+
+                <h3>Bitmap Scan — The Page Bitmap</h3>
+                <pre class="code-block">Table heap: [Page 0][Page 1][Page 2]...[Page 625,000]
+
+Bitmap (one bit per page):
+  [0][0][0][0][0][0][0][0][0][1][0][1][0][0][0][0][1]...
+   0   1   2   3   4   5   6   7   8   9  10  11  12  13
+                                          ↑       ↑          ↑
+                               "Found grade>95 on these pages"
+
+BitmapAnd with second condition (id < 10000):
+  Bitmap 1 (grade > 95): [0][0][0][0][0][0][0][0][0][1][0][1][0]...
+  Bitmap 2 (id < 10000): [1][1][1][1][1][1][1][1][1][1][0][0][0]...
+  AND result:            [0][0][0][0][0][0][0][0][0][1][0][0][0]...
+                                                      ↑
+                                         Only page 9 satisfies BOTH conditions
+  → Fetch only page 9 from heap (1 IO instead of potentially thousands)</pre>
+
+                <h3>Composite Index — Left Prefix Visualization</h3>
+                <pre class="code-block">Index on (a, b) — B+ tree leaf nodes:
+
+[(a=1,b=3), (a=1,b=7), (a=1,b=9), (a=2,b=1), (a=2,b=5), (a=3,b=2), (a=3,b=8)]
+  ↑─────────────────────────────↑
+      All a=1 entries are CONTIGUOUS → WHERE a=1 scans just this range
+
+b values: 3, 7, 9, 1, 5, 2, 8 — NOT contiguous, scattered across different a values
+  → WHERE b=5 requires scanning the ENTIRE index to find all b=5 entries
+  → Planner correctly ignores the composite index for b-only queries</pre>
+
+                <h3>Optimizer Decision Flowchart</h3>
+                <pre class="code-block">Query arrives at planner
+        │
+        ▼
+Check statistics for each index
+(row counts, distinct values, histograms)
+        │
+        ├─── Estimate rows matching predicate
+        │
+        ├─── Very few rows (< ~1%)?
+        │         → Index Scan ✅
+        │
+        ├─── Medium rows (1% - 10%), multiple indexes?
+        │         → BitmapAnd/BitmapOr ✅
+        │
+        ├─── Many rows (> ~10%) OR no suitable index?
+        │         → Seq Scan (Parallel if workers available) ✅
+        │
+        └─── All SELECT + WHERE columns in one index?
+                  → Index Only Scan ✅✅ (best case)</pre>
+            </section>
+
+            <!-- SECTION 13 -->
+            <section id="sec-13">
+                <h2>13. Revision Notes (One Page)</h2>
+                <pre class="code-block bg-blue-900 border border-blue-800 text-blue-50 shadow-md">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  QUERY PLANNER & OPTIMIZER — QUICK REVISION SHEET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+EXPLAIN OUTPUT FIELDS:
+  cost=startup..total   Units are NOT ms. Startup = work before first row.
+                        High startup = ORDER BY without index, aggregations.
+  rows=N                Estimated rows (from statistics). Compare with actual.
+  width=N               Avg row size in bytes. Keep small, only select what you need.
+  actual time=ms..ms    Real time (EXPLAIN ANALYZE only).
+  Heap Fetches: N       Heap pages fetched. 0 = pure index scan.
+  shared hit=N          Pages from buffer pool (RAM). shared read=N = disk IO.
+
+SCAN TYPES (fastest to slowest):
+  Index Only Scan  → Heap Fetches: 0 → all cols in index ← BEST
+  Index Scan       → K random heap fetches → fast for small K
+  Bitmap Scan      → builds page bitmap → sorted heap fetches → good for medium K
+  Seq Scan         → reads ALL pages → best for large K or missing index ← WORST
+
+BITMAP SCAN MAGIC:
+  BitmapAnd: intersects two index bitmaps → fewer heap fetches than either alone
+  BitmapOr:  unions two index bitmaps → OR queries can use multiple indexes
+  Recheck:   some fetched rows may not match (page-level granularity) → post-filter
+
+COMPOSITE INDEX LEFT-PREFIX RULE:
+  Index on (a, b):
+    ✅ WHERE a = ?          → uses index (left prefix)
+    ✅ WHERE a = ? AND b = ? → uses index (full composite)
+    ❌ WHERE b = ?          → IGNORED (no left prefix) → seq scan!
+  Fix: add separate index on (b) if you query b alone
+
+OPTIMIZER INDEX SELECTION (3 cases):
+  Case 1: Use both → BitmapAnd (AND query, both moderately selective)
+  Case 2: Use one  → most selective index + filter rest in memory
+  Case 3: Use none → seq scan (low selectivity, or stats say too many rows)
+
+STATISTICS — THE OPTIMIZER'S FUEL:
+  Stale stats → wrong plan → 10-100x performance regression
+  After bulk loads: ALWAYS run ANALYZE table_name
+  PostgreSQL: ANALYZE / VACUUM ANALYZE
+  Oracle: DBMS_STATS.GATHER_TABLE_STATS
+  SQL Server: UPDATE STATISTICS
+  MySQL: ANALYZE TABLE
+
+COST TUNING FOR SSDs:
+  random_page_cost = 1.1  (default 4.0 is for HDD)
+  → Makes optimizer prefer index scans more aggressively
+  → Critical for cloud databases on NVMe storage
+
+VISIBILITY MAP (PostgreSQL Index Only Scan):
+  Index Only Scan with Heap Fetches > 0 → run VACUUM
+  VACUUM updates visibility map → next Index Only Scan gets Heap Fetches: 0
+
+PRODUCTION RULES:
+  ✅ Always EXPLAIN ANALYZE slow queries before adding indexes
+  ✅ Run ANALYZE after bulk loads or significant data changes
+  ✅ Set random_page_cost = 1.1 on SSD storage
+  ✅ Monitor pg_stat_statements for slow queries
+  ✅ Add separate (b) index when composite (a,b) + WHERE b queries both needed
+  ❌ Never trust EXPLAIN (without ANALYZE) for performance conclusions
+  ❌ Never add query hints permanently without understanding root cause
+  ❌ Never ignore "Rows Removed by Filter" — it screams missing index
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</pre>
+            </section>
+
+            <footer class="mt-16 pt-8 border-t border-gray-200 text-center text-gray-500 text-sm pb-16">
+                End of Notes — Query Planner & Optimizer<br>
+                <span class="text-xs">Sources: PostgreSQL Lectures (Hussein Nasser) — EXPLAIN, Scan Types, Bitmap Scans, Index Best Practices, Optimizer Index Selection</span>
+            </footer>
+        </div>
+    </main>
+
+</body>
+</html>

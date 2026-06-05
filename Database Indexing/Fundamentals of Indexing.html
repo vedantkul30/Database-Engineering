@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Indexing Fundamentals</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            color: #111827;
+        }
+        pre {
+            font-family: 'Fira Code', monospace;
+        }
+        .prose h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin-top: 3rem;
+            margin-bottom: 1.5rem;
+            color: #1e3a8a;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        .prose h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: #1f2937;
+        }
+        .prose h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: #374151;
+        }
+        .prose p {
+            margin-bottom: 1rem;
+            line-height: 1.75;
+            color: #4b5563;
+        }
+        .prose ul, .prose ol {
+            padding-left: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #4b5563;
+        }
+        .prose ul { list-style-type: disc; }
+        .prose ol { list-style-type: decimal; }
+        .prose li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        .prose strong {
+            color: #111827;
+            font-weight: 600;
+        }
+        .prose blockquote {
+            border-left: 4px solid #3b82f6;
+            background-color: #eff6ff;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            font-style: italic;
+            color: #1e40af;
+            border-radius: 0 0.5rem 0.5rem 0;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        .prose table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+            background-color: white;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .prose th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #374151;
+        }
+        .prose td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #4b5563;
+            vertical-align: top;
+        }
+        .prose tr:last-child td {
+            border-bottom: none;
+        }
+        .code-block {
+            background-color: #1f2937;
+            color: #e5e7eb;
+            padding: 1.25rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            white-space: pre;
+        }
+        .inline-code {
+            background-color: #f3f4f6;
+            color: #ef4444;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.875rem;
+        }
+        .nav-link {
+            transition: all 0.2s ease;
+        }
+        .nav-link:hover {
+            color: #2563eb;
+            background-color: #eff6ff;
+            padding-left: 0.5rem;
+        }
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body class="antialiased flex flex-col md:flex-row h-screen overflow-hidden">
+
+    <!-- Sidebar / Table of Contents -->
+    <aside class="w-full md:w-72 bg-white border-r border-gray-200 h-1/4 md:h-full overflow-y-auto flex-shrink-0 z-10 shadow-sm">
+        <div class="p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Contents</h2>
+            
+            <nav class="space-y-1 text-sm font-medium text-gray-600">
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Concepts & Types</p>
+                <a href="#sec-1" class="block py-1.5 nav-link rounded-md">1. Big Picture</a>
+                <a href="#sec-2" class="block py-1.5 nav-link rounded-md">2. Core Concepts</a>
+                <a href="#sec-3" class="block py-1.5 nav-link rounded-md">3. Index Types Reference</a>
+                <a href="#sec-4" class="block py-1.5 nav-link rounded-md">4. B+ Tree Internals</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Internals & Practice</p>
+                <a href="#sec-5" class="block py-1.5 nav-link rounded-md">5. Practical Demo Numbers</a>
+                <a href="#sec-6" class="block py-1.5 nav-link rounded-md">6. Indexes in Production</a>
+                <a href="#sec-7" class="block py-1.5 nav-link rounded-md">7. The Query Planner</a>
+                <a href="#sec-8" class="block py-1.5 nav-link rounded-md">8. Clustered vs Non-Clustered</a>
+                <a href="#sec-9" class="block py-1.5 nav-link rounded-md">9. EXPLAIN ANALYZE</a>
+                <a href="#sec-10" class="block py-1.5 nav-link rounded-md">10. Java Implementation</a>
+                <a href="#sec-11" class="block py-1.5 nav-link rounded-md">11. Index Design Strategy</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Review</p>
+                <a href="#sec-12" class="block py-1.5 nav-link rounded-md">12. Interview Questions</a>
+                <a href="#sec-13" class="block py-1.5 nav-link rounded-md">13. Common Mistakes</a>
+                <a href="#sec-14" class="block py-1.5 nav-link rounded-md">14. Performance & Scalability</a>
+                <a href="#sec-15" class="block py-1.5 nav-link rounded-md">15. System Design Connections</a>
+                <a href="#sec-16" class="block py-1.5 nav-link rounded-md">16. Visual Mental Models</a>
+                <a href="#sec-17" class="block py-1.5 nav-link rounded-md">17. Revision Notes (One Page)</a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 h-3/4 md:h-full overflow-y-auto bg-gray-50 p-6 md:p-12 lg:p-16">
+        <div class="max-w-4xl mx-auto prose">
+            
+            <header class="mb-12 text-center md:text-left">
+                <p class="text-blue-600 font-semibold tracking-wide uppercase text-sm mb-2">Complete Learning Notes | PostgreSQL · MySQL · SQL Server</p>
+                <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 mt-0 border-none pb-0">Database Indexing Fundamentals</h1>
+                <p class="text-xl text-gray-500 mt-4">Interview Prep & System Design</p>
+            </header>
+
+            <!-- SECTION 1 -->
+            <section id="sec-1">
+                <h2>1. Big Picture</h2>
+                
+                <h3>Why Indexing Exists</h3>
+                <p>Every database query ultimately becomes one of two operations: find the exact rows you need, or scan everything and throw away what you don't need. Without indexes, the second option is the only option. Indexes exist to make the first option possible.</p>
+                <p>An index is a <strong>separately maintained data structure</strong> that maps column values to their physical locations in the heap (table storage). It allows the query engine to answer "where is row X?" in logarithmic time (B+ tree: O(log n)) instead of linear time (heap scan: O(n)).</p>
+                <p>This difference is not academic:</p>
+                <pre class="code-block">Table: 10 million rows
+Full heap scan: 625,000 page IOs
+B+ tree index lookup: 4 page IOs
+
+Ratio: 156,000x fewer disk reads with an index.</pre>
+
+                <h3>The Phone Book Analogy</h3>
+                <p>The best way to think about an index is a phone book with labeled tabs:</p>
+                <ul>
+                    <li>You want "Zebra Corp" — you flip directly to Z, then scan a small section.</li>
+                    <li>Without the tabs, you read page 1, page 2, page 3... through the entire 1,000-page book.</li>
+                    <li>The tabs ARE the index. The phone book itself IS the heap.</li>
+                </ul>
+
+                <h3>Where Indexes Appear in Real Systems</h3>
+                <ul>
+                    <li><strong>E-commerce:</strong> Product search by category, price range, name prefix.</li>
+                    <li><strong>Banking:</strong> Account lookup by account number, transaction lookup by date range.</li>
+                    <li><strong>Social media:</strong> User lookup by username, post lookup by timestamp.</li>
+                    <li><strong>Ride-sharing:</strong> Driver lookup by geolocation bucket, trip lookup by status.</li>
+                    <li><strong>Reporting systems:</strong> Aggregations filtered by date range, region, product.</li>
+                </ul>
+
+                <h3>Why Backend Engineers Must Deeply Understand Indexing</h3>
+                <ul>
+                    <li>Indexes are the single biggest lever for query performance optimization.</li>
+                    <li>The wrong index strategy can make queries 1,000x slower — invisibly, silently, in production.</li>
+                    <li>The query planner may IGNORE your index if you write the query incorrectly (LIKE with wildcards, implicit type conversions, non-SARGable predicates).</li>
+                    <li>Index creation on large production tables blocks writes if done incorrectly.</li>
+                    <li>Over-indexing makes writes slow — every insert/update/delete must update every index.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 2 -->
+            <section id="sec-2">
+                <h2>2. Core Concepts</h2>
+
+                <h3>What Is an Index?</h3>
+                <p>An index is a <strong>separate data structure</strong> built on top of one or more columns of a table. It:</p>
+                <ul>
+                    <li>Is stored as its own set of disk pages (separate from the heap).</li>
+                    <li>Contains only the indexed column values (the key) plus pointers back to the heap.</li>
+                    <li>Is maintained automatically by the database on every INSERT, UPDATE, and DELETE.</li>
+                    <li>Is smaller than the heap (fewer columns, often compressed) → fits in memory more easily.</li>
+                    <li>Is organized for fast search — B+ tree by default, allowing O(log n) lookups.</li>
+                </ul>
+
+                <pre class="code-block">Index on employee.id:
+
+B+ Tree structure (conceptual):
+                     [500 | 1000 | 5000]         ← Root node (1 page)
+                    /         |          \
+          [100|200|300]  [600|700|800]  [1500|2000|3000]   ← Internal nodes
+               /                  \
+[id=1,p=0,r=1] ... [id=500,p=62,r=3]  [id=1000,p=125,r=7] ...   ← Leaf nodes
+     ↑                                      ↑
+  (page=0, row=1 in heap)            (page=125, row=7 in heap)</pre>
+
+                <h3>The Two Primary Index Types</h3>
+                <p>The lectures cover two main index structures:</p>
+
+                <p><strong>B-Tree / B+ Tree (dominant structure):</strong></p>
+                <ul>
+                    <li>Balanced tree with sorted keys at every level.</li>
+                    <li>Leaf nodes contain key values + heap pointers, linked in a doubly-linked list.</li>
+                    <li>Supports: equality, range queries, ORDER BY, GROUP BY, prefix matching.</li>
+                    <li>Used by: PostgreSQL, MySQL InnoDB, SQL Server, Oracle (all B+ tree internally).</li>
+                </ul>
+
+                <p><strong>LSM Tree (Log-Structured Merge Tree):</strong></p>
+                <ul>
+                    <li>Optimized for write-heavy workloads.</li>
+                    <li>Writes go to an in-memory structure (MemTable), flushed to disk as sorted files (SSTables).</li>
+                    <li>Background compaction merges SSTables.</li>
+                    <li>Used by: RocksDB, Cassandra, LevelDB, HBase, ScyllaDB.</li>
+                    <li>Read performance is worse than B+ tree but write throughput is far higher.</li>
+                </ul>
+
+                <p><strong>Hash Index (SQL Server / in-memory tables):</strong></p>
+                <ul>
+                    <li>Array of buckets, each holding a linked list of key entries.</li>
+                    <li>Hash function maps key → bucket.</li>
+                    <li>Excellent for exact equality lookups (O(1) average).</li>
+                    <li>Cannot support range queries, ORDER BY, or prefix scans.</li>
+                    <li>SQL Server supports this for memory-optimized tables.</li>
+                    <li>Bucket count must be configured at creation time (ideally 1-2x number of distinct values).</li>
+                </ul>
+
+                <h3>Scan Types — The Query Execution Vocabulary</h3>
+                <p>Understanding scan types is essential for reading EXPLAIN output and diagnosing slow queries.</p>
+
+                <h4>Sequential Scan (Full Table Scan)</h4>
+                <pre class="code-block">Operation: Read EVERY page of the heap, check every row against the WHERE clause.
+Cost:      O(N) — proportional to total table size, not result size.
+When used: No index on the WHERE clause column, or index is not selective enough.
+
+EXPLAIN output (PostgreSQL):
+  -> Parallel Seq Scan on employees (workers: 2)
+     Filter: (ssn = '666-66-6666')
+     Rows Removed by Filter: 10,999,999</pre>
+                <p>The "Rows Removed by Filter" line is critical — it shows how many rows were read but thrown away. A high number here screams "you need an index."</p>
+
+                <h4>Index Scan</h4>
+                <pre class="code-block">Operation: Traverse B+ tree to find candidate rows (by key value), then fetch each
+           matching row from the heap (a separate IO per row).
+Cost:      O(log N + K) where K = number of matching rows.
+When used: Index exists on WHERE clause column, and the query is selective.
+
+EXPLAIN output (PostgreSQL):
+  -> Index Scan using employees_id_idx on employees
+     Index Cond: (id = 10000)
+     Heap Fetches: 1  ← went to heap to get non-indexed columns</pre>
+                <p>The heap fetch is the additional cost — for each result row the index finds, the database must go back to the heap to retrieve columns not stored in the index.</p>
+
+                <h4>Index Only Scan</h4>
+                <pre class="code-block">Operation: Traverse B+ tree, return results DIRECTLY from the index.
+           The heap is never touched.
+Cost:      O(log N) — the sweetest possible query.
+When used: ALL columns in the SELECT and WHERE clause exist in the index.
+
+EXPLAIN output (PostgreSQL):
+  -> Index Only Scan using students_grade_idx on students
+     Index Cond: (grade BETWEEN 80 AND 95)
+     Heap Fetches: 0  ← never touched the heap</pre>
+                <p><strong>Heap Fetches: 0 is the goal.</strong> This is the most efficient query type.</p>
+                <p><strong>Important PostgreSQL detail:</strong> Even an "Index Only Scan" may show Heap Fetches > 0 if the visibility map is out of date (after recent writes without VACUUM). Run <span class="inline-code">VACUUM</span> to fix this.</p>
+
+                <h4>Bitmap Index Scan</h4>
+                <pre class="code-block">Operation: Scan the index to build a bitmap of matching page numbers, then
+           fetch heap pages in sorted order (batching multiple row fetches from
+           the same page into one IO).
+Cost:      O(log N + pages_with_matches) — better than index scan for many matches.
+When used: Query matches many rows (medium selectivity). PostgreSQL chooses this
+           automatically over index scan when result set is larger.
+
+EXPLAIN output (PostgreSQL):
+  -> Bitmap Heap Scan on employees
+       -> Bitmap Index Scan on employees_name_idx
+          Index Cond: (name = 'XZ')</pre>
+                <p><strong>Why this matters:</strong> If you query 10,000 rows via a secondary index, those 10,000 rows may be scattered across 10,000 different heap pages (worst case: 10,000 random IOs). A bitmap scan sorts the heap page accesses first, reducing random IO to sequential IO.</p>
+
+                <h3>The SARGability Concept</h3>
+                <p><strong>SARGable</strong> (Search ARGument-able) means the query predicate CAN use an index. This is one of the most important and most violated concepts in practical SQL writing.</p>
+
+                <p><strong>SARGable predicates (CAN use index):</strong></p>
+                <pre class="code-block">WHERE id = 10000                          -- Equality: uses index ✅
+WHERE grade BETWEEN 80 AND 95            -- Range: uses index ✅
+WHERE name = 'Alice'                     -- Equality on indexed col: uses index ✅
+WHERE salary > 50000                     -- Inequality: uses index ✅
+WHERE name LIKE 'Ali%'                   -- Prefix match: uses index ✅
+WHERE created_at > '2024-01-01'          -- Date range: uses index ✅</pre>
+
+                <p><strong>Non-SARGable predicates (CANNOT use index):</strong></p>
+                <pre class="code-block">WHERE name LIKE '%Ali%'                  -- Leading wildcard: full scan ❌
+WHERE name LIKE '%Ali'                   -- Leading wildcard: full scan ❌
+WHERE UPPER(name) = 'ALICE'             -- Function on column: full scan ❌
+WHERE salary * 1.1 > 55000             -- Expression on column: full scan ❌
+WHERE YEAR(created_at) = 2024           -- Function on column: full scan ❌
+WHERE id != 10000                       -- NOT EQUAL: usually full scan ❌</pre>
+
+                <p><strong>Why non-SARGable queries bypass indexes:</strong></p>
+                <p>The index stores the raw column values. If you wrap the column in a function (<span class="inline-code">UPPER(name)</span>) or expression (<span class="inline-code">salary * 1.1</span>), the index values don't match the transformed predicate. The planner has no choice but to scan the table and evaluate the function on every row.</p>
+
+                <p><strong>The fix:</strong></p>
+                <pre class="code-block">-- BAD: Non-SARGable
+WHERE UPPER(name) = 'ALICE'
+
+-- GOOD: Push the function to the constant side
+WHERE name = LOWER('ALICE')
+
+-- OR: Create a functional index (PostgreSQL supports this)
+CREATE INDEX idx_name_upper ON employees (UPPER(name));
+WHERE UPPER(name) = 'ALICE'  -- now SARGable ✅</pre>
+            </section>
+
+            <!-- SECTION 3 -->
+            <section id="sec-3">
+                <h2>3. Index Types — Complete Reference</h2>
+
+                <h3>Simple (Single-Column) Index</h3>
+                <pre class="code-block">-- PostgreSQL / MySQL
+CREATE INDEX idx_employees_name ON employees (name);
+
+-- SQL Server
+CREATE NONCLUSTERED INDEX IX_employees_name ON employees (name);</pre>
+                <p>Covers equality and range queries on the <span class="inline-code">name</span> column. Cannot help queries that only reference other columns.</p>
+
+                <h3>Composite (Multi-Column) Index</h3>
+                <p>A composite index on <span class="inline-code">(col_a, col_b, col_c)</span> is ordered first by <span class="inline-code">col_a</span>, then by <span class="inline-code">col_b</span> within each <span class="inline-code">col_a</span> value, then by <span class="inline-code">col_c</span> within each <span class="inline-code">col_b</span> value.</p>
+                <p><strong>The left-prefix rule:</strong> A composite index can only be used if the query provides values for a prefix of the indexed columns, starting from the leftmost.</p>
+
+                <pre class="code-block">CREATE INDEX idx_name_dept ON employees (last_name, department, hire_date);
+
+-- Uses index: ✅
+WHERE last_name = 'Smith'
+WHERE last_name = 'Smith' AND department = 'Engineering'
+WHERE last_name = 'Smith' AND department = 'Engineering' AND hire_date > '2020-01-01'
+
+-- Uses index partially (only last_name): ⚠️
+WHERE last_name = 'Smith' AND hire_date > '2020-01-01'
+-- (department was skipped — index can filter on last_name, then heap scan for hire_date)
+
+-- Does NOT use index: ❌
+WHERE department = 'Engineering'    -- leftmost column not provided
+WHERE hire_date > '2020-01-01'     -- leftmost column not provided</pre>
+
+                <p><strong>Column order strategy for composite indexes (SQL Server / general):</strong></p>
+                <ol>
+                    <li>Equality columns first (columns used with <span class="inline-code">=</span> in WHERE)</li>
+                    <li>Range columns last (columns used with <span class="inline-code">&gt;</span>, <span class="inline-code">&lt;</span>, <span class="inline-code">BETWEEN</span>)</li>
+                    <li>Then covered/included columns (columns only in SELECT, not WHERE)</li>
+                </ol>
+                <p>This maximizes the index's ability to filter rows before reaching the range scan portion.</p>
+
+                <h3>Covering Index (Index with Included Columns)</h3>
+                <p>A <strong>covering index</strong> is one that contains all columns needed to answer a query — both the WHERE clause columns (key columns) and the SELECT clause columns (either as key or as non-key included columns). When covered, the heap is never accessed → Index Only Scan.</p>
+
+                <p><strong>Key vs Non-Key (Included) Columns:</strong></p>
+                <table>
+                    <thead>
+                        <tr><th>Property</th><th>Key Column</th><th>Non-Key (Included) Column</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Stored at</td><td>All B+ tree levels</td><td>Leaf level only</td></tr>
+                        <tr><td>Used for</td><td>Search/filtering</td><td>Data retrieval only</td></tr>
+                        <tr><td>Affects sort order</td><td>Yes</td><td>No</td></tr>
+                        <tr><td>Counts toward key size limit</td><td>Yes (max 900 bytes / 16 cols in SQL Server)</td><td>No</td></tr>
+                        <tr><td>Can be large types</td><td>Limited</td><td>Yes</td></tr>
+                    </tbody>
+                </table>
+
+                <pre class="code-block">-- PostgreSQL syntax
+CREATE INDEX idx_grade_covering ON students (grade) INCLUDE (id);
+-- Key column: grade (for WHERE grade BETWEEN 80 AND 95)
+-- Non-key included: id (for SELECT id — avoids heap fetch)
+
+-- SQL Server syntax (identical semantics)
+CREATE NONCLUSTERED INDEX IX_Address_PostalCode
+ON Person.Address (PostalCode)
+INCLUDE (AddressLine1, AddressLine2, City, StateProvinceID);
+-- Only PostalCode in the B+ tree key (small, efficient for searching)
+-- Address fields only at leaf level (for SELECT — no heap fetch)</pre>
+
+                <p><strong>The design principle:</strong> Put only the columns you search/filter on as key columns. Put everything you SELECT (but don't filter on) as included/non-key columns.</p>
+                <p><strong>The cost:</strong> Every non-key column you include increases the index size. A larger index means more pages → more IOs to read the index → potentially doesn't fit in buffer pool. Only include columns that appear frequently enough in queries to justify the space.</p>
+                
+                <pre class="code-block">Before non-key index:
+  Query: SELECT id, grade FROM students WHERE grade BETWEEN 80 AND 95 ORDER BY grade DESC
+  Plan: Index Scan (grade index) → 90,000 heap fetches for id → SLOW
+
+After CREATE INDEX ON students (grade) INCLUDE (id):
+  Plan: Index Only Scan → 0 heap fetches → FAST</pre>
+
+                <h3>Unique Index</h3>
+                <pre class="code-block">CREATE UNIQUE INDEX idx_employees_ssn ON employees (ssn);</pre>
+                <p>Guarantees no two rows have the same value in the indexed column(s). Benefits beyond data integrity:</p>
+                <ul>
+                    <li><strong>Query optimizer advantage:</strong> The optimizer knows this index will return at most ONE row for an equality predicate. It can choose a more efficient execution plan.</li>
+                    <li><strong>Implicit sort guarantee:</strong> Unique columns carry cardinality information that helps join and aggregation planning.</li>
+                </ul>
+                <p>PRIMARY KEY and UNIQUE constraints automatically create unique indexes. There is no functional difference between <span class="inline-code">CREATE UNIQUE INDEX</span> and <span class="inline-code">CREATE UNIQUE CONSTRAINT</span>.</p>
+
+                <h3>Filtered Index (Partial Index)</h3>
+                <p>A filtered index indexes only a <strong>subset of rows</strong> that match a predicate. It is smaller, cheaper to maintain, and can be more selective than a full-table index.</p>
+                
+                <pre class="code-block">-- PostgreSQL (called Partial Index)
+CREATE INDEX idx_bills_with_enddate ON production.bill_of_materials (component_id, start_date)
+WHERE end_date IS NOT NULL;
+-- Only indexes the 199 rows where end_date is not null (out of 2,679 total)
+-- 199-row index vs 2,679-row full index — 13x smaller, 13x cheaper to maintain
+
+-- SQL Server (called Filtered Index)
+CREATE NONCLUSTERED INDEX FIProductAccessories
+ON Production.Product (ProductSubcategoryID, ListPrice)
+INCLUDE (Name)
+WHERE ProductSubcategoryID >= 27 AND ProductSubcategoryID <= 36;</pre>
+
+                <p><strong>Ideal use cases for filtered indexes:</strong></p>
+                <table>
+                    <thead>
+                        <tr><th>Scenario</th><th>Example</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Sparse columns (mostly NULL)</td><td><span class="inline-code">WHERE status IS NOT NULL</span></td></tr>
+                        <tr><td>Soft-deleted records</td><td><span class="inline-code">WHERE deleted_at IS NULL</span></td></tr>
+                        <tr><td>Status-based queries</td><td><span class="inline-code">WHERE order_status = 'PENDING'</span></td></tr>
+                        <tr><td>Heterogeneous data categories</td><td><span class="inline-code">WHERE product_type = 'ELECTRONICS'</span></td></tr>
+                        <tr><td>Recent data access patterns</td><td><span class="inline-code">WHERE created_at > '2024-01-01'</span></td></tr>
+                    </tbody>
+                </table>
+                <p><strong>Critical rule:</strong> For the optimizer to use a filtered index, the query's WHERE clause must be <em>compatible</em> with (a superset of) the index's filter predicate. A query with <span class="inline-code">WHERE end_date > '2020-01-01'</span> would NOT use an index filtered <span class="inline-code">WHERE end_date IS NOT NULL</span> because the predicates are different — the query must reference the filter column.</p>
+
+                <h3>Columnstore Index (SQL Server)</h3>
+                <p>A columnstore index stores data in <strong>column-oriented format</strong> rather than row-oriented. SQL Server supports both clustered and nonclustered columnstore indexes.</p>
+                
+                <p><strong>Architecture:</strong></p>
+                <ul>
+                    <li>Data is divided into <strong>rowgroups</strong> (up to 1,048,576 rows each).</li>
+                    <li>Each rowgroup is divided into <strong>column segments</strong> (one per column).</li>
+                    <li>Each column segment is compressed independently.</li>
+                    <li>Small writes go to a <strong>deltastore</strong> (row-format B-tree) until enough rows accumulate for compression into the columnstore.</li>
+                    <li>The <strong>tuple-mover</strong> background process compresses closed deltastore rowgroups.</li>
+                </ul>
+
+                <pre class="code-block">Columnstore Index Physical Layout:
+
+Rowgroup 1 (1M rows):                 Rowgroup 2 (1M rows):
+  [id segment: compressed]              [id segment: compressed]
+  [salary segment: compressed]          [salary segment: compressed]
+  [dept segment: compressed]            [dept segment: compressed]
+  ...                                   ...
+
+Deltastore (B-tree, rowstore):
+  Small inserts accumulate here until 102,400+ rows → tuple-mover compresses</pre>
+
+                <p><strong>When to use columnstore (SQL Server):</strong></p>
+                <pre class="code-block">-- Create on existing rowstore table for mixed OLTP+OLAP
+CREATE NONCLUSTERED COLUMNSTORE INDEX idx_sales_columnstore
+ON sales (product_id, quantity, price, sale_date);
+
+-- Optimizer automatically chooses columnstore for analytics:
+SELECT product_id, SUM(price * quantity) as revenue
+FROM sales
+GROUP BY product_id;
+-- Reads only product_id, price, quantity columns → 3x fewer IOs</pre>
+
+                <h3>Hash Index (SQL Server In-Memory Tables)</h3>
+                <pre class="code-block">-- Only on memory-optimized tables
+ALTER TABLE orders_inmem
+ADD INDEX ix_hash_orderid UNIQUE
+HASH (order_id) WITH (BUCKET_COUNT = 1000000);</pre>
+                
+                <p><strong>Architecture:</strong></p>
+                <ul>
+                    <li>Array of 8-byte bucket pointers.</li>
+                    <li>Hash function maps key → bucket number.</li>
+                    <li>Each bucket points to a linked list of matching entries.</li>
+                    <li>Multiple keys can hash to the same bucket (hash collision).</li>
+                </ul>
+
+                <p><strong>Optimal bucket count:</strong></p>
+                <ul>
+                    <li>Target: 1-2x the number of distinct key values.</li>
+                    <li>Acceptable: within 10x of distinct values.</li>
+                    <li>Too few → long chain lengths → slow equality lookups.</li>
+                    <li>Too many → many empty buckets → wasted memory + slower full scans.</li>
+                </ul>
+
+                <p><strong>Hash index performance rules:</strong></p>
+                <table>
+                    <thead>
+                        <tr><th>Query Type</th><th>Performance</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Equality: <span class="inline-code">WHERE key = ?</span></td><td>Excellent (O(1) average)</td></tr>
+                        <tr><td>Range: <span class="inline-code">WHERE key BETWEEN ? AND ?</span></td><td>Poor (reverts to scan)</td></tr>
+                        <tr><td>Partial key: only first column of 2-col index</td><td>Poor (full scan)</td></tr>
+                        <tr><td>ORDER BY on indexed column</td><td>Not supported</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- SECTION 4 -->
+            <section id="sec-4">
+                <h2>4. Deep Dive — B+ Tree Internals</h2>
+
+                <h3>B+ Tree Structure</h3>
+                <p>Every B+ tree index in PostgreSQL, MySQL InnoDB, and SQL Server consists of:</p>
+                <pre class="code-block">Level 0 (Root):       One root page — entry point for ALL lookups.
+Level 1..N-1 (Internal): Pages containing key ranges + pointers to lower pages.
+Level N (Leaf):       Pages containing actual key values + heap pointers.
+                      Leaf pages are doubly-linked → supports range scans.</pre>
+
+                <p><strong>Leaf page doubly-linked list:</strong></p>
+                <pre class="code-block">← Page 3 ← [Page 4: keys 400-499] ↔ [Page 5: keys 500-599] ↔ [Page 6: keys 600-699] → Page 7 →</pre>
+                <p>Once the tree finds the start of a range (e.g., 450), it simply walks the linked list forward to collect all values up to 599 — no need to re-traverse the tree. This is why B+ trees are so efficient for range queries.</p>
+
+                <p><strong>Tree height for common table sizes:</strong></p>
+                <table>
+                    <thead>
+                        <tr><th>Rows</th><th>Approximate B+ Tree Height</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>1,000</td><td>2 levels</td></tr>
+                        <tr><td>1,000,000</td><td>3 levels</td></tr>
+                        <tr><td>1,000,000,000</td><td>4 levels</td></tr>
+                    </tbody>
+                </table>
+                <p>Height ≈ log_b(N) where b is the branching factor (typically 100-400 for integer keys). This is why B+ tree lookups cost only 3-4 IOs regardless of whether the table has a million or a billion rows.</p>
+
+                <h3>Page Fill Factor</h3>
+                <p>SQL Server (and PostgreSQL with <span class="inline-code">fillfactor</span>) allow configuring how full each index page is when built or rebuilt.</p>
+                <pre class="code-block">-- SQL Server: 80% fill factor
+CREATE INDEX IX_orders_date ON orders (order_date)
+WITH (FILLFACTOR = 80);
+-- Leaves 20% of each page empty for future inserts
+-- Reduces page splits on insert-heavy tables
+-- Costs slightly more storage upfront</pre>
+
+                <p><strong>Page split (what happens without enough fill factor):</strong></p>
+                <pre class="code-block">Page 5 is full: [400, 450, 470, 480, 490, 500]  ← All 6 slots used
+
+New insert: key=460
+
+Step 1: Allocate new page 5b: [460, 470, 480, 490, 500] → page 5b
+        Keep in page 5:       [400, 450]
+
+Step 2: Update parent internal node to point to both page 5 and 5b.
+
+Cost: 2 page writes + 1 parent page write = expensive under heavy insert load.
+FILLFACTOR = 80 would have left room for 460 in page 5 → no split needed.</pre>
+
+                <h3>Sort Order in Index</h3>
+                <p>Indexes can be created with ascending or descending sort per column:</p>
+                <pre class="code-block">-- SQL Server: descending on rejection rate, ascending on product
+CREATE NONCLUSTERED INDEX IX_PurchaseOrderDetail_RejectedQty
+ON Purchasing.PurchaseOrderDetail
+(RejectedQty DESC, ProductID ASC, DueDate, OrderQty);
+
+-- This exactly matches the query:
+SELECT RejectedQty, ProductID, DueDate
+FROM Purchasing.PurchaseOrderDetail
+ORDER BY RejectedQty DESC, ProductID ASC;
+-- Without matching index: SORT operator in query plan (expensive)
+-- With matching index: no SORT needed → query plan cost drops from 86% to ~1%</pre>
+
+                <p><strong>Key rule:</strong> If an ORDER BY clause matches the index key order exactly (or exactly reversed), the database can eliminate the SORT operation from the query plan. This is significant for large result sets where sorting costs dominate.</p>
+            </section>
+
+            <!-- SECTION 5 -->
+            <section id="sec-5">
+                <h2>5. Practical Demo — Observed Performance Numbers</h2>
+                <p>The lectures provide actual timing data from PostgreSQL with 11-50 million row tables. These are real numbers you can cite in interviews.</p>
+
+                <h3>Employee Table (11 Million Rows) — PostgreSQL</h3>
+                <table>
+                    <thead>
+                        <tr><th>Query</th><th>Index</th><th>Scan Type</th><th>Time</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="inline-code">SELECT id WHERE id = 5000</span></td><td>Yes (PK)</td><td>Index Only Scan</td><td>0.1 ms</td></tr>
+                        <tr><td><span class="inline-code">SELECT name WHERE id = 5000</span></td><td>Yes (PK)</td><td>Index Scan</td><td>2.5 ms</td></tr>
+                        <tr><td><span class="inline-code">SELECT id WHERE name = 'XZ'</span></td><td>No</td><td>Parallel Seq Scan</td><td>3,000 ms</td></tr>
+                        <tr><td><span class="inline-code">SELECT id WHERE name LIKE '%XZ%'</span></td><td>No</td><td>Parallel Seq Scan</td><td>1,100 ms</td></tr>
+                        <tr><td><span class="inline-code">SELECT id WHERE name = 'XZ'</span></td><td>Yes (name)</td><td>Bitmap Heap Scan</td><td>47 ms</td></tr>
+                        <tr><td><span class="inline-code">SELECT id WHERE name LIKE '%XZ%'</span></td><td>Yes (name)</td><td>Parallel Seq Scan</td><td>1,100 ms</td></tr>
+                    </tbody>
+                </table>
+                <p><strong>Key observations:</strong></p>
+                <ul>
+                    <li>Index scan (id→name lookup): 25x slower than index-only scan (id→id). The extra 2.4ms is the heap fetch — a single random IO on SSD.</li>
+                    <li>LIKE with leading wildcard completely bypasses the name index. The index exists, but the planner correctly ignores it because <span class="inline-code">%XZ%</span> is non-SARGable.</li>
+                    <li>Parallel seq scan (2 workers): reduces seq scan time but doesn't eliminate it.</li>
+                </ul>
+
+                <h3>Students Table (50 Million Rows) — PostgreSQL</h3>
+                <table>
+                    <thead>
+                        <tr><th>Query</th><th>Index</th><th>Scan Type</th><th>Time</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="inline-code">SELECT id, grade WHERE grade BETWEEN 80 AND 95 ORDER BY grade DESC</span></td><td>No</td><td>Parallel Seq Scan</td><td>21 s</td></tr>
+                        <tr><td>Same query</td><td>Yes (grade)</td><td>Index Scan Backward</td><td>16 s</td></tr>
+                        <tr><td>Same query</td><td>Yes (grade) INCLUDE (id)</td><td>Index Only Scan</td><td>4 s</td></tr>
+                        <tr><td>Same query (after VACUUM)</td><td>Yes (grade) INCLUDE (id)</td><td>Index Only Scan</td><td>1 s</td></tr>
+                        <tr><td>Limit 1000, same query</td><td>Yes (grade) INCLUDE (id)</td><td>Index Only Scan</td><td>0.5 ms</td></tr>
+                    </tbody>
+                </table>
+                <p><strong>Key observations:</strong></p>
+                <ul>
+                    <li>Index on <span class="inline-code">grade</span> without <span class="inline-code">INCLUDE (id)</span>: still requires heap fetches for <span class="inline-code">id</span> → 16s vs 21s, marginal improvement. The heap fetch cost dominates.</li>
+                    <li>Adding <span class="inline-code">INCLUDE (id)</span> → Index Only Scan → 4x improvement over index scan, 5x over seq scan.</li>
+                    <li>VACUUM matters: without it, visibility map is stale, heap fetches occur even in Index Only Scan.</li>
+                    <li>For a LIMIT 1000 query, the index provides 40,000x speedup (0.5ms vs 21s extrapolated).</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 6 -->
+            <section id="sec-6">
+                <h2>6. Creating Indexes in Production — CONCURRENTLY</h2>
+                <p>This is one of the most operationally important concepts in the lectures.</p>
+
+                <h3>The Problem: Standard CREATE INDEX Blocks Writes</h3>
+                <pre class="code-block">-- DANGEROUS in production:
+CREATE INDEX idx_employees_name ON employees (name);
+-- Acquires SHARE lock on the table.
+-- All INSERT, UPDATE, DELETE are BLOCKED until index is built.
+-- For 11M rows: several seconds to minutes of write downtime.</pre>
+                <p>On a busy production table, this can cause:</p>
+                <ul>
+                    <li>Request timeouts across the entire application.</li>
+                    <li>Queue buildup in connection pools.</li>
+                    <li>Cascading failures in downstream services.</li>
+                </ul>
+
+                <h3>The Solution: CREATE INDEX CONCURRENTLY</h3>
+                <pre class="code-block">-- SAFE in production:
+CREATE INDEX CONCURRENTLY idx_employees_name ON employees (name);
+-- No table lock. Reads AND writes continue normally.
+-- Index build takes longer but production traffic is unaffected.</pre>
+                <p><strong>How CONCURRENTLY works internally:</strong></p>
+                <ol>
+                    <li><strong>First pass:</strong> Scan the heap and build an initial index snapshot. During this scan, all existing rows are indexed. New writes are tracked but not yet included.</li>
+                    <li><strong>Wait:</strong> Database waits for all transactions that started before the first pass to complete (so no transaction sees an inconsistent state).</li>
+                    <li><strong>Second pass:</strong> Scan again to pick up changes that occurred during the first pass.</li>
+                    <li><strong>Wait again:</strong> Wait for all transactions from second pass to finish.</li>
+                    <li><strong>Mark valid:</strong> Index is marked as valid and the planner begins using it.</li>
+                </ol>
+                <p><strong>Costs of CONCURRENTLY:</strong></p>
+                <ul>
+                    <li>Takes significantly longer (multiple scans vs one scan).</li>
+                    <li>Consumes more CPU and memory during build.</li>
+                    <li>Cannot be run inside a transaction block.</li>
+                </ul>
+                <p><strong>Can fail:</strong> If the index is unique and a duplicate value is inserted while the index is being built, the index ends up in an <strong>INVALID</strong> state. You must then:</p>
+                <pre class="code-block">-- Check for invalid indexes
+SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'employees';
+-- Or:
+SELECT * FROM pg_stat_user_indexes WHERE idx_scan = 0;
+
+-- Drop and recreate
+DROP INDEX CONCURRENTLY idx_employees_name;
+CREATE INDEX CONCURRENTLY idx_employees_name ON employees (name);</pre>
+
+                <h3>SQL Server Equivalent: ONLINE = ON</h3>
+                <pre class="code-block">-- SQL Server equivalent of CONCURRENTLY:
+CREATE NONCLUSTERED INDEX IX_employees_name
+ON employees (name)
+WITH (ONLINE = ON);
+-- Allows concurrent reads AND writes during index creation.
+-- Available in SQL Server Enterprise/Developer editions.</pre>
+            </section>
+
+            <!-- SECTION 7 -->
+            <section id="sec-7">
+                <h2>7. The Query Planner — How the Database Decides to Use Indexes</h2>
+                <p>The query planner is a component that analyzes a query and determines the most efficient execution strategy. It may choose to use an index, ignore it, or combine multiple indexes.</p>
+
+                <h3>When the Planner Chooses NOT to Use an Index</h3>
+                <p><strong>Small tables:</strong> For a table with 100 rows (a few pages), a heap scan costs 1-2 IOs. A B+ tree index traversal also costs 2-3 IOs (tree height). The index provides no benefit. The planner correctly ignores the index.</p>
+                <p><strong>Low selectivity:</strong> An index on a column with 2 distinct values (e.g., <span class="inline-code">gender = 'M'</span> or <span class="inline-code">'F'</span>) matches 50% of rows. Reading 50% of the heap randomly is more expensive than a sequential heap scan. The planner ignores the index.</p>
+                <p><strong>Non-SARGable predicates:</strong> As covered — functions or expressions on the indexed column prevent index use.</p>
+                <p><strong>Large result sets without LIMIT:</strong> If your query returns 80% of the rows, a sequential scan is more efficient than 8,000,000 individual heap page fetches via an index.</p>
+                <p><strong>Stale statistics:</strong> The planner uses table statistics (maintained by ANALYZE / VACUUM ANALYZE) to estimate row counts and choose plans. Stale statistics lead to wrong cardinality estimates → wrong plan choices. Always run ANALYZE after bulk loads.</p>
+
+                <h3>Forcing Index Use (Hints)</h3>
+                <pre class="code-block">-- PostgreSQL: disable seq scan to force index use (for testing/debugging)
+SET enable_seqscan = OFF;
+SELECT * FROM employees WHERE id = 10000;
+SET enable_seqscan = ON;  -- Always reset!
+
+-- SQL Server: index hint
+SELECT * FROM employees WITH (INDEX(IX_employees_name))
+WHERE name = 'Alice';
+
+-- MySQL: force index
+SELECT * FROM employees FORCE INDEX(idx_name)
+WHERE name = 'Alice';</pre>
+                <p><strong>Warning:</strong> Index hints override the planner. If the planner was right to ignore your index, you'll make things worse. Use hints only for debugging, never in production code without understanding the full impact.</p>
+            </section>
+
+            <!-- SECTION 8 -->
+            <section id="sec-8">
+                <h2>8. Clustered vs Non-Clustered Indexes — Full Reference</h2>
+
+                <h3>Clustered Index</h3>
+                <table>
+                    <thead>
+                        <tr><th>Property</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Physical organization</td><td>Table rows ARE the B+ tree leaf nodes</td></tr>
+                        <tr><td>Leaf nodes contain</td><td>Full row data</td></tr>
+                        <tr><td>Count per table</td><td>One only (one physical ordering)</td></tr>
+                        <tr><td>Range query performance</td><td>Excellent — rows are consecutive on disk</td></tr>
+                        <tr><td>Insert performance</td><td>Depends on key distribution (see UUID problem)</td></tr>
+                        <tr><td>Key recommendation</td><td>Sequential, narrow, unique, not frequently updated</td></tr>
+                        <tr><td>MySQL behavior</td><td>PRIMARY KEY is always the clustered index</td></tr>
+                        <tr><td>PostgreSQL behavior</td><td>No native clustered index; use <span class="inline-code">CLUSTER</span> command to physically reorder (one-time)</td></tr>
+                        <tr><td>SQL Server behavior</td><td>Optional; CREATE CLUSTERED INDEX or implied by PRIMARY KEY</td></tr>
+                        <tr><td>Oracle behavior</td><td>Heap by default; IOT (Index Organized Table) for clustered</td></tr>
+                    </tbody>
+                </table>
+
+                <p><strong>What columns make a good clustered index key (SQL Server guidance):</strong></p>
+                <ul>
+                    <li>Frequently used in range queries (BETWEEN, &gt;, &lt;)</li>
+                    <li>High uniqueness (many distinct values)</li>
+                    <li>Accessed sequentially (auto-increment ID, timestamp)</li>
+                    <li>Defined as IDENTITY / SERIAL</li>
+                    <li>Short key length (secondary indexes store the clustering key → wide key = larger all secondary indexes)</li>
+                </ul>
+
+                <p><strong>What columns make a BAD clustered index key:</strong></p>
+                <ul>
+                    <li>Randomly distributed (UUID v4) → page split on every insert</li>
+                    <li>Frequently updated → whole row must physically move</li>
+                    <li>Wide composite key → all secondary indexes bloat proportionally</li>
+                </ul>
+
+                <h3>Non-Clustered (Secondary) Index</h3>
+                <table>
+                    <thead>
+                        <tr><th>Property</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Physical organization</td><td>Separate B+ tree; leaf nodes contain key + pointer</td></tr>
+                        <tr><td>Leaf nodes contain</td><td>Key value + row locator (RID in heaps, clustering key in clustered tables)</td></tr>
+                        <tr><td>Count per table</td><td>Many (limited by maintenance overhead, not a hard architectural limit)</td></tr>
+                        <tr><td>Range query performance</td><td>Each result row may require a separate heap page fetch (random IO)</td></tr>
+                        <tr><td>Heap penalty</td><td>Each key match requires an additional IO to the heap for non-indexed columns</td></tr>
+                        <tr><td>PostgreSQL specifics</td><td>ALL indexes are secondary; leaf nodes store ctid (physical row location)</td></tr>
+                    </tbody>
+                </table>
+
+                <p><strong>The double-lookup in MySQL non-clustered indexes:</strong></p>
+                <pre class="code-block">MySQL: table has clustered index on id, secondary index on last_name.
+
+Secondary index leaf node: {last_name='Smith', primary_key=42}
+                                                   ↓
+Lookup: secondary index → find PK=42 → clustered index lookup → find actual row data
+
+Two B+ tree traversals for one row lookup.
+(PostgreSQL: index → ctid → heap page — only one extra lookup, not two tree traversals)</pre>
+
+                <h3>SQL Server Row Locator Logic</h3>
+                <pre class="code-block">If table has a clustered index:
+  Nonclustered index leaf node stores: key columns + clustering key value
+  Lookup path: nonclustered B+ tree → clustering key → clustered B+ tree → row data
+
+If table is a heap (no clustered index):
+  Nonclustered index leaf node stores: key columns + RID (file:page:slot)
+  Lookup path: nonclustered B+ tree → RID → heap page → row data</pre>
+            </section>
+
+            <!-- SECTION 9 -->
+            <section id="sec-9">
+                <h2>9. EXPLAIN ANALYZE — Reading Query Plans</h2>
+                <p>The most important tool for understanding index behavior is <span class="inline-code">EXPLAIN ANALYZE</span>.</p>
+
+                <h3>PostgreSQL EXPLAIN ANALYZE</h3>
+                <pre class="code-block">EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT)
+SELECT id, grade FROM students
+WHERE grade BETWEEN 80 AND 95
+ORDER BY grade DESC;</pre>
+
+                <p><strong>Reading the output:</strong></p>
+                <pre class="code-block">Index Only Scan Backward using students_grade_id_idx on students
+  (cost=0.56..15234.12 rows=6000000 width=8)
+  (actual time=0.042..4123.456 rows=5987234 loops=1)
+  Index Cond: ((grade > 80) AND (grade < 95))
+  Heap Fetches: 0
+  Buffers: shared hit=20345 read=602
+Planning Time: 0.834 ms
+Execution Time: 4198.234 ms</pre>
+
+                <p><strong>Decoding each field:</strong></p>
+                <table>
+                    <thead>
+                        <tr><th>Field</th><th>Meaning</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="inline-code">cost=0.56..15234.12</span></td><td>Planner's estimated cost (startup..total). Units are arbitrary but relative.</td></tr>
+                        <tr><td><span class="inline-code">rows=6000000</span></td><td>Planner's estimated row count (from statistics).</td></tr>
+                        <tr><td><span class="inline-code">actual time=0.042..4123.456</span></td><td>Real execution time (ms): first row..last row.</td></tr>
+                        <tr><td><span class="inline-code">actual rows=5987234</span></td><td>Actual rows returned. Compare with <span class="inline-code">rows</span> estimate — large discrepancy means stale stats.</td></tr>
+                        <tr><td><span class="inline-code">loops=1</span></td><td>How many times this node executed (relevant for joins).</td></tr>
+                        <tr><td><span class="inline-code">Heap Fetches: 0</span></td><td>Heap pages accessed. 0 = pure index scan.</td></tr>
+                        <tr><td><span class="inline-code">shared hit=20345</span></td><td>Pages read from buffer pool (cache hits — no disk IO).</td></tr>
+                        <tr><td><span class="inline-code">shared read=602</span></td><td>Pages read from disk (actual IO operations).</td></tr>
+                        <tr><td><span class="inline-code">Planning Time</span></td><td>Time the planner spent choosing the plan.</td></tr>
+                        <tr><td><span class="inline-code">Execution Time</span></td><td>Total wall-clock time for the query.</td></tr>
+                    </tbody>
+                </table>
+
+                <p><strong>The two most important things to look for:</strong></p>
+                <ol>
+                    <li><span class="inline-code">Heap Fetches &gt; 0</span> on an Index Only Scan → run VACUUM.</li>
+                    <li>Large gap between <span class="inline-code">rows</span> (estimated) and <span class="inline-code">actual rows</span> → run ANALYZE to update statistics.</li>
+                </ol>
+
+                <h3>Key Diagnostic Queries</h3>
+                <pre class="code-block">-- Find all indexes on a table
+SELECT indexname, indexdef
+FROM pg_indexes
+WHERE tablename = 'employees';
+
+-- Check index usage statistics
+SELECT indexrelname, idx_scan, idx_tup_read, idx_tup_fetch
+FROM pg_stat_user_indexes
+WHERE relname = 'employees'
+ORDER BY idx_scan DESC;
+
+-- Find unused indexes (candidates for removal)
+SELECT indexrelname, idx_scan
+FROM pg_stat_user_indexes
+WHERE relname = 'employees'
+AND idx_scan = 0;  -- Never used since stats reset
+
+-- Check table bloat and dead tuples (when to run VACUUM)
+SELECT relname, n_dead_tup, n_live_tup,
+       round(n_dead_tup::numeric / nullif(n_live_tup,0) * 100, 2) as dead_pct,
+       last_vacuum, last_autovacuum, last_analyze
+FROM pg_stat_user_tables
+WHERE relname = 'students';
+
+-- Find missing indexes (tables with high sequential scan count)
+SELECT relname, seq_scan, seq_tup_read, idx_scan,
+       round(seq_scan::numeric / nullif(seq_scan + idx_scan, 0) * 100, 2) as seq_scan_pct
+FROM pg_stat_user_tables
+ORDER BY seq_scan DESC;</pre>
+            </section>
+
+            <!-- SECTION 10 -->
+            <section id="sec-10">
+                <h2>10. Practical Java Implementation</h2>
+
+                <h3>JPA/Hibernate — Defining Indexes</h3>
+                <pre class="code-block">// Single column index
+@Entity
+@Table(name = "employees",
+       indexes = {
+           @Index(name = "idx_employees_name", columnList = "name"),
+           @Index(name = "idx_employees_ssn",  columnList = "ssn", unique = true)
+       })
+public class Employee {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)  // Sequential — good for clustering
+    private Long id;
+
+    @Column(name = "name")
+    private String name;
+
+    @Column(name = "ssn", unique = true)
+    private String ssn;
+
+    @Column(name = "grade")
+    private Integer grade;
+
+    @Column(name = "department")
+    private String department;
+}
+
+// Composite index
+@Entity
+@Table(name = "orders",
+       indexes = {
+           // Equality columns first, range column last
+           @Index(name = "idx_orders_dept_grade", columnList = "department, grade"),
+           // Filtered/partial behavior: JPA doesn't support directly — use schema migration
+       })
+public class Order { ... }</pre>
+
+                <h3>JDBC — Demonstrating Scan Type Differences</h3>
+                <pre class="code-block">import java.sql.*;
+
+public class IndexDemonstration {
+
+    private final Connection conn;
+
+    /**
+     * Demonstrates the full table scan — no index on the WHERE column.
+     * For 11M rows, this takes ~3 seconds.
+     */
+    public void demonstrateFullTableScan(String nameValue) throws SQLException {
+        // EXPLAIN output will show: Parallel Seq Scan
+        // Rows Removed by Filter: ~10,999,999
+        String sql = "SELECT id FROM employees WHERE name = ?";
+        long start = System.currentTimeMillis();
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, nameValue);
+            ResultSet rs = stmt.executeQuery();
+            int count = 0;
+            while (rs.next()) count++;
+            System.out.printf("Full scan: found %d rows in %dms%n",
+                count, System.currentTimeMillis() - start);
+        }
+    }
+
+    /**
+     * Demonstrates index scan — index on id, fetching name (not in index).
+     * For 11M rows, this takes ~2.5ms (index found id, heap fetch for name).
+     */
+    public void demonstrateIndexScan(long employeeId) throws SQLException {
+        // EXPLAIN output will show: Index Scan, Heap Fetches: 1
+        String sql = "SELECT name FROM employees WHERE id = ?";
+        long start = System.currentTimeMillis();
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setLong(1, employeeId);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                System.out.printf("Index scan: found '%s' in %dms%n",
+                    rs.getString("name"), System.currentTimeMillis() - start);
+            }
+        }
+    }
+
+    /**
+     * Demonstrates index only scan — fetching only the indexed column.
+     * For 11M rows, this takes ~0.1ms (no heap fetch needed).
+     */
+    public void demonstrateIndexOnlyScan(long employeeId) throws SQLException {
+        // EXPLAIN output will show: Index Only Scan, Heap Fetches: 0
+        String sql = "SELECT id FROM employees WHERE id = ?";
+        long start = System.currentTimeMillis();
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setLong(1, employeeId);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                System.out.printf("Index only scan: found id=%d in %dms%n",
+                    rs.getLong("id"), System.currentTimeMillis() - start);
+            }
+        }
+    }
+
+    /**
+     * Demonstrates the covering index benefit.
+     * Before: SELECT id, grade WHERE grade BETWEEN 80 AND 95 → 16s (heap fetches for id)
+     * After:  CREATE INDEX ON students(grade) INCLUDE (id) → 4s (index only)
+     */
+    public List&lt;Map&lt;String, Object&gt;&gt; demonstrateCoveringIndex(int minGrade, int maxGrade)
+            throws SQLException {
+        // With covering index: Index Only Scan, Heap Fetches: 0
+        // Without covering index: Index Scan, Heap Fetches: ~6,000,000
+        String sql = "SELECT id, grade FROM students WHERE grade > ? AND grade < ? ORDER BY grade DESC";
+        List&lt;Map&lt;String, Object&gt;&gt; results = new ArrayList&lt;&gt;();
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, minGrade);
+            stmt.setInt(2, maxGrade);
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                results.add(Map.of(
+                    "id", rs.getLong("id"),
+                    "grade", rs.getInt("grade")
+                ));
+            }
+        }
+        return results;
+    }
+
+    /**
+     * The SARGability trap — demonstrates when LIKE breaks index usage.
+     */
+    public void demonstrateSargability(String name) throws SQLException {
+        // Case 1: SARGable — uses index (prefix match)
+        String sargable = "SELECT id FROM employees WHERE name LIKE ?";
+        // LIKE 'Ali%' → index scan ✅
+
+        // Case 2: Non-SARGable — full table scan despite having an index
+        String nonSargable = "SELECT id FROM employees WHERE name LIKE ?";
+        // LIKE '%Ali%' → parallel seq scan ❌
+
+        try (PreparedStatement sarg = conn.prepareStatement(sargable)) {
+            sarg.setString(1, name + "%");  // Prefix: SARGable
+            // This uses the index.
+        }
+
+        try (PreparedStatement nonsarg = conn.prepareStatement(nonSargable)) {
+            nonsarg.setString(1, "%" + name + "%");  // Leading wildcard: non-SARGable
+            // This does a full table scan despite having an index on name.
+        }
+    }
+}</pre>
+
+                <h3>Spring JPA Repository — Index-Aware Query Design</h3>
+                <pre class="code-block">import org.springframework.data.jpa.repository.*;
+import org.springframework.data.repository.query.Param;
+
+public interface StudentRepository extends JpaRepository&lt;Student, Long&gt; {
+
+    // BAD: Forces full table scan — no index on name, non-SARGable
+    @Query("SELECT s FROM Student s WHERE UPPER(s.name) = UPPER(:name)")
+    List&lt;Student&gt; findByNameCaseInsensitive(@Param("name") String name);
+    // Wrapping name in UPPER() makes this non-SARGable even if name is indexed.
+
+    // GOOD: Store names in normalized case, query directly
+    @Query("SELECT s FROM Student s WHERE s.name = :name")
+    List&lt;Student&gt; findByName(@Param("name") String name);
+    // SARGable: uses index on name column ✅
+
+    // GOOD: Range query on indexed column — uses index
+    @Query("SELECT s.id, s.grade FROM Student s WHERE s.grade > :min AND s.grade < :max ORDER BY s.grade DESC")
+    List&lt;Object[]&gt; findGradesInRange(@Param("min") int min, @Param("max") int max);
+    // If index exists on grade (or grade INCLUDE id): Index Only Scan ✅
+
+    // GOOD: Pagination with index — avoids large result sets
+    Page&lt;Student&gt; findByGradeBetween(int minGrade, int maxGrade, Pageable pageable);
+    // Spring adds LIMIT/OFFSET. Index limits rows scanned. ✅
+
+    // GOOD: Atomic increment — no read-then-write race
+    @Modifying
+    @Query("UPDATE Student s SET s.grade = s.grade + :increment WHERE s.id = :id")
+    int incrementGrade(@Param("id") Long id, @Param("increment") int increment);
+}</pre>
+
+                <h3>Creating Indexes via Migration (Flyway/Liquibase)</h3>
+                <pre class="code-block">-- V5__add_students_grade_covering_index.sql (Flyway migration)
+
+-- Use CONCURRENTLY to avoid blocking production writes
+-- (Note: CONCURRENTLY cannot be used inside a transaction,
+--  and Flyway runs in a transaction by default.
+--  Use @NonTransactional annotation or configure accordingly.)
+
+CREATE INDEX CONCURRENTLY idx_students_grade_id
+ON students (grade)
+INCLUDE (id);
+
+-- Verify index was created successfully (not INVALID)
+SELECT indexname, indexdef,
+       CASE WHEN pg_get_indexdef(indexrelid) LIKE '%INVALID%'
+            THEN 'INVALID' ELSE 'VALID' END as status
+FROM pg_indexes
+JOIN pg_class ON pg_class.relname = indexname
+WHERE tablename = 'students';</pre>
+
+                <pre class="code-block">// Flyway config for non-transactional migration (needed for CONCURRENTLY)
+@Bean
+public FlywayMigrationStrategy flywayMigrationStrategy() {
+    return flyway -> {
+        // Configure to allow non-transactional migrations
+        flyway.migrate();
+    };
+}
+
+// Mark the migration class as non-transactional
+// V5__add_index.java (Java-based migration)
+public class V5__add_index implements JdbcMigration {
+    @Override
+    public void migrate(Connection connection) throws Exception {
+        connection.setAutoCommit(true);  // Must be outside transaction for CONCURRENTLY
+        try (Statement stmt = connection.createStatement()) {
+            stmt.execute("CREATE INDEX CONCURRENTLY idx_students_grade_id " +
+                        "ON students (grade) INCLUDE (id)");
+        }
+    }
+}</pre>
+            </section>
+
+            <!-- SECTION 11 -->
+            <section id="sec-11">
+                <h2>11. Index Design Strategy — The Decision Framework</h2>
+
+                <h3>Step 1: Understand Your Queries</h3>
+                <p>Before creating any index, answer these questions:</p>
+                <pre class="code-block">What columns appear in WHERE clauses?     → Key columns of the index
+What columns appear in ORDER BY / GROUP BY? → Key columns (enables sort elimination)
+What columns appear in SELECT?            → Included/non-key columns
+Are the predicates equality or range?     → Equality first, range last in composite index
+How many rows does the query typically return? → High selectivity → good index candidate
+How often does the query run?             → Frequency × cost = priority</pre>
+
+                <h3>Step 2: Selectivity Analysis</h3>
+                <pre class="code-block">-- PostgreSQL: estimate selectivity of a column
+SELECT COUNT(DISTINCT grade) AS distinct_values,
+       COUNT(*) AS total_rows,
+       round(COUNT(DISTINCT grade)::numeric / COUNT(*) * 100, 2) AS selectivity_pct
+FROM students;
+
+-- Low selectivity (< 1% distinct values): index rarely helpful for this column alone
+-- High selectivity (> 10% distinct values): index very useful
+-- 100% selectivity (all unique): perfect index candidate</pre>
+
+                <h3>Step 3: The Index Design Template</h3>
+                <pre class="code-block">Query:  SELECT [col_a, col_b, col_c]
+        FROM table
+        WHERE col_x = ? AND col_y BETWEEN ? AND ?
+        ORDER BY col_y DESC
+
+Index design:
+  Key columns:      (col_x, col_y DESC)   ← search columns, equality before range
+  Included columns: (col_a, col_b, col_c) ← select columns, no key overhead
+
+CREATE INDEX idx_table_xy ON table (col_x, col_y DESC) INCLUDE (col_a, col_b, col_c);</pre>
+
+                <h3>Step 4: The Trade-Off Matrix</h3>
+                <table>
+                    <thead>
+                        <tr><th>Factor</th><th>More Indexes</th><th>Fewer Indexes</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>SELECT performance</td><td>Better</td><td>Worse</td></tr>
+                        <tr><td>INSERT performance</td><td>Worse</td><td>Better</td></tr>
+                        <tr><td>UPDATE performance</td><td>Worse (all indexes updated)</td><td>Better</td></tr>
+                        <tr><td>DELETE performance</td><td>Worse (all indexes updated)</td><td>Better</td></tr>
+                        <tr><td>Storage</td><td>Higher</td><td>Lower</td></tr>
+                        <tr><td>VACUUM time</td><td>Higher</td><td>Lower</td></tr>
+                        <tr><td>Write-heavy OLTP</td><td>❌ Over-indexing hurts</td><td>✅ Keep indexes minimal</td></tr>
+                        <tr><td>Read-heavy analytics</td><td>✅ Many indexes help</td><td>❌ Under-indexing hurts</td></tr>
+                    </tbody>
+                </table>
+                <p><strong>General rules (SQL Server guidelines):</strong></p>
+                <ul>
+                    <li>OLTP tables: keep indexes narrow and few. Over-indexing is as bad as under-indexing.</li>
+                    <li>Read-only / DSS tables: as many indexes as needed. No write cost.</li>
+                    <li>Rebuild/reorganize fragmented indexes regularly (<span class="inline-code">ALTER INDEX ... REORGANIZE/REBUILD</span>).</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 12 -->
+            <section id="sec-12">
+                <h2>12. Important Interview Questions</h2>
+
+                <h3>Basic Questions</h3>
+                <p><strong>Q: What is a database index?</strong><br>
+                A: An index is a separate data structure (usually a B+ tree) built on one or more columns of a table. It stores column values along with pointers to the heap pages where the corresponding rows live. This allows the database to find rows matching a WHERE clause in O(log n) time instead of O(n) time (full table scan).</p>
+                <p><strong>Q: What is the difference between Index Scan, Index Only Scan, and Sequential Scan?</strong><br>
+                A: Sequential scan reads every page of the heap in order (O(n)). Index scan uses the B+ tree to find matching rows, then fetches each row from the heap (additional IO per row). Index Only Scan uses the B+ tree only — never touches the heap — because all needed columns are already in the index. Index Only Scan is the fastest; it requires all SELECT and WHERE columns to exist in the index.</p>
+                <p><strong>Q: What is a covering index?</strong><br>
+                A: A covering index contains all columns referenced by a query — both the search (key) columns and the retrieval (SELECT) columns. This allows the query to be answered entirely from the index without accessing the heap, resulting in an Index Only Scan and dramatically fewer IOs.</p>
+                <p><strong>Q: What is a SARGable predicate?</strong><br>
+                A: A SARGable (Search ARGument-able) predicate can use an index to speed up query execution. Predicates using <span class="inline-code">=</span>, <span class="inline-code">&gt;</span>, <span class="inline-code">&lt;</span>, <span class="inline-code">BETWEEN</span>, and <span class="inline-code">LIKE 'prefix%'</span> are SARGable. Predicates that wrap the indexed column in a function (<span class="inline-code">UPPER(name)</span>, <span class="inline-code">YEAR(date)</span>) or expression (<span class="inline-code">salary * 1.1</span>) are non-SARGable and force a full table scan.</p>
+                <p><strong>Q: Why is <span class="inline-code">LIKE '%Alice%'</span> slow even with an index?</strong><br>
+                A: The leading wildcard means the B+ tree cannot be used because the starting character of the value is unknown. The index is sorted by value prefix — <span class="inline-code">%Alice%</span> has no defined prefix, so the entire tree would need to be scanned. The planner correctly bypasses the index and does a full table scan instead.</p>
+
+                <h3>Intermediate Questions</h3>
+                <p><strong>Q: What is the left-prefix rule for composite indexes?</strong><br>
+                A: A composite index on <span class="inline-code">(A, B, C)</span> can only be used if the query provides values starting from the leftmost key column. A query on <span class="inline-code">(A)</span> or <span class="inline-code">(A, B)</span> or <span class="inline-code">(A, B, C)</span> uses the index. A query on <span class="inline-code">(B)</span> or <span class="inline-code">(C)</span> or <span class="inline-code">(B, C)</span> does not use the index because the first column A has no constraint.</p>
+                <p><strong>Q: What is the difference between a key column and an included (non-key) column in an index?</strong><br>
+                A: Key columns are stored at all levels of the B+ tree and determine the sort order; they enable filtering and sorting. Included columns are stored only at the leaf level and are used only for data retrieval (covering queries). Key columns count toward size limits (900 bytes max in SQL Server); included columns do not. Use included columns for SELECT-only columns to achieve index only scans without bloating the key.</p>
+                <p><strong>Q: Why does <span class="inline-code">CREATE INDEX</span> block writes, and how do you avoid this in production?</strong><br>
+                A: Standard <span class="inline-code">CREATE INDEX</span> acquires a SHARE lock on the table, preventing all INSERT, UPDATE, DELETE operations until the index is fully built. For large tables, this can take minutes. <span class="inline-code">CREATE INDEX CONCURRENTLY</span> (PostgreSQL) performs multiple scans, waits for concurrent transactions between scans, and never takes a blocking lock. It takes longer and uses more resources, but allows writes and reads throughout. SQL Server's equivalent is <span class="inline-code">WITH (ONLINE = ON)</span>.</p>
+                <p><strong>Q: What is a filtered index and when should you use one?</strong><br>
+                A: A filtered index only indexes rows matching a predicate (e.g., <span class="inline-code">WHERE status = 'ACTIVE'</span>). It is smaller, cheaper to maintain, and more selective than a full-table index. Use filtered indexes for: sparse columns (mostly NULL), soft-deleted records, status-based queries on a subset of data, or any column with a "hot" subset that most queries target.</p>
+                <p><strong>Q: What happens to non-clustered indexes in MySQL vs PostgreSQL when a row is updated?</strong><br>
+                A: In MySQL (clustered primary key), secondary indexes store the primary key value as the row locator. When a non-indexed column is updated, the clustering key doesn't change, so secondary indexes don't need updating. In PostgreSQL (MVCC, all indexes store ctid), every update creates a new tuple with a new ctid, so ALL indexes on the table must be updated to point to the new ctid — even if the indexed column didn't change. This is the PostgreSQL write amplification problem mitigated partially by the HOT optimization.</p>
+
+                <h3>Advanced Questions</h3>
+                <p><strong>Q: How does the query planner decide between a sequential scan and an index scan?</strong><br>
+                A: The planner uses cost-based estimation. It estimates the cost of each plan using table statistics (row count, distinct values, data distribution maintained by ANALYZE). If the index is highly selective (few matching rows), the index scan cost (log(n) + k heap fetches) is lower than the sequential scan cost (all pages). If the query matches &gt;10-20% of rows, a sequential scan may be cheaper because it reads pages sequentially (which is faster than random IO from index-guided heap fetches). Stale statistics (not running ANALYZE) can lead the planner to make wrong choices.</p>
+                <p><strong>Q: What is the deltastore in a SQL Server columnstore index and why does it exist?</strong><br>
+                A: The deltastore is a B-tree rowstore that holds newly inserted rows before they can be compressed into the columnstore. Columnstore compression requires large batch sizes (minimum 102,400 rows per rowgroup for good compression). Small individual inserts go to the deltastore first. A background process called the tuple-mover monitors the deltastore and compresses completed rowgroups (up to 1,048,576 rows) into the columnstore. This design allows OLTP-style individual inserts while maintaining columnstore's compression benefits.</p>
+                <p><strong>Q: What is the Bw-Tree (in-memory nonclustered index in SQL Server) and how does it differ from a B+ Tree?</strong><br>
+                A: The Bw-Tree (Buzzword Tree) is a lock-free and latch-free variation of a B-Tree used for SQL Server's memory-optimized (Hekaton) nonclustered indexes. Unlike a B+ tree, it never performs in-place updates. Instead, modifications create delta records that are prepended to a linked chain on the affected page. A page mapping table (indirection layer) translates logical page IDs to physical memory addresses. When delta chains grow too long (16+ records), a consolidation merges all deltas into a new page. Page splits and merges are atomic multi-step operations. This design enables lock-free concurrent access because updates never mutate existing pages — they only prepend to chains and atomically update the mapping table pointer.</p>
+                <p><strong>Q: How do you decide optimal bucket count for a hash index?</strong><br>
+                A: The target is 1-2x the number of distinct key values. With too few buckets, hash collisions create long linked lists per bucket → O(chain_length) equality lookup instead of O(1). With too many buckets, memory is wasted on empty buckets and full index scans take longer (must traverse all empty buckets). If uncertain, overestimate rather than underestimate — performance degrades more with collisions than empty buckets. The count can be changed with <span class="inline-code">ALTER TABLE ... ALTER INDEX REBUILD</span>.</p>
+            </section>
+
+            <!-- SECTION 13 -->
+            <section id="sec-13">
+                <h2>13. Common Mistakes</h2>
+
+                <h3>Beginner Mistakes</h3>
+                <ul>
+                    <li><strong>Over-indexing every column:</strong> "If one index is good, ten must be better." Each extra index adds write overhead on every INSERT/UPDATE/DELETE. A table with 15 indexes requires 15 separate B+ tree updates per insert.</li>
+                    <li><strong>Using <span class="inline-code">SELECT *</span> and expecting index only scans:</strong> <span class="inline-code">SELECT *</span> fetches all columns, most of which are not in the index. Every index lookup must be followed by a heap fetch. You lose the benefit of the index covering your query.</li>
+                    <li><strong>Indexing low-cardinality columns:</strong> Indexing a boolean <span class="inline-code">is_active</span> (2 distinct values) on a table where 95% of rows are <span class="inline-code">is_active = true</span> creates an index that matches 95% of rows. The optimizer correctly ignores it for the common case. Use a filtered index instead.</li>
+                    <li><strong>Ignoring VACUUM in PostgreSQL:</strong> Index Only Scans fall back to heap fetches if the visibility map is stale. After heavy writes, always run <span class="inline-code">VACUUM</span> to update visibility maps.</li>
+                </ul>
+
+                <h3>Backend Engineer Mistakes</h3>
+                <ul>
+                    <li><strong>Non-SARGable queries in application code:</strong> Writing ORM queries that call functions on indexed columns (<span class="inline-code">UPPER(name)</span>, <span class="inline-code">DATE(created_at)</span>, <span class="inline-code">LOWER(email)</span>). These bypass indexes. Normalize data at write time instead of transform at read time.</li>
+                    <li><strong>Not running EXPLAIN on production queries:</strong> Assuming a query "should" use an index without verifying with EXPLAIN ANALYZE. The planner may make a different choice based on statistics, table size, or predicate structure.</li>
+                    <li><strong>Dropping indexes without checking usage first:</strong> Removing an index that "looks unused" without checking <span class="inline-code">pg_stat_user_indexes</span>. A nightly batch job that runs once a day at 2am will show low <span class="inline-code">idx_scan</span> counts but removing the index makes that job go from 30s to 4h.</li>
+                    <li><strong>Standard CREATE INDEX on a live production table:</strong> Taking the table write lock for 5 minutes in production is a critical incident. Always use CONCURRENTLY or ONLINE.</li>
+                    <li><strong>Using LIKE <span class="inline-code">'%value%'</span> for search:</strong> Leading wildcard = full table scan. For full-text search, use PostgreSQL <span class="inline-code">tsvector</span> + GIN index, or Elasticsearch, not <span class="inline-code">LIKE '%value%'</span>.</li>
+                </ul>
+
+                <h3>Production Mistakes</h3>
+                <ul>
+                    <li><strong>Not monitoring index fragmentation:</strong> Over time, B+ tree pages become partially empty due to deletions and page splits. A 90% fragmented index reads twice as many pages for the same query. Rebuild (rewrites entirely) or reorganize (in-place defragment) indexes periodically.</li>
+                    <li><strong>Creating unique CONCURRENTLY indexes while duplicates can exist:</strong> If a concurrent write introduces a duplicate between the two scans, the index is created in INVALID state — not usable, but still maintained (write overhead with no read benefit). Monitor for INVALID indexes after every CONCURRENTLY build.</li>
+                    <li><strong>Hash index bucket count set at table design time, never reviewed:</strong> As the table grows, the bucket count becomes proportionally too small → collisions grow → lookup performance degrades. Re-evaluate bucket count when table size doubles.</li>
+                    <li><strong>Ignoring index maintenance after bulk loads:</strong> After inserting millions of rows, statistics are stale, index fragmentation is high, visibility maps are out of date. Run: <span class="inline-code">VACUUM ANALYZE table_name;</span> after every significant bulk operation.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 14 -->
+            <section id="sec-14">
+                <h2>14. Performance & Scalability Notes</h2>
+
+                <h3>Index Size Estimation</h3>
+                <pre class="code-block">Index size ≈ key_bytes_per_entry × number_of_rows × 1.2 (overhead factor)
+
+Example: Index on (grade INTEGER, id BIGINT) — 4 + 8 = 12 bytes/entry
+  50M rows × 12 bytes × 1.2 = 720MB
+
+Example: Covering index on (grade) INCLUDE (id) — same storage, slightly different structure
+  Key: 4 bytes (grade) + 6 bytes (ctid) = 10 bytes in internal nodes
+  Leaf: 4 bytes (grade) + 8 bytes (id non-key) + 6 bytes (ctid) = 18 bytes in leaf nodes
+  Leaf dominates: 50M × 18 × 1.2 ≈ 1GB
+
+Rule of thumb: If the index fits in the buffer pool → lookups are RAM speed.
+               If the index exceeds the buffer pool → each lookup may hit disk.</pre>
+
+                <h3>Index Maintenance Cost Under Write Load</h3>
+                <pre class="code-block">Table: 1M row inserts per day, 10 indexes.
+Each insert: 1 heap write + 10 index B+ tree updates
+Total writes: 11x amplification per inserted row.
+
+With 10 indexes, write throughput is limited to ~1/11 of the raw disk write capacity.
+
+Implication: For high-write-throughput systems (IoT ingestion, clickstream, logging):
+  - Minimize indexes (1-2 critical ones max)
+  - Consider LSM-tree based stores (RocksDB, Cassandra) which batch writes efficiently
+  - Or buffer writes and batch-insert to reduce index maintenance overhead</pre>
+
+                <h3>Buffer Pool Hit Rate and Index Performance</h3>
+                <pre class="code-block">Index Lookup Cost:
+  All index levels in buffer pool (cache hit): ~0.1ms (RAM speed)
+  One level in buffer pool, one disk read: ~0.2ms
+  No levels in buffer pool (cold cache): ~0.4ms (NVMe) to 10ms (HDD) per level
+
+For B+ tree height 3: hot cache → 0.3ms, cold cache → 1.2ms (NVMe) to 30ms (HDD)
+
+Heap fetch cost (one page):
+  Buffer pool hit: ~0.05ms
+  Disk read: ~0.1ms (NVMe) to 10ms (HDD)
+
+Conclusion: A query that does 90,000 disk reads (index + heap) takes:
+  NVMe: 90,000 × 0.1ms = 9 seconds
+  HDD:  90,000 × 10ms = 15 minutes (!)</pre>
+            </section>
+
+            <!-- SECTION 15 -->
+            <section id="sec-15">
+                <h2>15. System Design Connections</h2>
+
+                <h3>E-Commerce Search Index Strategy</h3>
+                <pre class="code-block">Products table: 100M rows (id, name, category, price, stock, created_at, description)
+
+Required queries:
+  1. Product by ID (PK lookup): CREATE INDEX → PK (default)
+  2. Browse by category + price: CREATE INDEX ON products (category, price) INCLUDE (name, stock)
+  3. New arrivals: CREATE INDEX ON products (created_at DESC) INCLUDE (name, price, category)
+  4. Search by name: PostgreSQL tsvector + GIN index (full text search)
+  5. In-stock only: CREATE INDEX ON products (category, price) WHERE stock > 0  ← filtered index
+
+  What NOT to index:
+  - description (large text, never in WHERE clause)
+  - created_at alone (only useful when combined with category)</pre>
+
+                <h3>Financial System — Covering Index for Transaction Queries</h3>
+                <pre class="code-block">transactions table: 5B rows (id, account_id, amount, type, status, created_at, processed_at)
+
+Critical query (account statement):
+  SELECT id, amount, type, created_at
+  FROM transactions
+  WHERE account_id = ? AND created_at > ? AND created_at < ?
+  ORDER BY created_at DESC
+  LIMIT 100
+
+Index design:
+  CREATE INDEX idx_txn_account_date
+  ON transactions (account_id, created_at DESC)
+  INCLUDE (id, amount, type);
+
+Result:
+  - account_id (equality predicate): leftmost key column ✅
+  - created_at DESC (range predicate + ORDER BY): second key column, matching sort ✅
+  - id, amount, type (SELECT columns): included → Index Only Scan ✅
+  - SORT operator eliminated: ORDER BY matches index order ✅</pre>
+
+                <h3>Microservices — Index Strategy Per Service</h3>
+                <p>In microservices, each service owns its database. Index design must be per-service, optimized for that service's specific query patterns:</p>
+                <pre class="code-block">User Service (PostgreSQL):
+  Table: users (id, email, username, created_at, status)
+  Indexes:
+    UNIQUE (email)            -- Login lookup
+    UNIQUE (username)         -- Profile lookup
+    (created_at, status)      -- Admin dashboard: new inactive users
+    (status) WHERE status = 'PENDING'  -- Filtered: activation queue only
+
+Order Service (MySQL):
+  Table: orders (id, user_id, status, total, created_at)
+  Indexes:
+    (user_id, created_at DESC) INCLUDE (status, total)  -- Order history per user
+    (status, created_at) WHERE status = 'PENDING'       -- Order processing queue
+    PK (id) → always clustered in MySQL</pre>
+            </section>
+
+            <!-- SECTION 16 -->
+            <section id="sec-16">
+                <h2>16. Visual Mental Models</h2>
+
+                <h3>The Complete Index Lookup Path</h3>
+                <pre class="code-block">Query: SELECT name FROM employees WHERE id = 5000
+
+Step 1: B+ Tree traversal (index pages)
+  Root node: id=5000 → go right
+  Internal node: id=5000 between 4000 and 6000 → go to leaf
+  Leaf node: {id=5000, ctid=(page=625, row=3)}  ← found! 3 IOs
+
+Step 2: Heap fetch (one more IO)
+  Read heap page 625 → scan to row 3 → extract name='Alice'  ← 1 IO
+
+Total: 4 IOs
+
+vs. Full table scan: 625,000 IOs (10M rows / 16 rows per page)</pre>
+
+                <h3>Index Only Scan — No Heap Touch</h3>
+                <pre class="code-block">Query: SELECT id, grade FROM students WHERE grade BETWEEN 80 AND 95
+
+Covering index: (grade) INCLUDE (id)
+  Leaf nodes: {grade=80, id=234567} {grade=81, id=891234} ... {grade=94, id=445678}
+
+B+ tree scan:
+  Find grade=80 → walk linked list of leaf pages → grade=95 → stop
+
+All needed values (grade AND id) are in the leaf nodes.
+→ Index Only Scan: ZERO heap fetches.
+→ Heap stays completely untouched.</pre>
+
+                <h3>SARGable vs Non-SARGable Decision Tree</h3>
+                <pre class="code-block">Does your WHERE clause look like:
+                    ↓
+        [column] = [value]?              → SARGable ✅ (uses index)
+        [column] > / < / BETWEEN ?      → SARGable ✅ (uses index)
+        [column] LIKE 'prefix%' ?       → SARGable ✅ (uses index)
+        [column] LIKE '%middle%' ?      → NOT SARGable ❌ (full scan)
+        FUNCTION([column]) = [value] ?  → NOT SARGable ❌ (full scan)
+        [column] * factor = [value] ?   → NOT SARGable ❌ (full scan)
+        [column] != [value] ?           → Usually NOT SARGable ❌</pre>
+
+                <h3>Index Type Selection Guide</h3>
+                <pre class="code-block">What type of queries do you run?
+  ├── Exact equality (WHERE id = ?)
+  │     ├── In-memory table: Hash Index (O(1) lookup)
+  │     └── Disk table: B+ Tree Index (O(log n) lookup)
+  ├── Range queries (BETWEEN, >, <)
+  │     └── B+ Tree Index ✅ (Hash index can't do this)
+  ├── Full-text search (LIKE '%word%')
+  │     └── GIN index on tsvector (PostgreSQL) / Full-text index
+  ├── Spatial data (nearest neighbor, within radius)
+  │     └── GiST index / Spatial index
+  ├── Only a subset of rows match your filter
+  │     └── Filtered / Partial Index (smaller, faster, cheaper)
+  ├── Analytics on columns (SUM, AVG, GROUP BY)
+  │     └── Columnstore Index (SQL Server) / Column-store engine
+  └── Prefix/autocomplete (LIKE 'prefix%')
+        └── B+ Tree Index (SARGable prefix) ✅</pre>
+            </section>
+
+            <!-- SECTION 17 -->
+            <section id="sec-17">
+                <h2>17. Revision Notes (One Page)</h2>
+                <pre class="code-block bg-blue-900 border border-blue-800 text-blue-50 shadow-md">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  INDEXING FUNDAMENTALS — QUICK REVISION SHEET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+WHAT IS AN INDEX:
+  Separate B+ tree data structure, smaller than heap.
+  Leaf nodes: key values + heap pointers (ctid in PG, PK in MySQL).
+  Goal: O(log n) row lookup vs O(n) full scan.
+  Cost: write amplification — every write updates all indexes.
+
+SCAN TYPES (best to worst):
+  1. Index Only Scan  → Heap Fetches: 0 → all columns in index ← GOAL
+  2. Index Scan       → Heap Fetches: N → some columns in heap
+  3. Bitmap Index Scan → Batches heap fetches → better than index scan for many rows
+  4. Sequential Scan  → Full table → 625,000 IOs for 10M rows ← AVOID
+
+SARGABILITY (index use requires this):
+  ✅ col = val, col > val, col BETWEEN a AND b, col LIKE 'prefix%'
+  ❌ FUNC(col) = val, col * factor = val, col LIKE '%middle%', col != val
+
+COMPOSITE INDEX DESIGN:
+  Order: equality columns first, range column last
+  (account_id, created_at DESC) → equality on account_id, range on date
+  Left-prefix rule: queries must include leftmost columns
+
+KEY vs INCLUDED (NON-KEY) COLUMNS:
+  Key: used for searching/filtering, stored all levels, counts toward size limit
+  Include: SELECT-only columns, leaf level only, doesn't count toward limit
+  → Covering index = all SELECT + WHERE columns present → Index Only Scan
+
+FILTERED INDEX:
+  Index only a subset: WHERE status = 'PENDING'
+  Smaller, faster, cheaper to maintain than full-table index
+
+CREATE INDEX CONCURRENTLY:
+  No write lock → production safe
+  Takes longer, uses more CPU/RAM
+  Can create INVALID index on unique constraint violation → always verify
+
+REAL PERFORMANCE (PostgreSQL, 11M rows):
+  Index only scan (id → id):   0.1ms
+  Index scan (id → name):      2.5ms (heap fetch cost)
+  Full table scan (no index):  3,000ms
+  LIKE '%XZ%' (has index):     1,100ms (index ignored!)
+
+CLUSTERED vs SECONDARY:
+  Clustered: table IS the index (MySQL PK always, SQL Server optional)
+             Range queries excellent, one per table
+  Secondary: separate B+ tree with heap pointers
+             Extra heap fetch per row, many per table
+
+UUID DANGER in MySQL:
+  UUID v4 = random PK = random insertions into clustered index = page splits
+  Use: BIGINT AUTO_INCREMENT, UUID v7 (time-ordered), or ULID
+
+POSTGRESQL SPECIFICS:
+  All indexes are secondary (ctid pointer)
+  UPDATE creates new ctid → ALL indexes updated (write amplification)
+  VACUUM needed for Index Only Scans (updates visibility map)
+  REPEATABLE READ = CONCURRENTLY safe for index creation
+
+PRODUCTION RULES:
+  ✅ EXPLAIN (ANALYZE, BUFFERS) every slow query
+  ✅ Use CREATE INDEX CONCURRENTLY on production tables
+  ✅ VACUUM ANALYZE after bulk loads
+  ✅ Monitor idx_scan = 0 (unused indexes → remove them)
+  ✅ Design for covering indexes on critical query paths
+  ❌ Never wrap indexed columns in functions (non-SARGable)
+  ❌ Never LIKE '%value%' on large tables (use full-text search)
+  ❌ Never UUID v4 as clustered index key in MySQL
+  ❌ Never over-index write-heavy tables
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</pre>
+            </section>
+
+            <footer class="mt-16 pt-8 border-t border-gray-200 text-center text-gray-500 text-sm pb-16">
+                End of Notes — Indexing Fundamentals<br>
+                <span class="text-xs">Sources: PostgreSQL Lectures (Hussein), SQL Server Index Architecture and Design Guide (Microsoft)</span>
+            </footer>
+        </div>
+    </main>
+
+</body>
+</html>
