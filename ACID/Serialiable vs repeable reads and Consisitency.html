@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Serializable vs Repeatable Read & Eventual Consistency</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            color: #111827;
+        }
+        pre {
+            font-family: 'Fira Code', monospace;
+        }
+        .prose h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin-top: 3rem;
+            margin-bottom: 1.5rem;
+            color: #1e3a8a;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        .prose h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: #1f2937;
+        }
+        .prose h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: #374151;
+        }
+        .prose p {
+            margin-bottom: 1rem;
+            line-height: 1.75;
+            color: #4b5563;
+        }
+        .prose ul, .prose ol {
+            padding-left: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #4b5563;
+        }
+        .prose ul { list-style-type: disc; }
+        .prose ol { list-style-type: decimal; }
+        .prose li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        .prose strong {
+            color: #111827;
+            font-weight: 600;
+        }
+        .prose blockquote {
+            border-left: 4px solid #3b82f6;
+            background-color: #eff6ff;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            font-style: italic;
+            color: #1e40af;
+            border-radius: 0 0.5rem 0.5rem 0;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        .prose table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+            background-color: white;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .prose th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #374151;
+        }
+        .prose td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #4b5563;
+            vertical-align: top;
+        }
+        .prose tr:last-child td {
+            border-bottom: none;
+        }
+        .code-block {
+            background-color: #1f2937;
+            color: #e5e7eb;
+            padding: 1.25rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            white-space: pre;
+        }
+        .inline-code {
+            background-color: #f3f4f6;
+            color: #ef4444;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.875rem;
+        }
+        .part-header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            margin-top: 4rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .part-header h1 {
+            color: white !important;
+            border: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            font-size: 2rem !important;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        }
+        .part-header p {
+            color: #bfdbfe !important;
+            margin-top: 0.5rem !important;
+            margin-bottom: 0 !important;
+        }
+        .nav-link {
+            transition: all 0.2s ease;
+        }
+        .nav-link:hover {
+            color: #2563eb;
+            background-color: #eff6ff;
+            padding-left: 0.5rem;
+        }
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body class="antialiased flex flex-col md:flex-row h-screen overflow-hidden">
+
+    <!-- Sidebar / Table of Contents -->
+    <aside class="w-full md:w-72 bg-white border-r border-gray-200 h-1/4 md:h-full overflow-y-auto flex-shrink-0 z-10 shadow-sm">
+        <div class="p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Contents</h2>
+            
+            <div class="space-y-1 text-sm font-medium text-gray-600 mb-4">
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Part A: Isolation</p>
+                <a href="#sec-1" class="block py-1.5 nav-link rounded-md">1. Big Picture</a>
+                <a href="#sec-2" class="block py-1.5 nav-link rounded-md">2. Core Concepts</a>
+                <a href="#sec-3" class="block py-1.5 nav-link rounded-md">3. Deep Dive — PostgreSQL SSI</a>
+                <a href="#sec-4" class="block py-1.5 nav-link rounded-md">4. Practical Java Implementation</a>
+                <a href="#sec-5" class="block py-1.5 nav-link rounded-md">5. Important Interview Questions</a>
+                <a href="#sec-6" class="block py-1.5 nav-link rounded-md">6. Common Mistakes</a>
+                <a href="#sec-7" class="block py-1.5 nav-link rounded-md">7. Visual Mental Models</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-6">Part B: Eventual Consistency</p>
+                <a href="#sec-8" class="block py-1.5 nav-link rounded-md">8. Big Picture</a>
+                <a href="#sec-9" class="block py-1.5 nav-link rounded-md">9. Core Concepts — Consistency Types</a>
+                <a href="#sec-10" class="block py-1.5 nav-link rounded-md">10. Practical Backend Perspective</a>
+                <a href="#sec-11" class="block py-1.5 nav-link rounded-md">11. Important Interview Questions</a>
+                <a href="#sec-12" class="block py-1.5 nav-link rounded-md">12. System Design Connections</a>
+                <a href="#sec-13" class="block py-1.5 nav-link rounded-md">13. Visual Mental Model</a>
+                <a href="#sec-14" class="block py-1.5 nav-link rounded-md">14. Common Mistakes</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-6">Review</p>
+                <a href="#sec-15" class="block py-1.5 nav-link rounded-md">15. Revision Notes (One Page)</a>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 h-3/4 md:h-full overflow-y-auto bg-gray-50 p-6 md:p-12 lg:p-16">
+        <div class="max-w-4xl mx-auto prose">
+            
+            <header class="mb-12 text-center md:text-left">
+                <p class="text-blue-600 font-semibold tracking-wide uppercase text-sm mb-2">Deep Dive Learning Notes | Database Engineering | System Design</p>
+                <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 mt-0 border-none pb-0">Serializable vs Repeatable Read & Eventual Consistency</h1>
+            </header>
+
+            <!-- PART A -->
+            <div class="part-header" id="part-a">
+                <h1>PART A — SERIALIZABLE vs REPEATABLE READ ISOLATION</h1>
+            </div>
+
+            <!-- SECTION 1 -->
+            <section id="sec-1">
+                <h2>1. Big Picture</h2>
+                
+                <h3>Why This Topic Exists</h3>
+                <p>Most engineers who learn about isolation levels memorize the table — "SERIALIZABLE prevents all anomalies, REPEATABLE READ prevents non-repeatable reads" — but they never truly understand <em>why</em> SERIALIZABLE needs to exist over and above REPEATABLE READ when there are no dirty reads, no phantom reads, and no non-repeatable reads.</p>
+                <p>The answer is: <strong>there exists a class of concurrency anomalies that cannot be detected by looking at individual row-level changes in isolation.</strong> These anomalies arise from the <em>interaction pattern</em> between two transactions — specifically read-write dependencies — even when no single row is touched by both transactions.</p>
+                <p>This is the gap SERIALIZABLE fills.</p>
+
+                <h3>The Problem It Solves</h3>
+                <blockquote>
+                    Two transactions can both execute perfectly, touching entirely different rows, and yet produce a result that <strong>could never have occurred if those transactions ran one after another in any serial order.</strong>
+                </blockquote>
+                <p>This is called a <strong>write skew</strong> (the general category) or a <strong>non-serializable execution</strong>. It is invisible to REPEATABLE READ because REPEATABLE READ only guards rows that were read — it cannot guard against the <em>combination</em> of reads and writes forming a logical cycle.</p>
+
+                <h3>Where It Appears in Real Systems</h3>
+                <ul>
+                    <li><strong>Double-booking systems:</strong> Two agents both check seat availability (read: 1 seat left), both confirm a booking (write: seat assigned) → two bookings for one seat.</li>
+                    <li><strong>Doctor on-call:</strong> Both doctors check "is at least one on call?" → both go off call → nobody on call.</li>
+                    <li><strong>Bank transfer race:</strong> Both transfers read sufficient balance, both debit → overdraft.</li>
+                    <li><strong>Order book matching:</strong> Two orders both read "unmatched sell order exists" → both consume the same sell order → over-fill.</li>
+                </ul>
+
+                <h3>Why Backend Engineers Must Care</h3>
+                <ul>
+                    <li><strong>REPEATABLE READ is not enough for all business invariants.</strong> If your business rule involves checking a condition and then acting on it, you may need SERIALIZABLE.</li>
+                    <li><strong>Serialization failures are expected and must be handled.</strong> Application code must implement retry logic. This is not optional.</li>
+                    <li><strong>Performance cost is real.</strong> SERIALIZABLE is significantly more expensive. Use only where the business domain demands it.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 2 -->
+            <section id="sec-2">
+                <h2>2. Core Concepts</h2>
+
+                <h3>The Foundational Example — The Swap Problem</h3>
+                <p>Consider a table with one column containing rows: <span class="inline-code">A, A, B, B</span>.</p>
+                <ul>
+                    <li><strong>Transaction T1:</strong> <span class="inline-code">UPDATE test SET field = 'B' WHERE field = 'A'</span> → changes A's to B's</li>
+                    <li><strong>Transaction T2:</strong> <span class="inline-code">UPDATE test SET field = 'A' WHERE field = 'B'</span> → changes B's to A's</li>
+                </ul>
+                <p>Both transactions run <strong>concurrently</strong>.</p>
+
+                <h4>What Happens Under REPEATABLE READ</h4>
+                <pre class="code-block">Initial state: [A, A, B, B]
+
+T1 starts, reads: rows 1 and 2 (value = A)
+T2 starts, reads: rows 3 and 4 (value = B)
+
+T1 writes: row 1 → B, row 2 → B
+T2 writes: row 3 → A, row 4 → A
+
+T1 commits.
+T2 commits.
+
+Final state: [B, B, A, A]</pre>
+                <p><strong>Key observation:</strong> T1 and T2 touched <em>completely different rows</em>. From the database's perspective under REPEATABLE READ:</p>
+                <ul>
+                    <li>T1 read rows 1 and 2 — those values didn't change while T1 was reading them ✅</li>
+                    <li>T2 read rows 3 and 4 — those values didn't change while T2 was reading them ✅</li>
+                    <li>No dirty reads, no non-repeatable reads, no phantom reads.</li>
+                </ul>
+                <p><strong>REPEATABLE READ sees no problem here and commits both transactions.</strong></p>
+                <p><strong>Result:</strong> <span class="inline-code">[B, B, A, A]</span></p>
+
+                <h4>What Serial Execution Would Have Produced</h4>
+                <p><strong>Serial order T1 → T2:</strong></p>
+                <pre class="code-block">Start: [A, A, B, B]
+T1:    [B, B, B, B]   ← all A's become B's
+T2:    [A, A, A, A]   ← all B's become A's
+End:   [A, A, A, A]</pre>
+                
+                <p><strong>Serial order T2 → T1:</strong></p>
+                <pre class="code-block">Start: [A, A, B, B]
+T2:    [A, A, A, A]   ← all B's become A's
+T1:    [B, B, B, B]   ← all A's become B's
+End:   [B, B, B, B]</pre>
+                
+                <p><strong>The only valid serial outcomes are:</strong> all A's OR all B's.</p>
+                <p><strong>The REPEATABLE READ outcome</strong> <span class="inline-code">[B, B, A, A]</span> <strong>is neither.</strong> It could not have been produced by any serial execution of T1 and T2. This is a <strong>non-serializable execution</strong> — a correctness violation that REPEATABLE READ does not detect.</p>
+
+                <h4>What Happens Under SERIALIZABLE</h4>
+                <pre class="code-block">T1 starts (SERIALIZABLE).
+T2 starts (SERIALIZABLE).
+
+T1 reads rows 1 and 2 (field = A).
+T2 reads rows 3 and 4 (field = B).
+
+T1 writes rows 1 and 2 → B.
+T2 writes rows 3 and 4 → A.
+
+T1 commits: ✅ SUCCESS.
+
+T2 tries to commit:
+PostgreSQL detects a read-write dependency cycle between T1 and T2.
+ERROR: could not serialize access due to read/write dependencies among transactions
+DETAIL: Reason code: Canceled on identification as a pivot, during commit attempt.
+HINT:   The transaction might succeed if retried.
+
+T2 is ROLLED BACK.</pre>
+                <p>Application retries T2. No concurrent transactions remain. T2 commits successfully.</p>
+                <p><strong>Final state:</strong> All A's or all B's — a valid serial outcome. ✅</p>
+
+                <h3>The Formal Concept: Read-Write Dependency Cycles</h3>
+                <p>PostgreSQL's SERIALIZABLE implementation (called <strong>Serializable Snapshot Isolation — SSI</strong>) works by tracking <strong>read-write anti-dependencies</strong> between transactions.</p>
+                <p>An anti-dependency exists when:</p>
+                <ul>
+                    <li>T1 <strong>reads</strong> a value that T2 <strong>writes</strong> (T1 read something T2 will change)</li>
+                    <li>T2 <strong>reads</strong> a value that T1 <strong>writes</strong> (T2 read something T1 will change)</li>
+                </ul>
+                <p>When such a cycle is detected, the execution cannot correspond to any serial order. PostgreSQL aborts one transaction (the "pivot") to break the cycle.</p>
+                <pre class="code-block">Anti-dependency cycle in the swap example:
+
+T1 reads rows {1,2} (A's)  →  T2 writes rows {3,4} (A's) [T2 changes what T1 might read next]
+T2 reads rows {3,4} (B's)  →  T1 writes rows {1,2} (B's) [T1 changes what T2 might read next]
+
+Cycle: T1 →(rw)→ T2 →(rw)→ T1
+
+PostgreSQL detects this cycle and aborts T2.</pre>
+
+                <h3>Pessimistic Alternative: SELECT FOR UPDATE</h3>
+                <p>The instructor mentions that you can achieve the same serializable guarantee pessimistically using <span class="inline-code">SELECT FOR UPDATE</span> under READ COMMITTED:</p>
+                <pre class="code-block">-- T1: Locks the rows it's about to modify
+BEGIN;  -- READ COMMITTED
+SELECT * FROM test WHERE field = 'A' FOR UPDATE;  -- Acquires exclusive locks on rows 1,2
+UPDATE test SET field = 'B' WHERE field = 'A';
+COMMIT;  -- Locks released
+
+-- T2: Cannot read the locked rows until T1 commits
+BEGIN;
+SELECT * FROM test WHERE field = 'B' FOR UPDATE;
+-- BLOCKS until T1 commits. Then reads the committed state.
+-- T1 changed rows 1,2 to B. T2 now sees rows 1,2,3,4 as B's → changes all to A.
+UPDATE test SET field = 'A' WHERE field = 'B';
+COMMIT;
+-- Result: [A, A, A, A] ✅</pre>
+
+                <p><strong>Trade-off:</strong></p>
+                <table>
+                    <thead>
+                        <tr><th>Approach</th><th>Mechanism</th><th>On Conflict</th><th>Throughput</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>SERIALIZABLE (SSI)</td><td>Optimistic, conflict detection at commit</td><td>ABORT + RETRY</td><td>Higher (no waiting)</td></tr>
+                        <tr><td>SELECT FOR UPDATE</td><td>Pessimistic, explicit row locks</td><td>WAIT</td><td>Lower (blocking)</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- SECTION 3 -->
+            <section id="sec-3">
+                <h2>3. Deep Dive — PostgreSQL SSI Internals</h2>
+
+                <h3>How SSI Tracks Dependencies</h3>
+                <p>PostgreSQL maintains a <strong>SIREAD lock</strong> (predicate lock) for every row, page, or relation that a SERIALIZABLE transaction reads. These are not blocking locks — they are tracking locks. They record "T1 read this data."</p>
+                <p>When another transaction writes data that was predicate-locked by T1, PostgreSQL records an anti-dependency: T2 wrote something T1 read.</p>
+                <p>PostgreSQL then checks: does this create a cycle (T1→T2→T1)? If yes → abort the pivot transaction.</p>
+                <pre class="code-block">Predicate lock tracking (conceptual):
+  T1 reads rows where field='A'  → SIREAD lock on {row1, row2}
+  T2 reads rows where field='B'  → SIREAD lock on {row3, row4}
+  T1 writes rows {row1, row2}    → Anti-dep recorded: T2→T1 (T2 read what T1 wrote)
+  T2 writes rows {row3, row4}    → Anti-dep recorded: T1→T2 (T1 read what T2 wrote)
+  Cycle detected: T1 ↔ T2       → Abort T2 (later committer is the pivot)</pre>
+
+                <h3>Performance Implications of SSI</h3>
+                <ul>
+                    <li><strong>Memory overhead:</strong> SIREAD locks are held in memory. Heavy SERIALIZABLE workloads with many transactions and many rows read can pressure the lock table.</li>
+                    <li><strong>False positives:</strong> SSI sometimes aborts transactions that would not actually have conflicted if run serially. This is conservative but safe.</li>
+                    <li><strong>Granularity promotion:</strong> If too many row-level SIREAD locks accumulate for one transaction, PostgreSQL promotes to a relation-level (table-level) SIREAD lock. This increases false aborts.</li>
+                    <li><strong>max_pred_locks_per_transaction:</strong> Controls the threshold before promotion. Tuning this is important for SERIALIZABLE-heavy workloads.</li>
+                </ul>
+
+                <h3>The SQLSTATE 40001 Error</h3>
+                <p>When PostgreSQL aborts a SERIALIZABLE transaction due to a conflict, it returns:</p>
+                <pre class="code-block">ERROR:  could not serialize access due to read/write dependencies among transactions
+SQLSTATE: 40001</pre>
+                <p>This is the standard SQLSTATE for serialization failures. Applications <strong>must</strong> catch this and retry the transaction. It is not an error in the traditional sense — it is the expected mechanism of SSI.</p>
+            </section>
+
+            <!-- SECTION 4 -->
+            <section id="sec-4">
+                <h2>4. Practical Java Implementation</h2>
+
+                <h3>JDBC — SERIALIZABLE with Retry Loop</h3>
+                <pre class="code-block">import java.sql.*;
+
+public class SerializableTransactionService {
+
+    private static final int MAX_RETRIES = 5;
+    private static final String SERIALIZATION_FAILURE = "40001";
+
+    /**
+     * Executes a transaction at SERIALIZABLE isolation level with automatic retry.
+     * SERIALIZABLE transactions may be aborted by the database when a
+     * read/write dependency cycle is detected (SQLSTATE 40001).
+     * The application MUST retry these — it is expected behavior.
+     */
+    public void executeSerializable(TransactionWork work) throws SQLException {
+        int attempt = 0;
+        while (true) {
+            attempt++;
+            Connection conn = null;
+            try {
+                conn = DatabaseConfig.getConnection();
+                conn.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+                conn.setAutoCommit(false);
+
+                work.execute(conn);
+
+                conn.commit();
+                System.out.println("Committed on attempt " + attempt);
+                return;
+
+            } catch (SQLException e) {
+                if (conn != null) {
+                    try { conn.rollback(); } catch (SQLException ignored) {}
+                }
+
+                // SQLSTATE 40001 = serialization failure → retry
+                if (SERIALIZATION_FAILURE.equals(e.getSQLState()) && attempt &lt; MAX_RETRIES) {
+                    System.out.printf("Serialization conflict on attempt %d, retrying...%n", attempt);
+                    try {
+                        // Exponential backoff: 50ms, 100ms, 200ms...
+                        Thread.sleep(50L * (1L &lt;&lt; (attempt - 1)));
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        throw new SQLException("Interrupted during retry backoff", ie);
+                    }
+                } else {
+                    throw e; // Max retries exceeded or non-retriable error
+                }
+
+            } finally {
+                if (conn != null) {
+                    try {
+                        conn.setAutoCommit(true);
+                        conn.close();
+                    } catch (SQLException ignored) {}
+                }
+            }
+        }
+    }
+
+    @FunctionalInterface
+    public interface TransactionWork {
+        void execute(Connection conn) throws SQLException;
+    }
+}</pre>
+
+                <h3>The Swap Problem in Java</h3>
+                <pre class="code-block">public class SwapDemo {
+
+    private final SerializableTransactionService txService;
+
+    // PROBLEMATIC: REPEATABLE READ — produces non-serializable result
+    public void swapRepeatableRead(String fromValue, String toValue) throws SQLException {
+        Connection conn = DatabaseConfig.getConnection();
+        conn.setTransactionIsolation(Connection.TRANSACTION_REPEATABLE_READ);
+        conn.setAutoCommit(false);
+        try {
+            String sql = "UPDATE test SET field = ? WHERE field = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setString(1, toValue);
+                stmt.setString(2, fromValue);
+                stmt.executeUpdate();
+            }
+            conn.commit();
+            // If two threads call this concurrently: T1(A→B) and T2(B→A)
+            // Result may be [B,B,A,A] — neither all-A nor all-B ← NON-SERIALIZABLE
+        } catch (SQLException e) {
+            conn.rollback();
+            throw e;
+        }
+    }
+
+    // CORRECT: SERIALIZABLE — guarantees all-A or all-B
+    public void swapSerializable(String fromValue, String toValue) throws SQLException {
+        txService.executeSerializable(conn -> {
+            String sql = "UPDATE test SET field = ? WHERE field = ?";
+            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                stmt.setString(1, toValue);
+                stmt.setString(2, fromValue);
+                stmt.executeUpdate();
+            }
+            // If conflict detected at commit: SQLSTATE 40001 thrown
+            // executeSerializable() catches it and retries automatically
+        });
+    }
+}</pre>
+
+                <h3>Spring Boot — SERIALIZABLE with @Transactional and Retry</h3>
+                <pre class="code-block">import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.dao.CannotSerializeTransactionException;
+
+@Service
+public class SerializableService {
+
+    private final TestRepository testRepo;
+
+    /**
+     * @Retryable catches CannotSerializeTransactionException (Spring wraps SQLSTATE 40001)
+     * and retries up to 5 times with exponential backoff.
+     * This is the production pattern for SERIALIZABLE transactions in Spring.
+     */
+    @Retryable(
+        retryFor = CannotSerializeTransactionException.class,
+        maxAttempts = 5,
+        backoff = @Backoff(delay = 50, multiplier = 2, maxDelay = 1000)
+    )
+    @Transactional(isolation = Isolation.SERIALIZABLE)
+    public void swapValues(String fromVal, String toVal) {
+        testRepo.updateFieldWhereEquals(toVal, fromVal);
+        // Spring commits on method return.
+        // If SQLSTATE 40001: Spring throws CannotSerializeTransactionException
+        // @Retryable catches it, waits backoff, calls this method again.
+        // Each retry gets a FRESH transaction with a new snapshot.
+    }
+}</pre>
+
+                <p><strong>Critical note:</strong> With <span class="inline-code">@Retryable</span> + <span class="inline-code">@Transactional</span>, the retry wrapper must be in a <em>separate bean</em> or called through the Spring proxy. Self-invocation (calling the method from within the same class) bypasses Spring's AOP proxy and <span class="inline-code">@Transactional</span> won't apply on retry.</p>
+
+                <pre class="code-block">// WRONG: self-invocation — @Transactional ignored on retry
+@Service
+public class BadService {
+    @Retryable(retryFor = CannotSerializeTransactionException.class, maxAttempts = 3)
+    public void outer() {
+        inner();  // direct call, bypasses proxy
+    }
+
+    @Transactional(isolation = Isolation.SERIALIZABLE)
+    public void inner() { /* ... */ }
+}
+
+// CORRECT: separate beans
+@Service
+public class RetryWrapper {
+    private final InnerService innerService;
+
+    @Retryable(retryFor = CannotSerializeTransactionException.class, maxAttempts = 3,
+               backoff = @Backoff(delay = 50, multiplier = 2))
+    public void swapWithRetry(String from, String to) {
+        innerService.swap(from, to);
+    }
+}
+
+@Service
+public class InnerService {
+    @Transactional(isolation = Isolation.SERIALIZABLE)
+    public void swap(String from, String to) {
+        repo.updateFieldWhereEquals(to, from);
+    }
+}</pre>
+            </section>
+
+            <!-- SECTION 5 -->
+            <section id="sec-5">
+                <h2>5. Important Interview Questions — Serializable vs Repeatable Read</h2>
+
+                <h3>Basic Questions</h3>
+                <p><strong>Q: What is the difference between REPEATABLE READ and SERIALIZABLE?</strong><br>
+                A: REPEATABLE READ guarantees that rows a transaction has read will not change during the transaction. SERIALIZABLE additionally guarantees that the concurrent execution of transactions produces a result equivalent to some serial (one-after-another) execution. REPEATABLE READ can produce results that are impossible under any serial order — SERIALIZABLE cannot.</p>
+
+                <p><strong>Q: When would you choose SERIALIZABLE over REPEATABLE READ?</strong><br>
+                A: When the business invariant depends on a condition-then-action pattern: "check if X is true, then do Y." If two transactions both check the same condition concurrently and both act on it, REPEATABLE READ won't prevent conflicting actions. Classic cases: booking systems (check seat availability → book), financial (check balance → debit), doctor on-call (check if anyone on call → go off call).</p>
+
+                <p><strong>Q: What error does PostgreSQL return on a serialization conflict?</strong><br>
+                A: <span class="inline-code">ERROR: could not serialize access due to read/write dependencies among transactions</span> with SQLSTATE <span class="inline-code">40001</span>. The application must catch this and retry the entire transaction.</p>
+
+                <h3>Intermediate Questions</h3>
+                <p><strong>Q: In the swap example (A→B concurrent with B→A), why does REPEATABLE READ allow a non-serializable result?</strong><br>
+                A: T1 reads A-rows and T2 reads B-rows — completely different rows. REPEATABLE READ only protects rows that were read by a transaction. Since neither transaction re-reads the other's rows, no non-repeatable read occurs. REPEATABLE READ has no mechanism to detect that the <em>combination</em> of the two transactions' reads and writes forms a logical cycle.</p>
+
+                <p><strong>Q: What is an anti-dependency (read-write dependency) in the context of SSI?</strong><br>
+                A: An anti-dependency from T1 to T2 exists when T1 reads a value that T2 subsequently writes. If T2 to T1 anti-dependencies also exist (T2 reads something T1 writes), a cycle forms. A cycle means the two transactions cannot be reordered into any serial execution — SSI detects this and aborts one.</p>
+
+                <p><strong>Q: What is the pessimistic alternative to SERIALIZABLE isolation?</strong><br>
+                A: <span class="inline-code">SELECT FOR UPDATE</span> under READ COMMITTED. The transaction explicitly locks the rows it intends to modify before reading them. Other transactions attempting to lock the same rows block and wait. This is serializable in effect but uses waiting (blocking) rather than abort-and-retry.</p>
+
+                <h3>Advanced Questions</h3>
+                <p><strong>Q: How does PostgreSQL implement SERIALIZABLE isolation (SSI) at a high level?</strong><br>
+                A: PostgreSQL uses Serializable Snapshot Isolation (SSI). Each SERIALIZABLE transaction gets a snapshot (like REPEATABLE READ). Additionally, PostgreSQL tracks SIREAD (predicate) locks on all data read by SERIALIZABLE transactions. When a write occurs on data covered by a SIREAD lock, PostgreSQL records a read-write anti-dependency. If a cycle of anti-dependencies is detected between transactions, the later-committing transaction is aborted with SQLSTATE 40001. This is an optimistic approach — no blocking, just conflict detection at commit time.</p>
+
+                <p><strong>Q: What is a "false positive abort" in SSI?</strong><br>
+                A: SSI is conservative. To limit memory and CPU overhead, it sometimes promotes fine-grained (row-level) SIREAD locks to coarser (page-level or relation-level) locks. This can cause PostgreSQL to detect a "conflict" where none actually exists (two transactions that would not have conflicted under exact tracking). The abort is safe (it never aborts a correct serializable execution) but increases the retry rate unnecessarily. Tuning <span class="inline-code">max_pred_locks_per_transaction</span> can reduce false positives.</p>
+
+                <p><strong>Q: Why must SERIALIZABLE retry logic use exponential backoff?</strong><br>
+                A: Under high contention, many transactions may conflict simultaneously. Without backoff, all retried transactions re-execute at the same time → another wave of conflicts → retry storm. Exponential backoff (50ms, 100ms, 200ms...) staggers retries, reducing collision probability and allowing the system to recover.</p>
+            </section>
+
+            <!-- SECTION 6 -->
+            <section id="sec-6">
+                <h2>6. Common Mistakes</h2>
+                <ul>
+                    <li><strong>Not implementing retry logic.</strong> Treating SQLSTATE 40001 as a fatal error instead of retrying. This silently drops writes in high-contention scenarios.</li>
+                    <li><strong>Using SERIALIZABLE for read-only transactions.</strong> Read-only transactions do not need SERIALIZABLE. They cannot cause write skew. Use <span class="inline-code">REPEATABLE READ</span> or even <span class="inline-code">READ COMMITTED</span> with <span class="inline-code">readOnly=true</span> for better performance.</li>
+                    <li><strong>Assuming SERIALIZABLE is always slow.</strong> Under low contention, SSI has minimal overhead over REPEATABLE READ. The cost spikes under high contention due to aborts and retries.</li>
+                    <li><strong>Not resetting the connection's isolation level after use.</strong> If using JDBC with a connection pool, the isolation level may persist across transactions. Always reset to the default after setting a non-default level.</li>
+                    <li><strong>Self-invocation with @Transactional and @Retryable in Spring.</strong> As shown above, calling a <span class="inline-code">@Transactional</span> method from within the same bean bypasses the proxy. The transaction won't apply. Use separate beans.</li>
+                    <li><strong>Holding SERIALIZABLE transactions open for a long time.</strong> The longer a SERIALIZABLE transaction runs, the more SIREAD locks it accumulates, and the higher the probability of a spurious abort. Keep SERIALIZABLE transactions as short as possible.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 7 -->
+            <section id="sec-7">
+                <h2>7. Visual Mental Models</h2>
+
+                <h3>Why REPEATABLE READ Fails on the Swap</h3>
+                <pre class="code-block">Initial: Row1=A, Row2=A, Row3=B, Row4=B
+
+T1 (REPEATABLE READ):          T2 (REPEATABLE READ):
+  Snapshot: {R1=A,R2=A,R3=B,R4=B}  Snapshot: {R1=A,R2=A,R3=B,R4=B}
+  Reads R1,R2 (=A) ✅             Reads R3,R4 (=B) ✅
+  Writes R1=B, R2=B               Writes R3=A, R4=A
+  COMMIT ✅                        COMMIT ✅
+
+Final: [B,B,A,A]  ← NOT equivalent to any serial execution ❌
+
+Serial T1→T2 would give: [A,A,A,A]
+Serial T2→T1 would give: [B,B,B,B]
+[B,B,A,A] is WRONG.</pre>
+
+                <h3>How SSI Detects the Cycle</h3>
+                <pre class="code-block">SIREAD locks (who read what):
+  T1: SIREAD on {R1, R2}  (rows where field=A)
+  T2: SIREAD on {R3, R4}  (rows where field=B)
+
+Anti-dependencies (who wrote what the other read):
+  T1 writes R1,R2 (B) → T2's SIREAD covered R3,R4 only — but T2 also
+    will read the result of T1's write if T2 ran after T1
+  T2 writes R3,R4 (A) → T1's SIREAD covered R1,R2 only — but T1 also
+    will read the result of T2's write if T1 ran after T2
+
+Cycle: T1 --(rw dep)--> T2 --(rw dep)--> T1
+
+SSI: ABORT T2 (pivot). T2 must retry.</pre>
+
+                <h3>Pessimistic vs Optimistic for Serializability</h3>
+                <pre class="code-block">PESSIMISTIC (SELECT FOR UPDATE):
+
+T1: SELECT FOR UPDATE → [LOCK R1,R2] ──────────────────────── UPDATE → COMMIT → UNLOCK
+T2:                       SELECT FOR UPDATE → [WAIT for T1's lock] → READ committed → UPDATE → COMMIT
+
+Result: T2 sees T1's committed changes → truly serial ✅
+Cost: T2 WAITS (blocking, latency added)
+
+OPTIMISTIC (SERIALIZABLE SSI):
+
+T1: READ → ────────────────── WRITE → COMMIT ✅
+T2: READ → WRITE → COMMIT → ABORT (SQLSTATE 40001) → RETRY → COMMIT ✅
+
+Result: One transaction retries ✅
+Cost: T2 does WASTED WORK then retries (CPU cost)</pre>
+            </section>
+
+            <!-- PART B -->
+            <div class="part-header" id="part-b">
+                <h1>PART B — EVENTUAL CONSISTENCY (DEEP DIVE)</h1>
+            </div>
+
+            <!-- SECTION 8 -->
+            <section id="sec-8">
+                <h2>8. Big Picture</h2>
+                
+                <h3>Why Eventual Consistency Exists</h3>
+                <p>Eventual consistency is not a NoSQL invention. It is a <strong>consequence of distribution</strong>. The moment you have data in more than one place — whether that is a primary-replica pair in PostgreSQL, a Redis cache in front of MySQL, or a globally distributed Cassandra cluster — you have introduced the possibility that different nodes hold different versions of the same data at the same point in time.</p>
+                <p>The CAP theorem tells us that in the presence of a network partition, a distributed system must choose between Consistency and Availability. Most systems choose Availability (serve requests even if the data might be slightly stale) and accept Eventual Consistency.</p>
+
+                <h3>The Marketing Problem With "Eventual Consistency"</h3>
+                <p>The instructor makes a critical observation: <strong>"eventual consistency" is overloaded as a term and is often misused as a marketing phrase for NoSQL databases.</strong> Understanding what it actually means is essential for system design interviews and production architecture decisions.</p>
+            </section>
+
+            <!-- SECTION 9 -->
+            <section id="sec-9">
+                <h2>9. Core Concepts — Two Types of Consistency (Revisited)</h2>
+
+                <h3>Type 1: Consistency in Data (Correctness of Persisted State)</h3>
+                <p><strong>What it means:</strong> The data stored in the database satisfies all defined invariants and referential integrity rules.</p>
+                <p><strong>Example:</strong></p>
+                <pre class="code-block">pictures table:    id=1, num_likes=5   ← claims 5 likes
+likes table:       only 2 rows for picture 1
+
+INCONSISTENCY: num_likes=5 ≠ count(likes where picture_id=1)=2</pre>
+
+                <p><strong>Causes of Type 1 inconsistency:</strong></p>
+                <ul>
+                    <li>Violated atomicity: multi-table transaction partially committed</li>
+                    <li>Violated isolation: concurrent writes produced an invalid state</li>
+                    <li>Missing foreign key constraints: orphaned records after delete</li>
+                    <li>Application bug: update one table but not the related table</li>
+                </ul>
+
+                <p><strong>Can eventual consistency fix Type 1?</strong></p>
+                <p><strong>No.</strong> Corrupt data does not heal itself. If <span class="inline-code">num_likes=5</span> but only 2 like records exist, no amount of time or replication will fix this. The data is permanently wrong unless a repair job explicitly corrects it.</p>
+                <blockquote>"There is no eventual consistency coming out of that. You just corrupted your database."<br>— Instructor</blockquote>
+
+                <h3>Type 2: Consistency in Reads (Visibility of Committed Changes)</h3>
+                <p><strong>What it means:</strong> After a transaction commits a change, any subsequent read — from any client, on any node — returns the new value, not the pre-commit value.</p>
+                <p><strong>This is where eventual consistency applies.</strong></p>
+                <p><strong>Classic scenario:</strong></p>
+                <pre class="code-block">Architecture:
+  [Primary DB] ──async replication──▶ [Replica 1]
+                                  └──▶ [Replica 2]
+  [Load Balancer] routes reads to replicas for scalability.
+
+Sequence:
+  T=0ms: Client A writes X=100 to Primary. COMMIT. ✅
+  T=1ms: Replication in progress (async lag: ~50ms typical)
+  T=2ms: Client B reads X from Replica 1 → gets X=99 (stale!) ← INCONSISTENT
+
+  T=50ms: Replication completes. Replica 1 now has X=100.
+  T=51ms: Client B reads X from Replica 1 → gets X=100 ✅
+
+  → System was EVENTUALLY consistent. It converged.</pre>
+
+                <p><strong>Can eventual consistency fix Type 2?</strong></p>
+                <p><strong>Yes</strong> — if the underlying data is correct (Type 1 is fine), the replica will eventually receive and apply the replication stream and become current.</p>
+
+                <h3>The Critical Distinction</h3>
+                <pre class="code-block">┌──────────────────────────────────────────────────────────────────┐
+│ CONSISTENCY TYPE 1: Data Correctness                             │
+│ "Is the data on disk in a valid state?"                          │
+│                                                                  │
+│ Caused by: bugs, missing transactions, missing constraints       │
+│ Fixed by:  atomicity + isolation + constraints + application code│
+│ Eventual consistency: ❌ DOES NOT APPLY                          │
+│ "Corrupt data will always be corrupt data."                      │
+└──────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────┐
+│ CONSISTENCY TYPE 2: Read Visibility                              │
+│ "Does a read return the latest committed value?"                 │
+│                                                                  │
+│ Caused by: replica lag, caching, partitioning                    │
+│ Fixed by:  synchronous replication, read-your-writes, quorum     │
+│ Eventual consistency: ✅ APPLIES                                 │
+│ "The replica will catch up. Eventually the read returns X=100."  │
+└──────────────────────────────────────────────────────────────────┘</pre>
+
+                <h3>Both SQL and NoSQL Suffer From Type 2 Inconsistency</h3>
+                <p>This is one of the most important — and least understood — points in the lecture:</p>
+                <blockquote><strong>Eventual consistency is not a NoSQL phenomenon. Any relational database with read replicas exhibits eventual consistency on reads routed to those replicas.</strong></blockquote>
+
+                <table>
+                    <thead>
+                        <tr><th>Database</th><th>Architecture</th><th>Consistency Model</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>PostgreSQL (single node)</td><td>No replicas</td><td>Strong consistency</td></tr>
+                        <tr><td>PostgreSQL (async replication)</td><td>Primary + replicas</td><td>Eventual consistency on replica reads</td></tr>
+                        <tr><td>PostgreSQL (sync replication)</td><td>Primary + replicas</td><td>Strong consistency (slower writes)</td></tr>
+                        <tr><td>MySQL (async replication)</td><td>Primary + replicas</td><td>Eventual consistency on replica reads</td></tr>
+                        <tr><td>MongoDB (default read concern)</td><td>Replica set</td><td>Eventual consistency</td></tr>
+                        <tr><td>Cassandra (quorum)</td><td>Multi-node</td><td>Tunable (quorum = strong, one = eventual)</td></tr>
+                        <tr><td>DynamoDB (default)</td><td>Multi-AZ</td><td>Eventual consistency</td></tr>
+                        <tr><td>DynamoDB (strongly consistent reads)</td><td>Multi-AZ</td><td>Strong consistency</td></tr>
+                        <tr><td>Redis (with replicas)</td><td>Primary + replicas</td><td>Eventual consistency</td></tr>
+                    </tbody>
+                </table>
+
+                <h3>Caching Introduces Inconsistency</h3>
+                <blockquote>"The moment you introduce a cache, you are inconsistent."<br>— Instructor</blockquote>
+                <p>This is an absolute rule. When you put Redis in front of your database:</p>
+                <pre class="code-block">Without cache:
+  Client → Database: Read X → 100 ✅ (always current)
+
+With cache:
+  Client → Redis: Read X → 99 (stale!) ← INCONSISTENT
+  Client → Redis (miss) → Database → 100 (current)
+
+Cache becomes stale immediately after any write to the database.
+The system is inconsistent until the cache entry is invalidated or expires.</pre>
+                <p><strong>This means:</strong> Every system that uses caching is eventually consistent by definition. The only question is whether that window of inconsistency is acceptable.</p>
+
+                <h3>The Consistency Spectrum</h3>
+                <pre class="code-block">Stronger                                                    Weaker
+│                                                              │
+Linearizability → Sequential → Causal → Read-Your-Writes → Eventual
+│                                                              │
+• Every read         • Reads         • Reads see     • All writes
+  sees the last        reflect          causally         eventually
+  global write         some serial      related          propagate
+                       order            writes
+│                                                              │
+Spanner, etcd     PostgreSQL       AWS DynamoDB       Cassandra
+(consensus)       (sync repl)      (session)          (async)</pre>
+
+                <h3>Synchronous vs Asynchronous Replication</h3>
+                <table>
+                    <thead>
+                        <tr><th>Property</th><th>Synchronous</th><th>Asynchronous</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Commit speed</td><td>Slower (waits for replica ACK)</td><td>Faster (no wait)</td></tr>
+                        <tr><td>Replica lag</td><td>Zero</td><td>Variable (ms to seconds)</td></tr>
+                        <tr><td>Consistency</td><td>Strong (reads from replica are current)</td><td>Eventual</td></tr>
+                        <tr><td>Risk</td><td>If replica unavailable, primary cannot commit</td><td>If primary crashes, replica may be behind</td></tr>
+                        <tr><td>Use case</td><td>Financial systems, critical data</td><td>Reporting replicas, analytics</td></tr>
+                    </tbody>
+                </table>
+                <p><strong>PostgreSQL synchronous replication config:</strong></p>
+                <pre class="code-block"># In postgresql.conf on primary:
+synchronous_standby_names = 'replica1'
+# Primary waits for replica1 to confirm WAL receipt before commit.
+# One slow replica = slow commits for everyone.
+
+# Quorum-based (N of M replicas must confirm):
+synchronous_standby_names = 'ANY 2 (replica1, replica2, replica3)'</pre>
+            </section>
+
+            <!-- SECTION 10 -->
+            <section id="sec-10">
+                <h2>10. Practical Backend Engineering Perspective</h2>
+
+                <h3>Banking — Zero Tolerance for Both Types of Inconsistency</h3>
+                <p>Banks cannot tolerate Type 1 (corrupt balance data) AND must carefully handle Type 2 (replica lag). Standard approach:</p>
+                <ul>
+                    <li>All writes go to the primary.</li>
+                    <li>Balance checks (debit authorization) also go to the primary (bypassing replicas).</li>
+                    <li>Reporting/statement queries may go to replicas (acceptable lag for statements).</li>
+                    <li>Synchronous replication to at least one replica (often in a different data center).</li>
+                </ul>
+
+                <h3>Amazon — Read-Your-Writes Consistency</h3>
+                <p>DynamoDB offers "strongly consistent reads" that always read from the leader node. Standard reads are eventually consistent (cheaper, 2x read capacity). The application chooses per-request:</p>
+                <pre class="code-block">// Eventually consistent (cheaper, may return stale data)
+GetItemRequest eventualRead = GetItemRequest.builder()
+    .tableName("accounts")
+    .key(Map.of("id", AttributeValue.builder().s("acc-123").build()))
+    .consistentRead(false)  // default
+    .build();
+
+// Strongly consistent (reads from leader, always current)
+GetItemRequest strongRead = GetItemRequest.builder()
+    .tableName("accounts")
+    .key(Map.of("id", AttributeValue.builder().s("acc-123").build()))
+    .consistentRead(true)  // 2x read cost
+    .build();</pre>
+
+                <h3>Instagram — Tolerating Like Count Lag</h3>
+                <p>Instagram's like counter intentionally tolerates eventual consistency. The displayed count may be slightly stale (a few seconds behind). This is acceptable because:</p>
+                <ul>
+                    <li>The exact like count at any instant is not a business-critical invariant.</li>
+                    <li>Strong consistency on every like would require synchronous writes to all cache layers — too expensive at scale.</li>
+                    <li>Eventual consistency is explicitly accepted as a product trade-off.</li>
+                </ul>
+
+                <h3>Uber — Surge Pricing Reads</h3>
+                <p>Uber's surge pricing reads driver availability from caches and replicas. A slight lag in the data (driver locations up to a few seconds stale) is acceptable. The system is eventually consistent — all nodes converge — but a tiny window of inconsistency exists. This is a deliberate trade-off for the latency performance required at global scale.</p>
+
+                <h3>Cache Invalidation Strategy in Java/Spring</h3>
+                <pre class="code-block">@Service
+public class ProductService {
+
+    private final ProductRepository repo;
+    private final RedisTemplate&lt;String, Product&gt; cache;
+
+    /**
+     * Write-Through Cache Pattern:
+     * Write to DB AND cache atomically (within same method).
+     * Cache is always in sync immediately after write.
+     * Still eventually consistent during the write itself (brief window).
+     */
+    @Transactional
+    public void updateProduct(int productId, double newPrice) {
+        // 1. Update database (primary source of truth)
+        repo.updatePrice(productId, newPrice);
+        // DB committed here
+
+        // 2. Update cache immediately (minimize staleness window)
+        String cacheKey = "product:" + productId;
+        Product updated = repo.findById(productId).orElseThrow();
+        cache.opsForValue().set(cacheKey, updated, Duration.ofMinutes(10));
+
+        // Window of inconsistency: between DB commit and cache update.
+        // Very brief but non-zero. A read in that window returns stale cache.
+    }
+
+    /**
+     * Cache-Aside with Invalidation Pattern:
+     * On write, delete (invalidate) cache entry.
+     * Next read will miss cache, load from DB (current), repopulate cache.
+     * Safer than write-through but larger staleness window on read.
+     */
+    @Transactional
+    public void updateProductCacheAside(int productId, double newPrice) {
+        repo.updatePrice(productId, newPrice);
+
+        // Invalidate cache — next read will fetch fresh from DB
+        String cacheKey = "product:" + productId;
+        cache.delete(cacheKey);
+    }
+}</pre>
+            </section>
+
+            <!-- SECTION 11 -->
+            <section id="sec-11">
+                <h2>11. Important Interview Questions — Eventual Consistency</h2>
+
+                <h3>Basic Questions</h3>
+                <p><strong>Q: What is eventual consistency?</strong><br>
+                A: A property of distributed systems guaranteeing that, if no new updates are made, all replicas will eventually converge to the same value. During the convergence window, reads from different nodes may return different values. It applies specifically to read visibility (Type 2 consistency), not to data corruption (Type 1).</p>
+
+                <p><strong>Q: Is eventual consistency a NoSQL-only concept?</strong><br>
+                A: No. Any relational database with asynchronous read replicas exhibits eventual consistency for reads routed to those replicas. PostgreSQL with async streaming replication, MySQL with standard replication — both are eventually consistent on replica reads. Eventual consistency is a consequence of distribution, not of the data model.</p>
+
+                <p><strong>Q: What is the difference between strong consistency and eventual consistency?</strong><br>
+                A: Strong consistency guarantees every read returns the most recently committed write, regardless of which node handles the request. Eventual consistency allows a window where reads may return stale data, but guarantees convergence over time. Strong consistency typically requires synchronous replication or consensus protocols (Paxos/Raft) and incurs higher write latency.</p>
+
+                <h3>Intermediate Questions</h3>
+                <p><strong>Q: Can eventual consistency fix corrupt data (Type 1 inconsistency)?</strong><br>
+                A: No. If atomicity is violated and a multi-table update partially commits (e.g., balance debited but credit never written), the data is corrupt. No replication or eventual convergence will repair this — all replicas will eventually converge on the corrupt state. Eventual consistency only heals <em>visibility lag</em> — it does not heal <em>wrong data</em>.</p>
+
+                <p><strong>Q: How does introducing a cache affect consistency?</strong><br>
+                A: A cache creates a second copy of data. After any write to the database, the cache holds stale data until invalidated or expired. This makes the system eventually consistent by definition. The cache invalidation strategy (write-through, write-behind, cache-aside) determines the size of the inconsistency window and the risk of serving stale data.</p>
+
+                <p><strong>Q: What strategies exist to achieve "read-your-writes" consistency with async replication?</strong><br>
+                A: Several approaches:<br>
+                (1) Route writes and subsequent reads from the same user session to the primary.<br>
+                (2) After a write, store the write timestamp client-side; route reads to the primary until replication lag is confirmed to have caught up.<br>
+                (3) Use synchronous replication so replicas are always current.<br>
+                (4) Use database features like PostgreSQL's <span class="inline-code">pg_stat_replication</span> to detect lag and steer.</p>
+
+                <h3>Advanced Questions</h3>
+                <p><strong>Q: Explain the CAP theorem and how it relates to eventual consistency.</strong><br>
+                A: The CAP theorem states that a distributed system can guarantee at most two of three properties: Consistency (every read sees the latest write), Availability (every request gets a response), and Partition Tolerance (system continues despite network failures). Since network partitions are unavoidable in distributed systems, the real choice is C vs A during a partition. Systems that choose Availability (respond even during partition) by definition cannot guarantee consistency in that window — they become eventually consistent. Systems that choose Consistency may refuse requests during a partition (unavailable).</p>
+
+                <p><strong>Q: What is the PACELC extension of CAP and why is it more useful in practice?</strong><br>
+                A: PACELC extends CAP: If Partition (P), choose Availability (A) or Consistency (C); Else (E), even without partition, choose Latency (L) or Consistency (C). This captures the practical trade-off: even without failures, strong consistency requires coordination (Paxos rounds, sync replication) which adds latency. Most real systems face the L vs C trade-off far more often than the P vs C trade-off. DynamoDB by default chooses L (low latency reads) over C; DynamoDB with strongly consistent reads chooses C at higher latency.</p>
+
+                <p><strong>Q: How does Cassandra implement tunable consistency?</strong><br>
+                A: Cassandra allows per-operation consistency levels. With N total replicas, a write/read at quorum level requires <span class="inline-code">floor(N/2)+1</span> replicas to acknowledge. If <span class="inline-code">W + R &gt; N</span>, the system is strongly consistent (at least one node must have seen the latest write). At <span class="inline-code">CONSISTENCY ONE</span>, only one replica must respond — eventual consistency. This tunability allows operators to choose the right trade-off per operation type.</p>
+            </section>
+
+            <!-- SECTION 12 -->
+            <section id="sec-12">
+                <h2>12. System Design Connections</h2>
+
+                <h3>Eventual Consistency in Microservices — The Saga Pattern</h3>
+                <p>In microservices, each service has its own database. A business operation spanning multiple services (e.g., place order → reserve inventory → charge payment) cannot use a single ACID transaction. Instead, the Saga pattern is used: each step is a local transaction; compensating transactions handle failures.</p>
+                <pre class="code-block">Order Saga:
+  Step 1: OrderService.createOrder()       → local TX, commits
+  Step 2: InventoryService.reserve()       → local TX, commits
+  Step 3: PaymentService.charge()          → local TX, commits
+              │
+              └── If Step 3 fails:
+                  Step 3 rollback: PaymentService.refund()
+                  Step 2 rollback: InventoryService.release()
+                  Step 1 rollback: OrderService.cancelOrder()</pre>
+                <p>The system is eventually consistent: at some point after the saga completes (or its compensations complete), all services converge to a consistent state. There is a window where the order exists but inventory has not been reserved — <strong>temporary inconsistency</strong> by design.</p>
+
+                <h3>Architecture Decision: Where to Read</h3>
+                <pre class="code-block">Write path:  Client → [Load Balancer] → Primary DB (strong consistency)
+Read path:   Client → [Load Balancer] → Replica DB (eventual consistency)
+
+Balance reads (financial): route to Primary
+Recent transaction reads:  route to Primary (read-your-writes)
+Historical reports:        route to Replica (lag acceptable)
+Dashboard analytics:       route to Replica (slight lag fine)
+Cache reads (Redis):        accept staleness per TTL</pre>
+            </section>
+
+            <!-- SECTION 13 -->
+            <section id="sec-13">
+                <h2>13. Visual Mental Model</h2>
+                <pre class="code-block">The Consistency Landscape:
+
+ACID Transactions (single node)
+┌─────────────────────────────────────────────────────┐
+│  Atomicity + Isolation + Durability                  │
+│  ──────────────────────────────────────────────────  │
+│  Guarantees TYPE 1 consistency (correct data)        │
+│  No eventual consistency needed — data is correct    │
+└─────────────────────────────────────────────────────┘
+                        │
+                        │ scale out / add replicas / add cache
+                        ▼
+Distributed System
+┌─────────────────────────────────────────────────────┐
+│  Primary DB ──async──▶ Replica 1                    │
+│             ──async──▶ Replica 2                    │
+│             ──async──▶ Redis Cache                  │
+│                                                     │
+│  TYPE 1 consistency: still enforced at Primary ✅   │
+│  TYPE 2 consistency: BROKEN — replicas/cache lag ⚠️  │
+│  Eventual consistency: replicas converge over time  │
+│  Window of inconsistency: ms to seconds             │
+└─────────────────────────────────────────────────────┘
+
+When TYPE 1 breaks (data corruption):
+┌─────────────────────────────────────────────────────┐
+│  Missing atomicity → partial writes persist         │
+│  num_likes=5, actual_likes=2                        │
+│  No eventual consistency can fix this.              │
+│  All replicas will eventually serve: num_likes=5    │
+│  Wrong forever unless a repair job runs.            │
+└─────────────────────────────────────────────────────┘</pre>
+            </section>
+
+            <!-- SECTION 14 -->
+            <section id="sec-14">
+                <h2>14. Common Mistakes</h2>
+                <ul>
+                    <li><strong>Saying "NoSQL is eventually consistent, SQL is strongly consistent."</strong> Wrong. Any SQL database with async replication is eventually consistent on replica reads.</li>
+                    <li><strong>Thinking eventual consistency fixes data corruption.</strong> It does not. It only heals replica lag. Corrupt data remains corrupt across all replicas.</li>
+                    <li><strong>Not distinguishing between CAP consistency and ACID consistency in interviews.</strong> They are completely different. CAP consistency = linearizability. ACID consistency = invariant preservation. Conflating them is an immediate red flag to interviewers.</li>
+                    <li><strong>Assuming caches are always in sync.</strong> Every cache creates eventual consistency. Every single cache, always.</li>
+                    <li><strong>Not accounting for replica lag in SLA design.</strong> If your SLA says "balance must always reflect the latest deposit," you cannot route balance reads to async replicas.</li>
+                    <li><strong>Using eventually consistent reads for financial operations.</strong> Withdrawals, balance checks, payment authorization — these must read from the primary (strongly consistent source).</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 15 -->
+            <section id="sec-15">
+                <h2>15. Revision Notes (One Page)</h2>
+                <pre class="code-block bg-blue-900 border border-blue-800 text-blue-50 shadow-md">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  SERIALIZABLE vs REPEATABLE READ + EVENTUAL CONSISTENCY
+  QUICK REVISION SHEET
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SERIALIZABLE vs REPEATABLE READ:
+  REPEATABLE READ:
+    • Prevents: dirty reads, non-repeatable reads, lost updates
+    • Does NOT prevent: write skew (non-serializable executions)
+    • Example: T1(A→B) || T2(B→A) both commit → [B,B,A,A] (impossible serially)
+
+  SERIALIZABLE:
+    • Prevents ALL anomalies including write skew
+    • PostgreSQL uses SSI (optimistic): detects read-write dependency cycles
+    • On conflict: SQLSTATE 40001 → application MUST retry
+    • Pessimistic alternative: SELECT FOR UPDATE (blocking, not aborting)
+
+  When to use SERIALIZABLE:
+    • Check-then-act patterns (check seat, book seat)
+    • Any business invariant spanning multiple rows
+    • Financial operations requiring true isolation
+
+  Java retry pattern:
+    catch(CannotSerializeTransactionException e) → retry with backoff
+    SQLSTATE 40001 = expected, not a bug
+
+EVENTUAL CONSISTENCY:
+  Two types of consistency:
+    Type 1 (Data):  Is persisted data correct? (referential integrity)
+                    → Enforced by: atomicity, isolation, FK constraints
+                    → Eventual consistency DOES NOT FIX corrupt data
+    Type 2 (Reads): Does a read return latest committed value?
+                    → Affected by: replica lag, caching, sharding
+                    → Eventual consistency DOES FIX replica lag
+
+  Eventual consistency ≠ NoSQL-only:
+    Any SQL DB with async replicas = eventually consistent on replicas
+
+  Caching = always eventual consistency:
+    Two copies of data = inconsistent until cache invalidated
+
+  Strong vs Eventual:
+    Strong → sync replication → slower writes, no lag
+    Eventual → async replication → faster writes, lag exists
+
+  Do not route to replicas:
+    ❌ Balance checks, payment auth, financial reads
+  Safe to route to replicas:
+    ✅ Analytics, reports, historical queries, like counts
+
+  CAP ≠ ACID:
+    CAP C = linearizability (latest write seen globally)
+    ACID C = data satisfies invariants
+    COMPLETELY DIFFERENT — never conflate in interviews
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</pre>
+            </section>
+
+            <footer class="mt-16 pt-8 border-t border-gray-200 text-center text-gray-500 text-sm pb-16">
+                End of Notes — Serializable vs Repeatable Read & Eventual Consistency
+            </footer>
+        </div>
+    </main>
+
+</body>
+</html>
