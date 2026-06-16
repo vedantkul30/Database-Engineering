@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Partitioning — Production Engineering Notes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            color: #111827;
+        }
+        pre {
+            font-family: 'Fira Code', monospace;
+        }
+        .prose h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin-top: 3rem;
+            margin-bottom: 1.5rem;
+            color: #1e3a8a;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        .prose h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: #1f2937;
+        }
+        .prose h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: #374151;
+        }
+        .prose h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: #4b5563;
+        }
+        .prose p {
+            margin-bottom: 1rem;
+            line-height: 1.75;
+            color: #4b5563;
+        }
+        .prose ul, .prose ol {
+            padding-left: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #4b5563;
+        }
+        .prose ul { list-style-type: disc; }
+        .prose ol { list-style-type: decimal; }
+        .prose li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        .prose strong {
+            color: #111827;
+            font-weight: 600;
+        }
+        .prose blockquote {
+            border-left: 4px solid #3b82f6;
+            background-color: #eff6ff;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            font-style: normal;
+            color: #1e40af;
+            border-radius: 0 0.5rem 0.5rem 0;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        .prose table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+            background-color: white;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .prose th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #374151;
+        }
+        .prose td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #4b5563;
+            vertical-align: top;
+        }
+        .prose tr:last-child td {
+            border-bottom: none;
+        }
+        .code-block {
+            background-color: #1f2937;
+            color: #e5e7eb;
+            padding: 1.25rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            white-space: pre;
+        }
+        .inline-code {
+            background-color: #f3f4f6;
+            color: #ef4444;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.875rem;
+        }
+        .nav-link {
+            transition: all 0.2s ease;
+        }
+        .nav-link:hover {
+            color: #2563eb;
+            background-color: #eff6ff;
+            padding-left: 0.5rem;
+        }
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body class="antialiased flex flex-col md:flex-row h-screen overflow-hidden">
+
+    <!-- Sidebar / Table of Contents -->
+    <aside class="w-full md:w-72 bg-white border-r border-gray-200 h-1/4 md:h-full overflow-y-auto flex-shrink-0 z-10 shadow-sm">
+        <div class="p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Contents</h2>
+            
+            <nav class="space-y-1 text-sm font-medium text-gray-600">
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Concepts</p>
+                <a href="#sec-1" class="block py-1.5 nav-link rounded-md">1. Big Picture</a>
+                <a href="#sec-2" class="block py-1.5 nav-link rounded-md">2. Core Concepts</a>
+                <a href="#sec-3" class="block py-1.5 nav-link rounded-md">3. Deep Dive (Routing)</a>
+                <a href="#sec-4" class="block py-1.5 nav-link rounded-md">4. Partitioning vs Sharding</a>
+                <a href="#sec-5" class="block py-1.5 nav-link rounded-md">5. Pros and Cons</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Practical Implementation</p>
+                <a href="#sec-6" class="block py-1.5 nav-link rounded-md">6. Step-by-Step SQL Walkthrough</a>
+                <a href="#sec-7" class="block py-1.5 nav-link rounded-md">7. The Scripts: Code Walkthrough</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Prep & System Design</p>
+                <a href="#sec-8" class="block py-1.5 nav-link rounded-md">8. Interview Questions</a>
+                <a href="#sec-9" class="block py-1.5 nav-link rounded-md">9. Common Mistakes</a>
+                <a href="#sec-10" class="block py-1.5 nav-link rounded-md">10. Performance & Scalability</a>
+                <a href="#sec-11" class="block py-1.5 nav-link rounded-md">11. System Design Connections</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Review</p>
+                <a href="#sec-12" class="block py-1.5 nav-link rounded-md">12. Visual Mental Models</a>
+                <a href="#sec-13" class="block py-1.5 nav-link rounded-md">13. Revision Cheat Sheet</a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 h-3/4 md:h-full overflow-y-auto bg-gray-50 p-6 md:p-12 lg:p-16">
+        <div class="max-w-4xl mx-auto prose">
+            
+            <header class="mb-12 text-center md:text-left">
+                <p class="text-blue-600 font-semibold tracking-wide uppercase text-sm mb-2">Interview & System Design Ready</p>
+                <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 mt-0 border-none pb-0">Database Partitioning</h1>
+                <p class="text-xl text-gray-500 mt-4">Production Engineering Notes</p>
+            </header>
+
+            <!-- SECTION 1 -->
+            <section id="sec-1">
+                <h1>1. Big Picture</h1>
+                
+                <h2>Why Partitioning Exists</h2>
+                <p>Every table is a file (or set of files) on disk. As a table grows to hundreds of millions or billions of rows, two things happen that kill performance:</p>
+                <ol>
+                    <li><strong>Index size grows</strong> — a B+ Tree index on a 1-billion-row table is large. At some point it no longer fits in the buffer pool (RAM). Every index traversal starts causing disk I/Os instead of in-memory lookups.</li>
+                    <li><strong>Sequential scans become unacceptable</strong> — when the query planner decides a scan is cheaper than an index lookup (e.g., low-selectivity queries), scanning a billion-row table is catastrophic.</li>
+                </ol>
+                <p>Partitioning solves both by <strong>physically splitting the table into smaller sub-tables</strong> — each with its own smaller index that is more likely to fit in memory, and each covering only a fraction of the total rows.</p>
+                <blockquote>
+                    The quickest way to query a table with a billion rows is to avoid querying a table with a billion rows.
+                </blockquote>
+
+                <h2>Where It Is Used</h2>
+                <table>
+                    <thead>
+                        <tr><th>System</th><th>Partitioning Use Case</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>E-commerce (Amazon, Flipkart)</td><td>Orders partitioned by date; recent orders on fast SSD, old orders on cold storage</td></tr>
+                        <tr><td>IoT / Telemetry</td><td>Sensor readings partitioned by month/year; old partitions archived to tape/cheap disk</td></tr>
+                        <tr><td>Banking</td><td>Transactions partitioned by account_id range or date; compliance archive in cold tier</td></tr>
+                        <tr><td>Social Media</td><td>Events/logs partitioned by date; partition pruning eliminates old data from queries</td></tr>
+                        <tr><td>SaaS Multi-Tenant</td><td>Customers partitioned by ID range; per-partition indexes stay cache-friendly</td></tr>
+                    </tbody>
+                </table>
+
+                <h2>Why Backend Engineers Must Care</h2>
+                <ul>
+                    <li>Partition key selection is an <strong>irreversible schema decision</strong> — changing it later requires rebuilding the entire table</li>
+                    <li>Queries that don't include the partition key in their WHERE clause silently scan all partitions — worse than a single table</li>
+                    <li>Index creation, schema changes, and VACUUM all behave differently on partitioned tables</li>
+                    <li>Partitioning is frequently confused with sharding — they are fundamentally different</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 2 -->
+            <section id="sec-2">
+                <h1>2. Core Concepts</h1>
+
+                <h2>2.1 — What Is Partitioning?</h2>
+                <p>Partitioning splits one large table into multiple smaller physical sub-tables (partitions), while the database presents them as a single unified table to the client.</p>
+                <pre class="code-block">BEFORE partitioning:
+┌─────────────────────────────────────────────┐
+│             customers (1B rows)             │
+│  id=1 to id=1,000,000,000                  │
+│  One giant file on disk                     │
+│  One giant B+ Tree index                   │
+└─────────────────────────────────────────────┘
+
+AFTER partitioning (by ID range, 10M rows each):
+┌──────────────────┐
+│   customers      │  ← Master/parent table (EMPTY — no actual data)
+│  (virtual)       │     Acts as query router
+└──────┬───────────┘
+       │
+  ┌────┴──────────────────────────────────────────┐
+  │                                               │
+┌─▼──────────────────┐   ┌──────────────────────┐
+│customers_0_10M     │   │customers_10M_20M      │  ... 100 partitions
+│ id: 1 → 9,999,999  │   │ id: 10M → 19,999,999  │
+│ 10M rows           │   │ 10M rows              │
+│ Own B+ Tree index  │   │ Own B+ Tree index     │
+└────────────────────┘   └──────────────────────┘</pre>
+                <p><strong>Key point:</strong> The client always queries the master table (<span class="inline-code">customers</span>). The database routes to the correct partition transparently. The client is completely unaware of which partition is hit.</p>
+
+                <h2>2.2 — Horizontal vs Vertical Partitioning</h2>
+
+                <h3>Horizontal Partitioning (Most Common — What People Mean by "Partitioning")</h3>
+                <p>Split by <strong>rows</strong>. Rows are distributed across partitions based on a partition key. Each partition has the same columns as the master table but a subset of the rows.</p>
+                <pre class="code-block">Horizontal: slice the table like cutting a deck of cards
+
+customers (1M rows)
+├── customers_200k   → rows where id BETWEEN 1 AND 200,000
+├── customers_400k   → rows where id BETWEEN 200,001 AND 400,000
+├── customers_600k   → rows where id BETWEEN 400,001 AND 600,000
+├── customers_800k   → rows where id BETWEEN 600,001 AND 800,000
+└── customers_1m     → rows where id BETWEEN 800,001 AND 1,000,000</pre>
+
+                <h3>Vertical Partitioning</h3>
+                <p>Split by <strong>columns</strong>. Rarely-accessed columns (especially large BLOBs) are moved to a separate table/tablespace, keeping the main table compact and fast.</p>
+                <pre class="code-block">BEFORE vertical partitioning:
+┌────────────────────────────────────────────────────────┐
+│ id │ name │ email │ profile_picture_blob (10MB avg)    │
+└────────────────────────────────────────────────────────┘
+     ↑ Every row read loads the 10MB blob — wastes I/O
+
+AFTER vertical partitioning:
+┌──────────────────────────┐    ┌────────────────────────────┐
+│ id │ name │ email        │    │ id │ profile_picture_blob  │
+│ (fast SSD tablespace)    │    │ (cold/slow tablespace)     │
+└──────────────────────────┘    └────────────────────────────┘
+     ↑ Hot columns compact            ↑ Blob only read when needed
+       and cache-friendly</pre>
+                <p>Use case: Large BLOB columns, JSON documents, rarely-accessed audit fields, GDPR-sensitive data that needs separate storage policy.</p>
+
+                <h2>2.3 — Partition Types</h2>
+
+                <h3>Range Partitioning</h3>
+                <p>Rows are assigned to partitions based on a column value falling within a defined range.</p>
+                <pre class="code-block">-- Partitioned by ID range (the demo example)
+CREATE TABLE customers (id SERIAL, name TEXT)
+PARTITION BY RANGE (id);
+
+CREATE TABLE customers_0_10m PARTITION OF customers
+    FOR VALUES FROM (0) TO (10000000);
+
+-- Partitioned by date (common for time-series data)
+CREATE TABLE orders (id BIGINT, created_at TIMESTAMPTZ, total NUMERIC)
+PARTITION BY RANGE (created_at);
+
+CREATE TABLE orders_2024_q1 PARTITION OF orders
+    FOR VALUES FROM ('2024-01-01') TO ('2024-04-01');
+
+CREATE TABLE orders_2024_q2 PARTITION OF orders
+    FOR VALUES FROM ('2024-04-01') TO ('2024-07-01');</pre>
+                <p><strong>Best for:</strong> Sequential IDs, timestamps, dates. Any monotonically increasing value.</p>
+
+                <h3>List Partitioning</h3>
+                <p>Rows are assigned based on discrete, known values of a column.</p>
+                <pre class="code-block">-- Partitioned by country/region
+CREATE TABLE customers (id BIGINT, name TEXT, country TEXT)
+PARTITION BY LIST (country);
+
+CREATE TABLE customers_us PARTITION OF customers
+    FOR VALUES IN ('US', 'CA', 'MX');
+
+CREATE TABLE customers_eu PARTITION OF customers
+    FOR VALUES IN ('DE', 'FR', 'GB', 'IT', 'ES');
+
+CREATE TABLE customers_asia PARTITION OF customers
+    FOR VALUES IN ('IN', 'CN', 'JP', 'KR', 'SG');</pre>
+                <p><strong>Best for:</strong> Known, low-cardinality categorical columns: country, status, region, category.</p>
+
+                <h3>Hash Partitioning</h3>
+                <p>A hash function is applied to the partition key. Rows are distributed based on the hash result modulo the number of partitions.</p>
+                <pre class="code-block">-- Evenly distribute customers across 8 partitions
+CREATE TABLE customers (id BIGINT, name TEXT)
+PARTITION BY HASH (id);
+
+CREATE TABLE customers_p0 PARTITION OF customers
+    FOR VALUES WITH (MODULUS 8, REMAINDER 0);
+CREATE TABLE customers_p1 PARTITION OF customers
+    FOR VALUES WITH (MODULUS 8, REMAINDER 1);
+-- ... through p7</pre>
+                <p><strong>Best for:</strong> Even distribution when no natural range or list grouping exists. Common in Cassandra-style consistent hashing.</p>
+            </section>
+
+            <!-- SECTION 3 -->
+            <section id="sec-3">
+                <h1>3. Deep Dive — How Partition Routing Works</h1>
+
+                <h2>3.1 — Query Routing: Partition Pruning</h2>
+                <p>When you query the master table, the query planner checks the WHERE clause against partition definitions to eliminate irrelevant partitions before execution.</p>
+                <pre class="code-block">-- Query:
+SELECT name FROM customers WHERE id = 701;
+
+-- Planner logic:
+-- id = 701: which partition contains values where 0 ≤ id < 10M? → customers_0_10m
+-- Skip all other 99 partitions
+-- Execute: Index scan on customers_0_10m only
+
+-- Execution steps:
+-- 1. Read partition metadata (in memory, near-zero cost)
+-- 2. Identify: customers_0_10m covers id 0 → 9,999,999
+-- 3. Traverse B+ Tree index on customers_0_10m → find id=701
+-- 4. Fetch row from partition's heap
+-- 5. Return result</pre>
+                <p><strong>The savings:</strong> Instead of traversing a B+ Tree over 1 billion entries, you traverse one over 10 million entries. The index is ~100× smaller. More of it fits in the buffer pool. Fewer I/Os.</p>
+
+                <h2>3.2 — Partition Pruning Must Be Enabled (PostgreSQL)</h2>
+                <pre class="code-block">-- Check current setting
+SHOW enable_partition_pruning;
+
+-- If OFF: all partitions are scanned regardless of WHERE clause
+-- This is DANGEROUS — can make partitioning worse than no partitioning
+
+-- Ensure it's ON (it's ON by default, but verify)
+SET enable_partition_pruning = ON;
+
+-- Verify with EXPLAIN:
+EXPLAIN SELECT count(*) FROM grades_parts WHERE g = 30;
+
+-- With pruning ON:
+--   Index Scan on grades_parts_g_0_35 (only 1 partition)
+--
+-- With pruning OFF:
+--   Scans ALL 4 partitions — 4× the work</pre>
+
+                <h2>3.3 — Index Behavior on Partitioned Tables</h2>
+                <p><strong>Pre-PostgreSQL 11:</strong> You had to manually create indexes on each partition individually.</p>
+                <p><strong>PostgreSQL 11+:</strong> Create an index on the master table → automatically propagated to all partitions.</p>
+                <pre class="code-block">-- One command creates index on all partitions:
+CREATE INDEX grades_parts_g_idx ON grades_parts (g);
+
+-- PostgreSQL automatically creates:
+-- grades_parts_g_0_35_g_idx     on partition g_0_35
+-- grades_parts_g_35_60_g_idx    on partition g_35_60
+-- grades_parts_g_60_80_g_idx    on partition g_60_80
+-- grades_parts_g_80_100_g_idx   on partition g_80_100
+
+-- Verify:
+\d grades_parts_g_0_35
+-- Shows: automatically created index on g column</pre>
+                <p><strong>Important:</strong> The master table itself has no real index (it has no data). The indexes exist only on the child partition tables.</p>
+
+                <h2>3.4 — Size Comparison: Partitioned vs Non-Partitioned</h2>
+                <p>From the demo (10 million rows, grades 0–100):</p>
+                <pre class="code-block">Non-partitioned table:
+  grades_original:          ~362 MB (table)
+  grades_original_g_idx:    ~69 MB  (index on g column)
+
+Partitioned (4 partitions: 0-35, 35-60, 60-80, 80-100):
+  grades_parts_g_0_35:      ~126 MB (most rows fall here — grades cluster low)
+  grades_parts_g_35_60:     ~smaller
+  grades_parts_g_60_80:     ~smaller
+  grades_parts_g_80_100:    ~smallest
+
+  Per-partition index:      ~24 MB  (vs 69 MB for full table index)
+  → ~3× smaller index per partition</pre>
+                <p><strong>Why smaller indexes matter for performance:</strong> A 24 MB index fits entirely in the buffer pool (RAM). Every index traversal is in-memory — 0 disk I/Os for the B+ Tree traversal. A 69 MB index may not fully fit, causing cache misses and disk reads during index traversal.</p>
+                <p>The demo didn't show a dramatic speed difference because:</p>
+                <ul>
+                    <li>The Docker container had access to ~16 GB RAM</li>
+                    <li>Neither the table (362 MB) nor the index (69 MB) caused memory pressure</li>
+                    <li>In production with memory constraints (500 MB limit, or a table/index of GBs), the difference becomes significant</li>
+                </ul>
+
+                <h2>3.5 — Planner Decision: Index Scan vs Sequential Scan on Partitions</h2>
+                <p>The query planner makes cost-based decisions. Partitions make these decisions easier and often better:</p>
+                <pre class="code-block">Scenario: Query returns 30% of rows in a partition
+
+On a 1B row table (non-partitioned):
+  Planner: "30% of 1B = 300M rows via scattered index reads"
+  Decision: Sequential scan (full table scan) — 1B rows scanned
+  Cost: Enormous
+
+On a 10M row partition:
+  Planner: "30% of 10M = 3M rows"
+  Decision: May still choose sequential scan, but now scans only 10M rows
+  Cost: 100× less than the full table scan
+
+Furthermore, the planner may switch from sequential scan to index scan because
+the partition is small enough that even a scattered index scan is acceptable.</pre>
+            </section>
+
+            <!-- SECTION 4 -->
+            <section id="sec-4">
+                <h1>4. Partitioning vs Sharding</h1>
+                <p>This is one of the most commonly confused distinctions in system design interviews.</p>
+
+                <h2>Side-by-Side Comparison</h2>
+                <table>
+                    <thead>
+                        <tr><th>Aspect</th><th>Partitioning</th><th>Sharding</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Location</td><td>Same database, same server</td><td>Multiple database servers, different machines</td></tr>
+                        <tr><td>Client awareness</td><td>Client is agnostic (queries master table)</td><td>Client must know which shard to target</td></tr>
+                        <tr><td>Table name</td><td>Different names per partition</td><td>Same table name, different servers</td></tr>
+                        <tr><td>Transactions</td><td>Full ACID (single database)</td><td>Cross-shard transactions extremely complex (2PC)</td></tr>
+                        <tr><td>Joins</td><td>Normal SQL JOINs work</td><td>Cross-shard JOINs require application-level merging</td></tr>
+                        <tr><td>Complexity</td><td>Low-medium (database handles it)</td><td>High (application/proxy must route)</td></tr>
+                        <tr><td>Use case</td><td>Single-server scale improvement</td><td>Horizontal scale beyond one machine's capacity</td></tr>
+                        <tr><td>Failure domain</td><td>Single server is still a single point of failure</td><td>One shard failure affects only that shard's users</td></tr>
+                    </tbody>
+                </table>
+                <pre class="code-block">PARTITIONING (same server):
+
+Client → SQL Query → PostgreSQL Server
+                          │
+                    ┌─────▼─────────────────────────────┐
+                    │  Query Planner (routes internally) │
+                    └─────┬──────────────┬──────────────┘
+                          │              │
+                   ┌──────▼──────┐ ┌────▼────────┐
+                   │Partition 1  │ │Partition 2  │
+                   │(same disk)  │ │(same disk)  │
+                   └─────────────┘ └─────────────┘
+
+
+SHARDING (different servers):
+
+Client → ProxySQL/Vitess/App logic → Route to Shard
+              │                              │
+         id < 500M?              id >= 500M?
+              │                              │
+    ┌─────────▼────────┐        ┌────────────▼───────┐
+    │  DB Server A     │        │   DB Server B       │
+    │  customers shard1│        │   customers shard2  │
+    │  id: 0 → 499M    │        │   id: 500M → 1B     │
+    └──────────────────┘        └────────────────────┘</pre>
+            </section>
+
+            <!-- SECTION 5 -->
+            <section id="sec-5">
+                <h1>5. Pros and Cons of Partitioning</h1>
+
+                <h2>Pros</h2>
+
+                <h3>1. Query Performance Improvement</h3>
+                <p>Partition pruning reduces the effective dataset from billions of rows to millions. Smaller B+ Tree indexes fit in RAM. Index-only scans become feasible.</p>
+
+                <h3>2. Planner Makes Better Decisions</h3>
+                <p>On a smaller partition, the planner more accurately chooses between sequential scan and index scan. A sequential scan on 10M rows is fast; on 1B rows it's catastrophic.</p>
+
+                <h3>3. Easy Bulk Loading</h3>
+                <p>You can create a standalone table with data, then attach it to the partitioned master table in one DDL statement — near-zero downtime for bulk data ingestion.</p>
+                <pre class="code-block">-- Bulk load into a staging table
+CREATE TABLE orders_2024_q1_staging (LIKE orders INCLUDING INDEXES);
+\COPY orders_2024_q1_staging FROM '/data/orders_q1.csv' CSV HEADER;
+
+-- Attach as partition (very fast — just metadata change)
+ALTER TABLE orders ATTACH PARTITION orders_2024_q1_staging
+    FOR VALUES FROM ('2024-01-01') TO ('2024-04-01');</pre>
+                <p><strong>MySQL-specific advantage:</strong> MySQL supports CSV as a storage engine. Point a table at a CSV file and it becomes immediately queryable — attach it to a partitioned table with no data copy needed.</p>
+
+                <h3>4. Cheap Archival (Tiered Storage)</h3>
+                <p>Old partitions that are no longer queried can be moved to a slower, cheaper tablespace (spinning HDD, cold storage). Active partitions stay on fast NVMe SSD.</p>
+                <pre class="code-block">-- Move old partition to slow/cheap tablespace
+ALTER TABLE orders_2019 SET TABLESPACE slow_hdd_tablespace;
+
+-- Or detach entirely and archive to object storage
+ALTER TABLE orders DETACH PARTITION orders_2019;
+-- Export to S3/GCS, query later with Athena/BigQuery if needed</pre>
+
+                <h3>5. Partition-Level Operations</h3>
+                <p>VACUUM, REINDEX, and CLUSTER can be run on a single partition without locking the whole table.</p>
+                <pre class="code-block">-- Vacuum only the most active partition (recent data)
+VACUUM ANALYZE orders_2024_q4;
+
+-- Reindex a single partition
+REINDEX TABLE CONCURRENTLY orders_2024_q4;
+
+-- Drop old partition in milliseconds (vs DELETE on billions of rows which takes hours)
+ALTER TABLE orders DETACH PARTITION orders_2019;
+DROP TABLE orders_2019;  -- Instant
+-- vs: DELETE FROM orders WHERE created_at < '2020-01-01'; -- Hours, massive WAL</pre>
+
+                <h2>Cons</h2>
+
+                <h3>1. Updates That Cross Partition Boundaries Are Slow</h3>
+                <p>If an UPDATE changes the partition key value, the row must move from one partition to another. This is actually a DELETE + INSERT across two tables — significantly more expensive than a simple in-place update.</p>
+                <pre class="code-block">-- In the grades example: updating a grade from 20 to 65 moves the row
+-- from partition g_0_35 to partition g_35_60
+UPDATE grades_parts SET g = 65 WHERE id = 12345;  -- Was g=20
+
+-- What actually happens internally:
+-- 1. DELETE from g_0_35 where id = 12345
+-- 2. INSERT into g_35_60 with id=12345, g=65
+-- = 2× I/O, 2× index updates, 2× WAL writes
+
+-- Lesson: Never partition on a column that is frequently updated
+-- Good partition keys: immutable or append-only (id, created_at)
+-- Bad partition keys: status, grade, category (things that change)</pre>
+
+                <h3>2. Queries Without Partition Key Scan All Partitions</h3>
+                <p>A query that can't prune partitions is worse than querying a single table — it scans N partition tables sequentially, each with its own I/O overhead.</p>
+                <pre class="code-block">-- GOOD: Partition key (id) in WHERE → prunes to 1 partition
+SELECT * FROM customers WHERE id = 5000000;
+
+-- BAD: No partition key in WHERE → scans all 100 partitions
+SELECT * FROM customers WHERE name = 'Alice';
+
+-- WORSE: Range condition that spans all partitions
+SELECT * FROM customers WHERE id > 1;  -- Hits all 100 partitions</pre>
+
+                <h3>3. Schema Changes Are More Complex</h3>
+                <p>Adding a column or index propagates to all partitions — this usually works automatically in modern PostgreSQL but is not guaranteed across all databases and all operations.</p>
+                <pre class="code-block">-- PostgreSQL: Adding a column to master propagates to all partitions
+ALTER TABLE customers ADD COLUMN email TEXT;  -- Works on PostgreSQL 11+
+
+-- But some operations require per-partition execution
+-- Always test schema changes on partitioned tables in staging first</pre>
+
+                <h3>4. Partition Overhead for Small Tables</h3>
+                <p>If the table is small enough to fit in the buffer pool anyway, partitioning adds overhead (metadata lookups, planner complexity) with zero benefit. Only partition tables that are genuinely large.</p>
+            </section>
+
+            <!-- SECTION 6 -->
+            <section id="sec-6">
+                <h1>6. The Demo: Step-by-Step SQL Walkthrough</h1>
+
+                <h2>Step 1: Create Unpartitioned Table and Insert 10M Rows</h2>
+                <pre class="code-block">-- Create table (PostgreSQL inside Docker)
+CREATE TABLE grades_original (
+    id SERIAL NOT NULL,    -- SERIAL = auto-increment integer
+    g  INTEGER NOT NULL    -- grade 0-99
+);
+
+-- Insert 10 million rows with random grades 0-99
+INSERT INTO grades_original (g)
+SELECT FLOOR(RANDOM() * 100)   -- RANDOM() returns 0.0-0.999... × 100 = 0-99.9 → FLOOR = 0-99
+FROM GENERATE_SERIES(1, 10000000);  -- Call this 10M times
+
+-- Create index AFTER bulk insert (faster — no index maintenance during insert)
+CREATE INDEX grades_original_idx ON grades_original (g);</pre>
+                <p><strong>Why create index after insert:</strong><br>
+                During bulk insert with an existing index, every inserted row updates the B+ Tree — potential page splits on every insert. By inserting first and indexing after, PostgreSQL builds the B+ Tree in a single sorted pass (bulk build), which is dramatically faster.</p>
+
+                <h2>Step 2: Create Partitioned Table</h2>
+                <pre class="code-block">-- Master/parent table: PARTITION BY RANGE declares the partition key
+CREATE TABLE grades_parts (
+    id SERIAL NOT NULL,
+    g  INTEGER NOT NULL
+) PARTITION BY RANGE (g);
+
+-- Create 4 child partition tables
+CREATE TABLE g_0_35   (LIKE grades_parts INCLUDING INDEXES);
+CREATE TABLE g_35_60  (LIKE grades_parts INCLUDING INDEXES);
+CREATE TABLE g_60_80  (LIKE grades_parts INCLUDING INDEXES);
+CREATE TABLE g_80_100 (LIKE grades_parts INCLUDING INDEXES);
+
+-- LIKE ... INCLUDING INDEXES: copies column definitions and index definitions
+-- (no data is copied, just structure)</pre>
+
+                <h2>Step 3: Attach Partitions to Master Table</h2>
+                <pre class="code-block">-- Attach each partition with its value range
+ALTER TABLE grades_parts ATTACH PARTITION g_0_35
+    FOR VALUES FROM (0) TO (35);     -- g: 0 ≤ g < 35
+
+ALTER TABLE grades_parts ATTACH PARTITION g_35_60
+    FOR VALUES FROM (35) TO (60);    -- g: 35 ≤ g < 60
+
+ALTER TABLE grades_parts ATTACH PARTITION g_60_80
+    FOR VALUES FROM (60) TO (80);    -- g: 60 ≤ g < 80
+
+ALTER TABLE grades_parts ATTACH PARTITION g_80_100
+    FOR VALUES FROM (80) TO (100);   -- g: 80 ≤ g < 100
+
+-- Note: TO value is EXCLUSIVE (< not ≤)
+-- A grade of exactly 35 goes to g_35_60, not g_0_35</pre>
+
+                <h2>Step 4: Populate Partitioned Table</h2>
+                <pre class="code-block">-- Copy data from original table into partitioned table
+-- Database automatically routes each row to the correct partition based on g value
+INSERT INTO grades_parts
+SELECT * FROM grades_original;
+
+-- What happens internally:
+-- For each row: check g value → determine partition → insert into that partition
+-- g=20 → g < 35 → goes to g_0_35
+-- g=50 → 35 ≤ g < 60 → goes to g_35_60
+-- g=75 → 60 ≤ g < 80 → goes to g_60_80
+-- g=90 → 80 ≤ g < 100 → goes to g_80_100</pre>
+
+                <h2>Step 5: Create Indexes on Partitioned Table (PostgreSQL 11+)</h2>
+                <pre class="code-block">-- Create index on master → automatically propagates to ALL partitions
+CREATE INDEX grades_parts_g_idx ON grades_parts (g);
+
+-- Equivalent to (what PostgreSQL does automatically):
+-- CREATE INDEX ON g_0_35 (g);
+-- CREATE INDEX ON g_35_60 (g);
+-- CREATE INDEX ON g_60_80 (g);
+-- CREATE INDEX ON g_80_100 (g);
+
+-- Verify index was created on a partition:
+\d g_0_35
+-- Shows: Indexes: "g_0_35_g_idx" btree (g)</pre>
+
+                <h2>Step 6: Query and Verify Partition Pruning</h2>
+                <pre class="code-block">-- Query through master table (partition pruning active)
+EXPLAIN ANALYZE SELECT count(*) FROM grades_parts WHERE g = 30;
+
+-- Expected output:
+-- Index Scan using g_0_35_g_idx on g_0_35
+-- (Only partition g_0_35 is touched — others pruned)
+
+-- Compare with non-partitioned:
+EXPLAIN ANALYZE SELECT count(*) FROM grades_original WHERE g = 30;
+-- Bitmap Index Scan on grades_original_idx (full index traversal)
+
+-- Range query:
+EXPLAIN ANALYZE SELECT count(*) FROM grades_parts WHERE g BETWEEN 30 AND 35;
+-- May hit g_0_35 AND g_35_60 (range spans partition boundary)
+
+-- Check partition pruning is ON:
+SHOW enable_partition_pruning;
+-- → on
+
+-- What happens if OFF:
+SET enable_partition_pruning = OFF;
+EXPLAIN SELECT count(*) FROM grades_parts WHERE g = 30;
+-- Scans ALL 4 partitions — completely defeats the purpose of partitioning!
+SET enable_partition_pruning = ON;  -- Always restore!</pre>
+
+                <h2>Step 7: Check Object Sizes</h2>
+                <pre class="code-block">-- Compare sizes of table and indexes
+SELECT
+    relname AS object_name,
+    pg_size_pretty(pg_relation_size(oid)) AS size,
+    relkind
+FROM pg_class
+WHERE relname LIKE 'grade%'
+ORDER BY pg_relation_size(oid) DESC;
+
+-- Expected results (approximate for 10M rows):
+-- grades_original        362 MB   (table)
+-- grades_original_idx     69 MB   (index — large)
+-- g_0_35                 126 MB   (partition — grades cluster 0-35 statistically)
+-- g_0_35_g_idx            24 MB   (partition index — ~3× smaller than full index)
+-- g_35_60                 ...</pre>
+            </section>
+
+            <!-- SECTION 7 -->
+            <section id="sec-7">
+                <h1>7. The Scripts: Code Walkthrough</h1>
+
+                <h2>create_partitions.mjs — Automated Partition Creation</h2>
+                <pre class="code-block">import pg from 'pg';
+
+async function run() {
+    // Step 1: Connect to default 'postgres' database
+    const dbClientPostgres = new pg.Client({
+        user: "postgres",
+        password: "postgres",
+        host: "localhost",       // Change from "husseinmac" to your hostname
+        port: 5432,
+        database: "postgres"
+    });
+
+    await dbClientPostgres.connect();
+
+    // Step 2: Create the 'customers' database
+    // CAUTION: Uncomment DROP only for fresh setup
+    // await dbClientPostgres.query("DROP DATABASE IF EXISTS customers");
+    await dbClientPostgres.query("CREATE DATABASE customers");
+    await dbClientPostgres.end();  // Close connection to postgres DB
+
+    // Step 3: Connect to the newly created 'customers' database
+    const dbClientCustomers = new pg.Client({
+        user: "postgres",
+        password: "postgres",
+        host: "localhost",
+        port: 5432,
+        database: "customers"    // Now targeting 'customers' DB
+    });
+
+    await dbClientCustomers.connect();
+
+    // Step 4: Create master partitioned table
+    // PARTITION BY RANGE (id) — declares id as the partition key
+    await dbClientCustomers.query(`
+        CREATE TABLE customers (id SERIAL, name TEXT)
+        PARTITION BY RANGE (id)
+    `);
+
+    // Step 5: Create 100 partitions in a loop
+    // Assuming: 1B total customers, 10M per partition → 100 partitions
+    for (let i = 0; i < 100; i++) {
+        const idFrom = i * 10_000_000;            // 0, 10M, 20M, ...
+        const idTo   = (i + 1) * 10_000_000;     // 10M, 20M, 30M, ...
+
+        const partitionName = `customers_${idFrom}_${idTo}`;
+        // e.g.: customers_0_10000000, customers_10000000_20000000, ...
+
+        // Create the child table with same structure as master
+        // 'INCLUDING INDEXES' copies any index definitions from master
+        const createSQL = `
+            CREATE TABLE ${partitionName}
+            (LIKE customers INCLUDING INDEXES)
+        `;
+
+        // Attach child table to master with its value range
+        // NOTE: TO is exclusive — customers_0_10M covers id 0 to 9,999,999
+        const attachSQL = `
+            ALTER TABLE customers
+            ATTACH PARTITION ${partitionName}
+            FOR VALUES FROM (${idFrom}) TO (${idTo})
+        `;
+
+        await dbClientCustomers.query(createSQL);
+        await dbClientCustomers.query(attachSQL);
+
+        console.log(`Created partition: ${partitionName} (${idFrom} → ${idTo - 1})`);
+    }
+
+    await dbClientCustomers.end();
+    console.log("Done. 100 partitions created.");
+}
+
+run();</pre>
+                <p><strong>Line-by-line key points:</strong></p>
+                <ul>
+                    <li><span class="inline-code">idTo - 1</span> boundary: <span class="inline-code">FOR VALUES FROM (0) TO (10000000)</span> means <span class="inline-code">0 ≤ id &lt; 10000000</span> — id=10,000,000 goes to the NEXT partition</li>
+                    <li><span class="inline-code">LIKE customers INCLUDING INDEXES</span>: inherits column structure AND any index definitions already on the master table</li>
+                    <li>Two DB connections needed: first to create the <span class="inline-code">customers</span> database (must be done from <span class="inline-code">postgres</span> DB), then to work within <span class="inline-code">customers</span></li>
+                </ul>
+
+                <h2>populate_customers.mjs — Bulk Data Insert</h2>
+                <pre class="code-block">import pg from 'pg';
+
+async function run() {
+    const dbClientCustomers = new pg.Client({
+        user: "postgres",
+        password: "postgres",
+        host: "localhost",
+        port: 5432,
+        database: "customers"
+    });
+
+    await dbClientCustomers.connect();
+
+    // Insert 100 batches × 10M rows = 1B total customers
+    for (let i = 0; i < 100; i++) {
+        // Each iteration inserts 10M rows
+        // GENERATE_SERIES(1, 10000000) calls generate_series 10M times
+        // RANDOM() generates a float 0.0-1.0, cast to TEXT for the name field
+        const insertSQL = `
+            INSERT INTO customers (name)
+            SELECT random()::TEXT
+            FROM GENERATE_SERIES(1, 10000000)
+        `;
+
+        await dbClientCustomers.query(insertSQL);
+        console.log(`Inserted batch ${i + 1}/100 (${(i + 1) * 10}M customers total)`);
+    }
+
+    await dbClientCustomers.end();
+    console.log("Done. 1B customers inserted.");
+}
+
+run();</pre>
+                <p><strong>Key behavior:</strong> The INSERT targets the master <span class="inline-code">customers</span> table. PostgreSQL's partition routing logic automatically directs each row to the correct child partition based on the auto-generated <span class="inline-code">id</span> value (SERIAL). No application-level routing needed.</p>
+
+                <h2>Running the Scripts</h2>
+                <pre class="code-block"># Prerequisites: Docker + Node.js
+
+# 1. Start PostgreSQL container
+docker run \
+  --name pg \
+  -e POSTGRES_PASSWORD=postgres \
+  -p 5432:5432 \
+  -d postgres
+
+# 2. Install Node.js dependencies
+npm install
+
+# 3. Create partitions (run once)
+node create_partitions.mjs
+
+# 4. Populate with data
+node populate_customers.mjs
+
+# 5. Connect to database to query
+docker exec -it pg psql -U postgres -d customers
+
+# Inside psql:
+SELECT max(id) FROM customers;         -- Check max id inserted
+\d customers                           -- Describe master table
+\d+ customers                          -- Show all partitions
+SELECT count(*) FROM customers_0_10000000;  -- Query a specific partition</pre>
+            </section>
+
+            <!-- SECTION 8 -->
+            <section id="sec-8">
+                <h1>8. Important Interview Questions</h1>
+
+                <h2>Basic</h2>
+                <p><strong>Q: What is database partitioning?</strong><br>
+                A: Partitioning physically splits a large table into multiple smaller sub-tables (partitions) while the database presents them as a single unified table. Queries against the master table are automatically routed to the correct partition(s) based on the partition key in the WHERE clause, reducing the data scanned and enabling smaller, more cache-friendly indexes.</p>
+
+                <p><strong>Q: What is partition pruning?</strong><br>
+                A: Partition pruning is the query planner's ability to eliminate irrelevant partitions before query execution. If a query's WHERE clause includes the partition key, the planner identifies which partitions can contain matching rows and skips all others. In PostgreSQL, <span class="inline-code">enable_partition_pruning</span> must be ON (default) for this to work.</p>
+
+                <p><strong>Q: What is the difference between horizontal and vertical partitioning?</strong><br>
+                A: Horizontal partitioning splits rows — each partition has all columns but a subset of rows (e.g., customers id 0-10M in partition 1, 10M-20M in partition 2). Vertical partitioning splits columns — rarely-accessed columns (e.g., BLOBs) are moved to a separate table/tablespace, keeping the main table compact and cache-friendly.</p>
+
+                <p><strong>Q: What is the difference between partitioning and sharding?</strong><br>
+                A: Partitioning splits data across sub-tables within a single database on a single server. The client is completely unaware — queries target the master table and the database routes internally. Sharding splits data across completely separate database servers. The client (or a proxy) must know which shard to target. Sharding enables horizontal scaling beyond a single machine but adds significant complexity: no cross-shard transactions, no cross-shard JOINs, harder schema migrations.</p>
+
+                <p><strong>Q: What are the three types of partitioning in PostgreSQL?</strong><br>
+                A: Range (values fall within continuous ranges — IDs, dates), List (values match discrete known values — country, status), and Hash (a hash function distributes rows evenly across partitions — good for even distribution without natural ranges).</p>
+
+                <h2>Intermediate</h2>
+                <p><strong>Q: Why should you avoid using frequently-updated columns as partition keys?</strong><br>
+                A: Updating the partition key value causes the row to move from one partition to another. Internally, this is a DELETE from the source partition followed by an INSERT into the target partition — two full write operations with index updates on both sides. If done frequently at scale, this causes excessive I/O, index fragmentation, and potential SSD wear. Use immutable or append-only columns (id, created_at) as partition keys.</p>
+
+                <p><strong>Q: In the demo, why wasn't a significant performance difference seen between the partitioned and non-partitioned table?</strong><br>
+                A: The test machine had 16GB RAM and Docker had no memory limit. The full table (362MB) and its index (69MB) both fit comfortably in the buffer pool. With all data in memory, there are no disk I/Os — both queries run at memory speed. The performance difference becomes visible when: (1) the table/index is significantly larger than available RAM, (2) the system is I/O bound (spinning disk, limited SSD throughput), or (3) at much higher row counts (100M+, 1B+ rows).</p>
+
+                <p><strong>Q: Why does creating an index on the master partition table propagate to all child partitions (PostgreSQL 11+)?</strong><br>
+                A: PostgreSQL 11 introduced "declarative partitioning" improvements where DDL operations on the parent table (CREATE INDEX, ALTER TABLE ADD COLUMN) automatically apply to all attached child partitions. Before PostgreSQL 11, you had to create indexes on each partition manually, which was error-prone and tedious at scale.</p>
+
+                <p><strong>Q: What happens if <span class="inline-code">enable_partition_pruning</span> is set to OFF?</strong><br>
+                A: The query planner stops performing partition elimination. Every query against the partitioned master table scans ALL partitions — even if the WHERE clause clearly indicates only one partition is relevant. This can make a partitioned table perform worse than a single non-partitioned table, because the database is now scanning N tables with N separate index lookups instead of 1. Always verify this setting is ON.</p>
+
+                <h2>Advanced</h2>
+                <p><strong>Q: Explain the full execution path for <span class="inline-code">SELECT name FROM customers WHERE id = 5000000</span> on a table partitioned into 100 partitions of 10M rows each.</strong><br>
+                A: (1) Query planner reads partition metadata (stored in <span class="inline-code">pg_inherits</span> and constraint definitions — in memory, near-zero cost). (2) Planner determines: id=5,000,000 falls in range [0, 10M) → only <span class="inline-code">customers_0_10000000</span> is relevant, 99 partitions are pruned. (3) Planner generates execution plan: Index Scan on <span class="inline-code">customers_0_10000000_pkey</span> or secondary index. (4) Executor traverses B+ Tree index on <span class="inline-code">customers_0_10000000</span> (10M entries, ~3-4 levels, likely fits in buffer pool). (5) Finds tuple pointer → fetches heap page from <span class="inline-code">customers_0_10000000</span>. (6) Returns row. Total: effectively 2-3 I/Os max, vs traversing an index over 1B entries.</p>
+
+                <p><strong>Q: Design a partitioning strategy for a high-volume order processing system with 5 billion orders/year that needs to: serve real-time order lookups by order_id, support monthly financial reports, archive orders older than 2 years to cold storage.</strong><br>
+                A:<br>
+                - <strong>Primary partition key</strong>: <span class="inline-code">created_at</span> (RANGE, monthly partitions) — aligns with reporting requirements and archival policy<br>
+                - <strong>Secondary for lookups</strong>: Index on <span class="inline-code">order_id</span> within each partition; consider a separate lookup table mapping order_id → partition month if cross-partition lookups are frequent<br>
+                - <strong>Partition structure</strong>: <span class="inline-code">orders_2024_01</span>, <span class="inline-code">orders_2024_02</span>, ... (monthly)<br>
+                - <strong>Tiered storage</strong>: Current quarter partitions → NVMe SSD tablespace. Previous year → SATA SSD tablespace. 2+ years ago → Detach partition, export to S3, query via Athena<br>
+                - <strong>Index strategy</strong>: Per-partition index on <span class="inline-code">order_id</span> and <span class="inline-code">customer_id</span>; covering index for common report queries<br>
+                - <strong>Archival</strong>: <span class="inline-code">ALTER TABLE orders DETACH PARTITION orders_2022_01; DROP TABLE orders_2022_01;</span> after S3 export — instant vs hours-long DELETE</p>
+
+                <p><strong>Q: What are the operational risks of running <span class="inline-code">INSERT INTO partitioned_table SELECT * FROM huge_table</span> in a single transaction?</strong><br>
+                A: (1) The transaction holds locks for the entire duration — can block concurrent writes if row-level locks conflict with partition routing. (2) Creates millions of WAL entries — WAL files grow rapidly, replication lag increases, WAL archival/shipping can fall behind. (3) If the transaction fails or is cancelled partway through, ROLLBACK must undo all inserted rows — PostgreSQL's lazy MVCC approach means millions of dead tuples accumulate, requiring extensive VACUUM afterward. (4) Risk of running out of WAL disk space. Better approach: batch inserts (INSERT ... LIMIT N in a loop), each as a small transaction with <span class="inline-code">pg_sleep()</span> pauses to allow autovacuum to keep up.</p>
+            </section>
+
+            <!-- SECTION 9 -->
+            <section id="sec-9">
+                <h1>9. Common Mistakes</h1>
+
+                <h2>Beginner Mistakes</h2>
+                <ul>
+                    <li><strong>Querying without the partition key in WHERE</strong>: <span class="inline-code">SELECT * FROM orders WHERE customer_name = 'Alice'</span> on a table partitioned by <span class="inline-code">id</span> scans ALL partitions. The partition key MUST appear in the WHERE clause for pruning to work.</li>
+                    <li><strong>Forgetting <span class="inline-code">enable_partition_pruning</span></strong>: Assuming partitioning helps without verifying pruning is active. Always confirm with <span class="inline-code">EXPLAIN</span>.</li>
+                    <li><strong>Partitioning small tables</strong>: Adds metadata overhead and planner complexity with zero benefit. Only partition tables that are genuinely large (100M+ rows, or where index exceeds available RAM).</li>
+                </ul>
+
+                <h2>Backend Engineer Mistakes</h2>
+                <ul>
+                    <li><strong>Choosing a mutable partition key</strong>: Using <span class="inline-code">status</span> or <span class="inline-code">grade</span> as partition key when these values are frequently updated. Every update crossing a partition boundary = DELETE + INSERT.</li>
+                    <li><strong>Range that spans all partitions in queries</strong>: <span class="inline-code">WHERE id &gt; 0</span> or <span class="inline-code">WHERE created_at IS NOT NULL</span> defeats partition pruning — ALL partitions are scanned.</li>
+                    <li><strong>Not accounting for the <span class="inline-code">TO</span> being exclusive</strong>: <span class="inline-code">FOR VALUES FROM (0) TO (10000000)</span> — a row with id=10,000,000 goes to the NEXT partition. Off-by-one errors create partition gaps where rows fall into no partition and fail to insert.</li>
+                </ul>
+
+                <h2>Production Mistakes</h2>
+                <ul>
+                    <li><strong>Not creating a <span class="inline-code">DEFAULT</span> partition</strong>: If a row's partition key value doesn't match any partition definition, INSERT fails with an error. Always create a default partition as a safety net:
+<pre class="code-block">CREATE TABLE customers_default PARTITION OF customers DEFAULT;</pre>
+                    </li>
+                    <li><strong>Schema changes without testing</strong>: Not all DDL operations propagate to partitions in all databases and versions. Test ALTER TABLE operations thoroughly in staging.</li>
+                    <li><strong>Forgetting to partition the index, not just the table</strong>: Running <span class="inline-code">CREATE INDEX</span> before the table is partitioned, then partitioning it — the index structure may not correctly map to partitions.</li>
+                    <li><strong>Single huge INSERT to populate partitioned table</strong>: Causes WAL explosion, replication lag, and massive dead tuples if it fails. Always batch populate.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 10 -->
+            <section id="sec-10">
+                <h1>10. Performance & Scalability Notes</h1>
+
+                <h2>When Partitioning Helps</h2>
+                <table>
+                    <thead>
+                        <tr><th>Scenario</th><th>Partitioning Benefit</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Index exceeds RAM</td><td>Per-partition indexes fit in RAM; full index did not. Eliminates disk I/Os for index traversal</td></tr>
+                        <tr><td>Time-series data with time-bounded queries</td><td>Date partition pruning + archival of old partitions</td></tr>
+                        <tr><td>Infrequent bulk archival/deletion</td><td>Drop a partition in milliseconds vs DELETE over hours</td></tr>
+                        <tr><td>Mixed hot/cold data</td><td>Hot partitions on fast SSD, cold on HDD/cold storage</td></tr>
+                        <tr><td>Parallel query plans</td><td>PostgreSQL can scan partitions in parallel with <span class="inline-code">max_parallel_workers</span></td></tr>
+                    </tbody>
+                </table>
+
+                <h2>When Partitioning Does NOT Help (or Hurts)</h2>
+                <table>
+                    <thead>
+                        <tr><th>Scenario</th><th>Why Partitioning Fails</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Queries that don't include partition key</td><td>All partitions scanned — worse than single table</td></tr>
+                        <tr><td>Table fits entirely in RAM</td><td>No I/O savings; adds planning overhead</td></tr>
+                        <tr><td>Frequent updates that change partition key value</td><td>Cross-partition moves = DELETE + INSERT = expensive</td></tr>
+                        <tr><td>Applications that query many partitions simultaneously</td><td>Parallel scanning N partitions has orchestration overhead</td></tr>
+                    </tbody>
+                </table>
+
+                <h2>Index Size Math</h2>
+                <pre class="code-block">Table: 1 billion rows, INTEGER partition key (4 bytes), 8KB pages
+
+Non-partitioned index (1B rows):
+  ~1B × 14 bytes/entry = ~14GB
+  Tree height: log_585(1B) ≈ 3.4 → 4 levels
+  Internal nodes: ~24MB (fits in RAM)
+  Leaf nodes: ~13.5GB (does NOT fit in typical RAM)
+  → Many leaf reads require disk I/O
+
+Partitioned (100 partitions × 10M rows each):
+  Per-partition index: 10M × 14 bytes = ~140MB
+  Tree height: log_585(10M) ≈ 2.3 → 3 levels
+  Entire index: ~140MB (may fit in RAM → 0 disk I/Os)
+  → Dramatic reduction in index traversal I/Os</pre>
+            </section>
+
+            <!-- SECTION 11 -->
+            <section id="sec-11">
+                <h1>11. System Design Connections</h1>
+
+                <h2>Partitioning + Tiered Storage</h2>
+                <pre class="code-block">Hot tier   (NVMe SSD):  Last 3 months of orders   → sub-millisecond queries
+Warm tier  (SATA SSD):  3-12 months of orders      → millisecond queries
+Cold tier  (HDD):       1-2 years of orders        → seconds acceptable
+Archive    (S3/GCS):    2+ years                   → Athena/BigQuery on demand
+
+Implementation:
+  ALTER TABLE orders_2024_q4 SET TABLESPACE nvme_fast;
+  ALTER TABLE orders_2023_q4 SET TABLESPACE sata_warm;
+  ALTER TABLE orders_2022_q4 SET TABLESPACE hdd_cold;
+  -- Detach 2021 and earlier, export to S3, drop</pre>
+
+                <h2>Partitioning + Read Replicas</h2>
+                <pre class="code-block">Write primary:          All partitions (read + write)
+Read replica 1:         Replicated via WAL streaming — all partitions available
+Read replica 2:         Same
+
+Optimization: Route analytical queries (range scans, reports) to replicas.
+               Keep OLTP point lookups on primary.
+               Partitioning on both primary and replica — identical structure.</pre>
+
+                <h2>Partitioning as a Bridge to Sharding</h2>
+                <pre class="code-block">Phase 1: Single server, partitioned table           → handles ~10B rows
+Phase 2: Add read replicas                          → scales read throughput
+Phase 3: Shard: move some partitions to new servers → handles unlimited scale
+         customers_0_500M  → DB Server A
+         customers_500M_1B → DB Server B
+         (Partitions become the natural shard boundaries)</pre>
+            </section>
+
+            <!-- SECTION 12 -->
+            <section id="sec-12">
+                <h1>12. Visual Mental Models</h1>
+
+                <pre class="code-block">PARTITIONED TABLE QUERY FLOW:
+
+Client: SELECT name FROM customers WHERE id = 5000000;
+         │
+         ▼
+┌────────────────────────────────────────────────────────┐
+│  PostgreSQL Query Planner                              │
+│                                                        │
+│  1. Read partition definitions (in memory, fast)       │
+│  2. id = 5,000,000:                                    │
+│     - customers_0_10M?     0 ≤ 5M < 10M   → YES ✓    │
+│     - customers_10M_20M?   10M ≤ 5M?       → NO  ✗   │
+│     - customers_20M_30M?   20M ≤ 5M?       → NO  ✗   │
+│     - ... (97 more pruned)                             │
+│  3. Plan: Index Scan on customers_0_10000000           │
+└──────────────────────────┬─────────────────────────────┘
+                           │ (99 partitions pruned)
+                           ▼
+┌──────────────────────────────────────────────────────┐
+│  customers_0_10000000 (10M rows)                     │
+│                                                      │
+│  B+ Tree index (fits in RAM — ~140MB):               │
+│   Root [2.5M, 5M, 7.5M]                              │
+│    └─→ Leaf: [(4999998,ctid),(5000000,ctid)]          │
+│                │                                     │
+│  Heap fetch: (page 847, slot 3)                      │
+│   → name = "Alice"                                   │
+└──────────────────────────────────────────────────────┘
+         │
+         ▼
+   Client receives: "Alice"
+   Total I/Os: 1-2 (leaf + heap)
+   vs non-partitioned: potentially 4-5 I/Os (full index traversal)
+
+
+PARTITION PRUNING OFF (disaster):
+
+Client: SELECT name FROM customers WHERE id = 5000000;
+         │
+         ▼
+    Scans ALL 100 partitions:
+    customers_0_10M     → Index scan (finds result)
+    customers_10M_20M   → Index scan (finds nothing)
+    customers_20M_30M   → Index scan (finds nothing)
+    ... (97 more useless scans)
+
+    100× the work. Partitioning made things WORSE.</pre>
+            </section>
+
+            <!-- SECTION 13 -->
+            <section id="sec-13">
+                <h1>13. Revision Notes — One Page</h1>
+                <pre class="code-block bg-blue-900 border border-blue-800 text-blue-50 shadow-md">┌──────────────────────────────────────────────────────────────────────┐
+│              DATABASE PARTITIONING CHEAT SHEET                       │
+├──────────────────────────────────────────────────────────────────────┤
+│  WHAT IT IS:                                                         │
+│  Split one large table into smaller physical sub-tables.             │
+│  Client always queries master table — routing is transparent.        │
+│  The master table holds NO data — just metadata + routing rules.     │
+├──────────────────────────────────────────────────────────────────────┤
+│  WHY IT HELPS:                                                       │
+│  Smaller partitions → smaller indexes → more fits in RAM             │
+│  Partition pruning → skip irrelevant partitions entirely             │
+│  Planner makes better decisions on smaller datasets                  │
+│  Bulk load/archival by attaching/detaching entire partitions         │
+├──────────────────────────────────────────────────────────────────────┤
+│  PARTITION TYPES:                                                    │
+│  RANGE  → id ranges, date ranges. Most common.                       │
+│  LIST   → discrete values (country, status, category)               │
+│  HASH   → even distribution (no natural range/list key)             │
+├──────────────────────────────────────────────────────────────────────┤
+│  PARTITION KEY RULES:                                                │
+│  ✅ Immutable/append-only: id, created_at                           │
+│  ❌ Frequently updated: status, grade, category → cross-partition    │
+│     updates = DELETE + INSERT (expensive!)                           │
+│  ❌ NOT included in most WHERE clauses → no pruning benefit          │
+├──────────────────────────────────────────────────────────────────────┤
+│  HORIZONTAL vs VERTICAL:                                             │
+│  Horizontal: split by ROWS (what people mean by "partitioning")      │
+│  Vertical: split by COLUMNS (BLOBs, rarely-accessed data)           │
+├──────────────────────────────────────────────────────────────────────┤
+│  PARTITIONING vs SHARDING:                                           │
+│  Partitioning: same server, same DB, client-transparent              │
+│  Sharding: different servers, client/proxy must route, no ACID       │
+├──────────────────────────────────────────────────────────────────────┤
+│  POSTGRESQL SPECIFICS:                                               │
+│  enable_partition_pruning = ON (always! default is ON)               │
+│  CREATE INDEX on master → auto-propagates to all partitions (PG11+) │
+│  TO value is EXCLUSIVE: FROM(0) TO(10M) covers 0 to 9,999,999       │
+│  Always add a DEFAULT partition to catch out-of-range inserts        │
+├──────────────────────────────────────────────────────────────────────┤
+│  CONS:                                                               │
+│  Updates crossing partition boundaries = DELETE + INSERT (slow)      │
+│  Queries without partition key = ALL partitions scanned (worse!)     │
+│  Schema changes need careful testing on partitioned tables           │
+│  No benefit if table fits in RAM already                             │
+├──────────────────────────────────────────────────────────────────────┤
+│  DEMO NUMBERS (10M rows, 4 partitions):                              │
+│  Full index: 69MB.  Per-partition index: ~24MB (~3× smaller)        │
+│  No speed difference visible: machine had 16GB RAM, table was 362MB  │
+│  Multiply rows 100× → indexes don't fit in RAM → difference appears  │
+└──────────────────────────────────────────────────────────────────────┘</pre>
+            </section>
+
+            <footer class="mt-16 pt-8 border-t border-gray-200 text-center text-gray-500 text-sm pb-16">
+                End of Notes — Database Partitioning: Production Engineering Notes
+            </footer>
+        </div>
+    </main>
+
+</body>
+</html>
