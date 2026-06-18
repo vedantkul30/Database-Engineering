@@ -684,127 +684,134 @@ ORDER BY pg_relation_size(oid) DESC;
 
             <!-- SECTION 7 -->
             <section id="sec-7">
-                <h1>7. The Scripts: Code Walkthrough</h1>
+                <h1>7. The Scripts: Code Walkthrough (Java Edition)</h1>
+                <p>This implementation uses standard Java with JDBC (Java Database Connectivity) to interact with PostgreSQL. We use the <strong>try-with-resources</strong> statement to ensure database connections are closed properly and avoid connection leaks.</p>
 
-                <h2>create_partitions.mjs — Automated Partition Creation</h2>
-                <pre class="code-block">import pg from 'pg';
+                <h2>CreatePartitions.java — Automated Partition Creation</h2>
+                <pre class="code-block">import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
 
-async function run() {
-    // Step 1: Connect to default 'postgres' database
-    const dbClientPostgres = new pg.Client({
-        user: "postgres",
-        password: "postgres",
-        host: "localhost",       // Change from "husseinmac" to your hostname
-        port: 5432,
-        database: "postgres"
-    });
+public class CreatePartitions {
+    public static void main(String[] args) {
+        // Connection credentials
+        String user = "postgres";
+        String password = "postgres";
+        
+        // Step 1: URL for the default 'postgres' database
+        String defaultUrl = "jdbc:postgresql://localhost:5432/postgres";
 
-    await dbClientPostgres.connect();
+        try {
+            // Step 2: Connect to default DB to create the 'customers' database
+            // We use try-with-resources so the Connection and Statement are auto-closed
+            try (Connection conn = DriverManager.getConnection(defaultUrl, user, password);
+                 Statement stmt = conn.createStatement()) {
+                
+                // CAUTION: Uncomment DROP only for fresh setup
+                // stmt.executeUpdate("DROP DATABASE IF EXISTS customers");
+                stmt.executeUpdate("CREATE DATABASE customers");
+                System.out.println("Database 'customers' created.");
+            }
 
-    // Step 2: Create the 'customers' database
-    // CAUTION: Uncomment DROP only for fresh setup
-    // await dbClientPostgres.query("DROP DATABASE IF EXISTS customers");
-    await dbClientPostgres.query("CREATE DATABASE customers");
-    await dbClientPostgres.end();  // Close connection to postgres DB
+            // Step 3: URL for the newly created 'customers' database
+            String customersUrl = "jdbc:postgresql://localhost:5432/customers";
+            
+            try (Connection conn = DriverManager.getConnection(customersUrl, user, password);
+                 Statement stmt = conn.createStatement()) {
 
-    // Step 3: Connect to the newly created 'customers' database
-    const dbClientCustomers = new pg.Client({
-        user: "postgres",
-        password: "postgres",
-        host: "localhost",
-        port: 5432,
-        database: "customers"    // Now targeting 'customers' DB
-    });
+                // Step 4: Create master partitioned table
+                // PARTITION BY RANGE (id) — declares id as the partition key
+                String createMaster = "CREATE TABLE customers (id SERIAL, name TEXT) " +
+                                      "PARTITION BY RANGE (id)";
+                stmt.executeUpdate(createMaster);
+                System.out.println("Master table 'customers' created.");
 
-    await dbClientCustomers.connect();
+                // Step 5: Create 100 partitions in a loop
+                // Assuming: 1B total customers, 10M per partition → 100 partitions
+                for (int i = 0; i < 100; i++) {
+                    long idFrom = i * 10_000_000L;            // 0, 10M, 20M, ...
+                    long idTo   = (i + 1) * 10_000_000L;      // 10M, 20M, 30M, ...
 
-    // Step 4: Create master partitioned table
-    // PARTITION BY RANGE (id) — declares id as the partition key
-    await dbClientCustomers.query(`
-        CREATE TABLE customers (id SERIAL, name TEXT)
-        PARTITION BY RANGE (id)
-    `);
+                    String partitionName = "customers_" + idFrom + "_" + idTo;
+                    // e.g.: customers_0_10000000, customers_10000000_20000000, ...
 
-    // Step 5: Create 100 partitions in a loop
-    // Assuming: 1B total customers, 10M per partition → 100 partitions
-    for (let i = 0; i < 100; i++) {
-        const idFrom = i * 10_000_000;            // 0, 10M, 20M, ...
-        const idTo   = (i + 1) * 10_000_000;     // 10M, 20M, 30M, ...
+                    // Create the child table with same structure as master
+                    // 'INCLUDING INDEXES' copies any index definitions from master
+                    String createChild = "CREATE TABLE " + partitionName + " " +
+                                         "(LIKE customers INCLUDING INDEXES)";
 
-        const partitionName = `customers_${idFrom}_${idTo}`;
-        // e.g.: customers_0_10000000, customers_10000000_20000000, ...
+                    // Attach child table to master with its value range
+                    // NOTE: TO is exclusive — customers_0_10M covers id 0 to 9,999,999
+                    String attachChild = "ALTER TABLE customers " +
+                                         "ATTACH PARTITION " + partitionName + " " +
+                                         "FOR VALUES FROM (" + idFrom + ") TO (" + idTo + ")";
 
-        // Create the child table with same structure as master
-        // 'INCLUDING INDEXES' copies any index definitions from master
-        const createSQL = `
-            CREATE TABLE ${partitionName}
-            (LIKE customers INCLUDING INDEXES)
-        `;
+                    // Execute DDL statements
+                    stmt.executeUpdate(createChild);
+                    stmt.executeUpdate(attachChild);
 
-        // Attach child table to master with its value range
-        // NOTE: TO is exclusive — customers_0_10M covers id 0 to 9,999,999
-        const attachSQL = `
-            ALTER TABLE customers
-            ATTACH PARTITION ${partitionName}
-            FOR VALUES FROM (${idFrom}) TO (${idTo})
-        `;
-
-        await dbClientCustomers.query(createSQL);
-        await dbClientCustomers.query(attachSQL);
-
-        console.log(`Created partition: ${partitionName} (${idFrom} → ${idTo - 1})`);
+                    System.out.println("Created partition: " + partitionName + " (" + idFrom + " -> " + (idTo - 1) + ")");
+                }
+                System.out.println("Done. 100 partitions created.");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
-
-    await dbClientCustomers.end();
-    console.log("Done. 100 partitions created.");
-}
-
-run();</pre>
+}</pre>
                 <p><strong>Line-by-line key points:</strong></p>
                 <ul>
-                    <li><span class="inline-code">idTo - 1</span> boundary: <span class="inline-code">FOR VALUES FROM (0) TO (10000000)</span> means <span class="inline-code">0 ≤ id &lt; 10000000</span> — id=10,000,000 goes to the NEXT partition</li>
-                    <li><span class="inline-code">LIKE customers INCLUDING INDEXES</span>: inherits column structure AND any index definitions already on the master table</li>
-                    <li>Two DB connections needed: first to create the <span class="inline-code">customers</span> database (must be done from <span class="inline-code">postgres</span> DB), then to work within <span class="inline-code">customers</span></li>
+                    <li><span class="inline-code">DriverManager.getConnection()</span>: Establishes a physical connection to the database. The URL format is <span class="inline-code">jdbc:postgresql://host:port/dbname</span>.</li>
+                    <li><span class="inline-code">try-with-resources</span>: The blocks starting with <span class="inline-code">try (Connection conn = ...)</span> guarantee that both the <span class="inline-code">Connection</span> and <span class="inline-code">Statement</span> objects are safely closed even if an SQL Exception is thrown, preventing memory and connection leaks.</li>
+                    <li><span class="inline-code">stmt.executeUpdate()</span>: In JDBC, <span class="inline-code">executeUpdate()</span> is used for DDL statements (like <span class="inline-code">CREATE TABLE</span>) and DML statements (like <span class="inline-code">INSERT</span>/<span class="inline-code">UPDATE</span>) rather than <span class="inline-code">executeQuery()</span>, which is reserved for <span class="inline-code">SELECT</span> statements.</li>
+                    <li><span class="inline-code">idTo - 1</span> boundary: <span class="inline-code">FOR VALUES FROM (0) TO (10000000)</span> means <span class="inline-code">0 ≤ id &lt; 10000000</span> — id=10,000,000 goes to the NEXT partition.</li>
+                    <li>Two DB connections needed: the first connection executes against the default <span class="inline-code">postgres</span> DB to initialize the <span class="inline-code">customers</span> database. The second connects directly to <span class="inline-code">customers</span> to create the tables.</li>
                 </ul>
 
-                <h2>populate_customers.mjs — Bulk Data Insert</h2>
-                <pre class="code-block">import pg from 'pg';
+                <h2>PopulateCustomers.java — Bulk Data Insert</h2>
+                <pre class="code-block">import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
 
-async function run() {
-    const dbClientCustomers = new pg.Client({
-        user: "postgres",
-        password: "postgres",
-        host: "localhost",
-        port: 5432,
-        database: "customers"
-    });
+public class PopulateCustomers {
+    public static void main(String[] args) {
+        String url = "jdbc:postgresql://localhost:5432/customers";
+        String user = "postgres";
+        String password = "postgres";
 
-    await dbClientCustomers.connect();
+        try (Connection conn = DriverManager.getConnection(url, user, password);
+             Statement stmt = conn.createStatement()) {
 
-    // Insert 100 batches × 10M rows = 1B total customers
-    for (let i = 0; i < 100; i++) {
-        // Each iteration inserts 10M rows
-        // GENERATE_SERIES(1, 10000000) calls generate_series 10M times
-        // RANDOM() generates a float 0.0-1.0, cast to TEXT for the name field
-        const insertSQL = `
-            INSERT INTO customers (name)
-            SELECT random()::TEXT
-            FROM GENERATE_SERIES(1, 10000000)
-        `;
+            System.out.println("Connected to 'customers' database. Starting bulk insert...");
 
-        await dbClientCustomers.query(insertSQL);
-        console.log(`Inserted batch ${i + 1}/100 (${(i + 1) * 10}M customers total)`);
+            // Insert 100 batches × 10M rows = 1B total customers
+            for (int i = 0; i < 100; i++) {
+                // Each iteration inserts 10M rows
+                // GENERATE_SERIES(1, 10000000) calls generate_series 10M times
+                // RANDOM() generates a float 0.0-1.0, cast to TEXT for the name field
+                String insertSQL = "INSERT INTO customers (name) " +
+                                   "SELECT random()::TEXT " +
+                                   "FROM GENERATE_SERIES(1, 10000000)";
+
+                // executeUpdate executes the query and returns the row count inserted
+                int rowsInserted = stmt.executeUpdate(insertSQL);
+                
+                System.out.println("Inserted batch " + (i + 1) + "/100 " + 
+                                   "(" + ((i + 1) * 10) + "M customers total). " +
+                                   "Rows affected: " + rowsInserted);
+            }
+
+            System.out.println("Done. 1B customers inserted.");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
-
-    await dbClientCustomers.end();
-    console.log("Done. 1B customers inserted.");
-}
-
-run();</pre>
-                <p><strong>Key behavior:</strong> The INSERT targets the master <span class="inline-code">customers</span> table. PostgreSQL's partition routing logic automatically directs each row to the correct child partition based on the auto-generated <span class="inline-code">id</span> value (SERIAL). No application-level routing needed.</p>
+}</pre>
+                <p><strong>Key behavior:</strong> The Java program executes the <span class="inline-code">INSERT</span> targeting the master <span class="inline-code">customers</span> table. PostgreSQL's internal partition routing logic automatically intercepts these rows and directs each one to the correct child partition based on the auto-generated <span class="inline-code">id</span> value (SERIAL). The application code (Java) has absolutely zero knowledge of the underlying partitions.</p>
 
                 <h2>Running the Scripts</h2>
-                <pre class="code-block"># Prerequisites: Docker + Node.js
+                <pre class="code-block"># Prerequisites: Docker + Java Development Kit (JDK) 11+
 
 # 1. Start PostgreSQL container
 docker run \
@@ -813,22 +820,26 @@ docker run \
   -p 5432:5432 \
   -d postgres
 
-# 2. Install Node.js dependencies
-npm install
+# 2. Download the PostgreSQL JDBC Driver
+wget https://jdbc.postgresql.org/download/postgresql-42.7.3.jar
 
-# 3. Create partitions (run once)
-node create_partitions.mjs
+# 3. Compile the Java files
+javac CreatePartitions.java PopulateCustomers.java
 
-# 4. Populate with data
-node populate_customers.mjs
+# 4. Run partition creation (include the JDBC jar in the classpath)
+# Note: On Windows, use a semicolon (;) instead of a colon (:) for the classpath
+java -cp .:postgresql-42.7.3.jar CreatePartitions
 
-# 5. Connect to database to query
+# 5. Populate with data
+java -cp .:postgresql-42.7.3.jar PopulateCustomers
+
+# 6. Connect to database to query
 docker exec -it pg psql -U postgres -d customers
 
 # Inside psql:
-SELECT max(id) FROM customers;         -- Check max id inserted
-\d customers                           -- Describe master table
-\d+ customers                          -- Show all partitions
+SELECT max(id) FROM customers;              -- Check max id inserted
+\d customers                                -- Describe master table
+\d+ customers                               -- Show all partitions
 SELECT count(*) FROM customers_0_10000000;  -- Query a specific partition</pre>
             </section>
 
