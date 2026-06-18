@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Engineering Mastery Notes: Single-Leader Failure Handling & Replication Lag</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            color: #111827;
+        }
+        pre {
+            font-family: 'Fira Code', monospace;
+        }
+        .prose h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin-top: 3rem;
+            margin-bottom: 1.5rem;
+            color: #1e3a8a;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        .prose h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: #1f2937;
+        }
+        .prose h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: #374151;
+        }
+        .prose h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: #4b5563;
+        }
+        .prose p {
+            margin-bottom: 1rem;
+            line-height: 1.75;
+            color: #4b5563;
+        }
+        .prose ul, .prose ol {
+            padding-left: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #4b5563;
+        }
+        .prose ul { list-style-type: disc; }
+        .prose ol { list-style-type: decimal; }
+        .prose li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        .prose strong {
+            color: #111827;
+            font-weight: 600;
+        }
+        .prose blockquote {
+            border-left: 4px solid #3b82f6;
+            background-color: #eff6ff;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            font-style: normal;
+            color: #1e40af;
+            border-radius: 0 0.5rem 0.5rem 0;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        .prose table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+            background-color: white;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .prose th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #374151;
+        }
+        .prose td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #4b5563;
+            vertical-align: top;
+        }
+        .prose tr:last-child td {
+            border-bottom: none;
+        }
+        .code-block {
+            background-color: #1f2937;
+            color: #e5e7eb;
+            padding: 1.25rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            white-space: pre;
+        }
+        .inline-code {
+            background-color: #f3f4f6;
+            color: #ef4444;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.875rem;
+        }
+        .nav-link {
+            transition: all 0.2s ease;
+        }
+        .nav-link:hover {
+            color: #2563eb;
+            background-color: #eff6ff;
+            padding-left: 0.5rem;
+        }
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body class="antialiased flex flex-col md:flex-row h-screen overflow-hidden">
+
+    <!-- Sidebar / Table of Contents -->
+    <aside class="w-full md:w-72 bg-white border-r border-gray-200 h-1/4 md:h-full overflow-y-auto flex-shrink-0 z-10 shadow-sm">
+        <div class="p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Contents</h2>
+            
+            <nav class="space-y-1 text-sm font-medium text-gray-600">
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Theory & Architecture</p>
+                <a href="#sec-1" class="block py-1.5 nav-link rounded-md">1. Big Picture</a>
+                <a href="#sec-2" class="block py-1.5 nav-link rounded-md">2. Core Concepts</a>
+                <a href="#sec-3" class="block py-1.5 nav-link rounded-md">3. Deep Dive: Failure Handling</a>
+                <a href="#sec-4" class="block py-1.5 nav-link rounded-md">4. Failover Pitfalls</a>
+                <a href="#sec-5" class="block py-1.5 nav-link rounded-md">5. Lag Anomalies</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Prep & System Design</p>
+                <a href="#sec-6" class="block py-1.5 nav-link rounded-md">6. Practical Perspective</a>
+                <a href="#sec-7" class="block py-1.5 nav-link rounded-md">7. Interview Questions</a>
+                <a href="#sec-8" class="block py-1.5 nav-link rounded-md">8. Common Mistakes</a>
+                <a href="#sec-9" class="block py-1.5 nav-link rounded-md">9. Perf & Scalability</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Advanced Topics</p>
+                <a href="#sec-10" class="block py-1.5 nav-link rounded-md">10. DS Internals</a>
+                <a href="#sec-11" class="block py-1.5 nav-link rounded-md">11. Code / Architecture</a>
+                <a href="#sec-12" class="block py-1.5 nav-link rounded-md">12. Visual Mental Models</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Review</p>
+                <a href="#sec-13" class="block py-1.5 nav-link rounded-md">13. Failure Analysis</a>
+                <a href="#sec-14" class="block py-1.5 nav-link rounded-md">14. Lecture Summary</a>
+                <a href="#sec-15" class="block py-1.5 nav-link rounded-md">15. Revision Notes</a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 h-3/4 md:h-full overflow-y-auto bg-gray-50 p-6 md:p-12 lg:p-16">
+        <div class="max-w-4xl mx-auto prose">
+            
+            <header class="mb-12 text-center md:text-left">
+                <p class="text-blue-600 font-semibold tracking-wide uppercase text-sm mb-2">Target: Senior Backend Engineers, Distributed Systems Engineers, SREs, System Design Candidates</p>
+                <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 mt-0 border-none pb-0">Single-Leader Failure Handling & Replication Lag</h1>
+                <p class="text-xl text-gray-500 mt-4">📖 Engineering Mastery Notes (Source: DDIA Chapter 6 Extract)</p>
+            </header>
+
+            <!-- SECTION 1 -->
+            <section id="sec-1">
+                <h2>1. Big Picture</h2>
+                
+                <h3>Why Do We Care About Failures and Lag?</h3>
+                <p>In production distributed systems, node failure is not an "if," it is a "when." Machines reboot for kernel patches, power supplies blow, and network cables are unplugged.</p>
+                <ol>
+                    <li><strong>Fault Tolerance:</strong> The system must survive these individual node outages without dropping the overall availability of the cluster.</li>
+                    <li><strong>Read Scalability:</strong> To handle massive traffic (e.g., millions of reads per second), we fan out queries across many read replicas.</li>
+                    <li><strong>The Core Tradeoff:</strong> Read scaling fundamentally requires <strong>Asynchronous Replication</strong>. If you try to synchronously replicate to 50 nodes, one slow node halts all writes. However, async replication introduces <strong>Replication Lag</strong>, creating a window where users read stale data. As a Senior Engineer, your job isn't to eliminate lag entirely, but to <em>mask</em> it from the user through clever system design.</li>
+                </ol>
+            </section>
+
+            <!-- SECTION 2 -->
+            <section id="sec-2">
+                <h2>2. Core Concepts</h2>
+                <ul>
+                    <li><strong>Catch-up Recovery:</strong> The process a recovering follower uses to download missed replication logs from the leader and apply them.</li>
+                    <li><strong>Failover:</strong> The orchestration required to promote a follower to leader, re-route client traffic, and demote the dead leader.</li>
+                    <li><strong>Split Brain:</strong> A catastrophic state where two nodes simultaneously act as the leader, leading to divergent and corrupted data.</li>
+                    <li><strong>Eventual Consistency:</strong> If writes stop, all replicas will eventually process the backlog and match the leader.</li>
+                    <li><strong>Read-After-Write (Read-Your-Writes) Consistency:</strong> A guarantee that if a user updates data, their subsequent reads will reflect that update.</li>
+                    <li><strong>Monotonic Reads:</strong> A guarantee that users will never see time "move backward" (e.g., reading a fresh replica, then hitting a stale one and seeing data disappear).</li>
+                    <li><strong>Consistent Prefix Reads:</strong> A guarantee that causally related events are read in the exact order they were written.</li>
+                    <li><strong>Availability Zone (AZ):</strong> A single physical datacenter (power/cooling).</li>
+                    <li><strong>Region:</strong> A geographical grouping of multiple AZs connected via ultra-low-latency networks.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 3 -->
+            <section id="sec-3">
+                <h2>3. Deep Dive: Failure Handling Operations</h2>
+
+                <h3>A. Follower Failure: Catch-Up Recovery</h3>
+                <p>When a follower disconnects, it doesn't lose its mind. It has a persistent WAL (Write-Ahead Log) on disk.</p>
+                <ul>
+                    <li><strong>The Process:</strong> Upon restart, the follower reads its log, finds the last processed transaction (via LSN/GTID), connects to the leader, and requests all missing data.</li>
+                    <li><strong>Production SRE Risk:</strong> <em>Log Retention vs. Disk Space.</em> If a follower is down for 3 days, the leader must keep 3 days of replication logs on disk. If the leader runs out of disk, the whole database crashes. SREs must configure "max WAL retention" policies. If the follower is down too long, the leader deletes the old logs, and the follower must be fully rebuilt from a fresh snapshot.</li>
+                </ul>
+
+                <h3>B. Leader Failure: Failover Mechanics</h3>
+                <p>Failover is notoriously dangerous. Most top-tier companies prefer <em>manual</em> or <em>semi-automated</em> failovers heavily gated by human operators because false positives are so destructive.</p>
+                <ol>
+                    <li><strong>Detection:</strong> Usually via a heartbeat timeout (e.g., 30 seconds).</li>
+                    <li><strong>Election:</strong> Replicas use consensus (Raft/ZooKeeper) to agree on a new leader. The replica with the highest LSN (most up-to-date) is chosen to minimize data loss.</li>
+                    <li><strong>Reconfiguration:</strong> Proxies (PgBouncer, Envoy) and clients are updated to point to the new leader IP. The old leader is fenced off.</li>
+                </ol>
+            </section>
+
+            <!-- SECTION 4 -->
+            <section id="sec-4">
+                <h2>4. Distributed Systems Perspective: Failover Pitfalls</h2>
+                <p>What happens when automated failovers go wrong?</p>
+                <ul>
+                    <li><strong>The GitHub Outage (Cross-System Data Corruption):</strong>
+                        <ul>
+                            <li><em>Context:</em> GitHub used MySQL (async replication) and Redis.</li>
+                            <li><em>Failure:</em> Leader crashed. Follower promoted. Follower's DB auto-increment counter lagged behind the old leader.</li>
+                            <li><em>Result:</em> The new leader reused primary keys that the old leader had already issued. Redis, caching data based on those IDs, now served completely wrong user profiles/private data to the wrong users.</li>
+                            <li><em>Lesson:</em> Never blindly discard unreplicated writes if external systems (Caches, Search Indexes, Message Queues) have already observed those writes.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Timeout Tuning Dilemma:</strong>
+                        <ul>
+                            <li>Set timeout to 10 seconds? A JVM Garbage Collection pause or a brief network spike triggers a failover. You just caused database downtime to "fix" a 10-second blip.</li>
+                            <li>Set timeout to 60 seconds? Actual hardware failures mean you have 1 full minute of total write unavailability.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Split Brain:</strong> If the old leader was just partitioned (not dead), it will keep accepting writes. If you don't use <strong>Fencing Tokens</strong>, the data will diverge permanently.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 5 -->
+            <section id="sec-5">
+                <h2>5. CAP and Consistency Tradeoffs: Replication Lag Anomalies</h2>
+                <p>When you use read-scaling, you embrace eventual consistency. This leads to three major UX anomalies.</p>
+
+                <h3>Anomaly 1: Reading Your Own Writes (The "My Post Vanished" Bug)</h3>
+                <ul>
+                    <li><strong>Problem:</strong> User submits a comment &rarr; Write hits Leader &rarr; App redirects user to "View Comment" page &rarr; Read hits a Follower &rarr; Follower is 500ms behind. The user sees an empty page and submits the comment again (creating a duplicate).</li>
+                    <li><strong>Solutions:</strong>
+                        <ol>
+                            <li><em>Profile/Ownership Routing:</em> Always route queries for a user's <em>own</em> data to the Leader. Route other users' data to Followers.</li>
+                            <li><em>Timestamp Tracking:</em> Client passes a <span class="inline-code">Last-Write-Timestamp</span>. If the follower's log is older than this timestamp, wait or proxy the read to the leader.</li>
+                        </ol>
+                    </li>
+                </ul>
+
+                <h3>Anomaly 2: Monotonic Reads (The Time Travel Bug)</h3>
+                <ul>
+                    <li><strong>Problem:</strong> User hits refresh. Request 1 hits Replica A (lag 100ms) &rarr; User sees new comment. User hits refresh again. Request 2 hits Replica B (lag 3 seconds) &rarr; Comment vanishes. Time went backward.</li>
+                    <li><strong>Solution:</strong> <em>Sticky Routing.</em> Hash the <span class="inline-code">UserID</span>. User 123 is <em>always</em> routed to Replica B. They may see delayed data, but they will never see data disappear.</li>
+                </ul>
+
+                <h3>Anomaly 3: Consistent Prefix Reads (The Causality Bug)</h3>
+                <ul>
+                    <li><strong>Problem:</strong> Typically happens in sharded databases. Event A happens, causing Event B. (Mr. Poons asks a question; Mrs. Cake answers it). Because shards replicate at different speeds, an observer might see the answer (Event B) replicated <em>before</em> the question (Event A).</li>
+                    <li><strong>Solution:</strong> Write causally related events to the exact same shard, or use advanced causality-tracking algorithms (Version Vectors).</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 6 -->
+            <section id="sec-6">
+                <h2>6. Practical Backend Engineering Perspective</h2>
+                <p>How top tech companies handle these tradeoffs:</p>
+                <ul>
+                    <li><strong>Uber/Stripe (High Consistency Needs):</strong> They avoid relying on eventually consistent reads for core business logic (like payment state). State machines strictly read from the Primary/Leader.</li>
+                    <li><strong>Twitter/Reddit (High Scale Needs):</strong> Reading your own tweet uses "Read-Your-Writes" consistency (usually via a local client cache or primary read), but reading <em>someone else's</em> timeline is strictly Eventually Consistent.</li>
+                    <li><strong>Mobile/Cross-Device Challenges:</strong> If a user updates their profile on their iPhone, then opens their iPad on the same WiFi, the iPad might read stale data because the "last write timestamp" was local to the iPhone. SREs fix this by centralizing write-timestamps in a fast distributed cache (Redis).</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 7 -->
+            <section id="sec-7">
+                <h2>7. Important Interview Questions</h2>
+
+                <h3>Basic</h3>
+                <p><strong>Q: Why do we use asynchronous replication for read replicas?</strong><br>
+                A: Because synchronous replication across many nodes destroys write availability. If just one of 10 read replicas has a network blip, the leader would be forced to block all incoming writes.</p>
+
+                <h3>Intermediate</h3>
+                <p><strong>Q: How do you prevent a user from experiencing the "Read Your Own Writes" anomaly?</strong><br>
+                A: (1) Force all reads of a user's <em>own</em> editable data to hit the leader. (2) Temporarily cache the user's data on the client side. (3) Track the exact timestamp/LSN of the write, and when routing the read, wait for the follower to catch up to that LSN before responding.</p>
+
+                <h3>Advanced</h3>
+                <p><strong>Q: You have an auto-failover mechanism for your Single-Leader DB. Walk me through the exact dangers of this and how to mitigate them.</strong><br>
+                A: The primary dangers are <strong>Split Brain</strong> and <strong>False Positives</strong>. To mitigate false positives, use a robust timeout (e.g., 30s) and require multiple cluster nodes to agree the leader is dead. To mitigate Split Brain, implement <strong>Fencing</strong> (STONITH - Shoot The Other Node In The Head), physically killing power to the old leader, or revoking its AWS IAM roles to write to EBS. Finally, avoid relying on DB auto-increment keys if external systems (like Redis) cache them, to prevent the "GitHub cross-system corruption" scenario.</p>
+            </section>
+
+            <!-- SECTION 8 -->
+            <section id="sec-8">
+                <h2>8. Common Mistakes</h2>
+                <ul>
+                    <li><strong>Beginner Mistake:</strong> Pretending async replication is synchronous. Throwing a <span class="inline-code">Thread.sleep(500)</span> after a database write hoping the replica catches up before reading. (It will fail under load).</li>
+                    <li><strong>Backend Engineer Mistake:</strong> Using random Load Balancing (Round Robin) for database read replicas. This guarantees users will hit the <strong>Monotonic Read</strong> (Time Travel) anomaly. Always use consistent hashing (Sticky Sessions) based on User ID.</li>
+                    <li><strong>Production SRE Mistake:</strong> Overly aggressive auto-failovers. If a switch misbehaves and causes 5 seconds of packet loss, failing over the primary DB causes massive cache invalidations, proxy re-routing, and connection pooling storms.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 9 -->
+            <section id="sec-9">
+                <h2>9. Performance & Scalability Notes</h2>
+                <ul>
+                    <li><strong>Catch-Up Load Spike:</strong> When a heavily lagging follower reconnects, it pulls gigabytes of WAL. This saturates the Leader's network outbound interface and disk I/O, potentially impacting live production traffic. SREs cap the replication bandwidth using QoS (Quality of Service) network rules.</li>
+                    <li><strong>AZ vs Region Networking:</strong> Placing a replica in another AZ adds ~1ms latency. Placing it in another Region adds ~50-150ms. Regional replication <em>must</em> be asynchronous or your DB will grind to a halt.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 10 -->
+            <section id="sec-10">
+                <h2>10. Distributed Systems Internals (Beyond the Lecture)</h2>
+                <ul>
+                    <li><strong>Logical Clocks (Lamport Timestamps):</strong> Mentioned briefly under consistent prefixes. In complex systems, physical clocks are untrustworthy (NTP skew). Distributed systems use logical sequence numbers (counters) to definitively prove Event A happened before Event B.</li>
+                    <li><strong>NewSQL (Spanner, CockroachDB):</strong> The text mentions NewSQL. These databases avoid these replication lag anomalies entirely by providing strict <strong>Linearizability</strong> across distributed nodes, using specialized hardware (Atomic Clocks in Spanner) or complex consensus protocols (Raft over multiple partitions).</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 11 -->
+            <section id="sec-11">
+                <h2>11. Practical Code / System Design Integration</h2>
+                <p><strong>Implementing Read-Your-Writes via Redis &amp; LSN (Java/Spring Model):</strong></p>
+                <pre class="code-block"><code>// 1. User updates profile
+@Transactional
+public void updateProfile(User profile) {
+    // Write goes to Leader. Returns the Log Sequence Number (LSN)
+    long writeLsn = primaryDb.saveAndReturnLsn(profile);
+    
+    // Store LSN in Redis with a short TTL (e.g., 10 seconds)
+    redis.setEx("user:" + profile.getId() + ":last_lsn", 10, writeLsn);
+}
+
+// 2. User reads profile
+public User getProfile(String userId) {
+    Long requiredLsn = redis.get("user:" + userId + ":last_lsn");
+    
+    if (requiredLsn != null) {
+        // Query a replica, BUT tell the DB driver it MUST wait 
+        // until the replica has applied up to 'requiredLsn'
+        return replicaDb.queryWithLsnWait("SELECT * FROM users WHERE id = ?", userId, requiredLsn);
+    } else {
+        // Safe to read from any replica instantly
+        return replicaDb.query("SELECT * FROM users WHERE id = ?", userId);
+    }
+}</code></pre>
+                <p><em>Why this is master-level:</em> It maximizes read scaling (reads still go to replicas) while mathematically guaranteeing no stale reads for the user who just wrote data.</p>
+            </section>
+
+            <!-- SECTION 12 -->
+            <section id="sec-12">
+                <h2>12. Visual Mental Models (ASCII)</h2>
+
+                <h3>Split Brain Danger (The GitHub/Network Glitch Scenario)</h3>
+                <pre class="code-block">           [Client A]                   [Client B]
+               |                            |
+       (Writes ID: 1000)             (Writes ID: 990)
+               v                            v
+          [LEADER 1] ---- X (Net Split) [LEADER 2] (Promoted too early!)
+               |                            |
+          (Fails to auth)            (Issues overlapping IDs)
+               \                            /
+                --> [ External Cache (Redis) ] <-- (DATA CORRUPTION)</pre>
+
+                <h3>Consistent Prefix Anomaly (Mrs. Cake &amp; Mr. Poons)</h3>
+                <pre class="code-block">Event 1: Q: "How far?" ----(Fast Shard)-----> [Observer] (Hears Question)
+Event 2: A: "10 Secs!" ---(Slow Shard)---+ 
+                                         |
+[Observer Timeline]:                     v
+0:00 - Hears A: "10 Secs!" (Anomaly!) <--+
+0:05 - Hears Q: "How far?"</pre>
+            </section>
+
+            <!-- SECTION 13 -->
+            <section id="sec-13">
+                <h2>13. Failure Analysis Section</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Component</th>
+                            <th>Failure</th>
+                            <th>Risk Level</th>
+                            <th>SRE Recovery / System Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Follower</strong></td>
+                            <td>Node restarts after 2 mins</td>
+                            <td><strong>Low</strong></td>
+                            <td>Follower streams WAL from Leader. Catches up safely.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Follower</strong></td>
+                            <td>Node offline for 4 days</td>
+                            <td><strong>Medium</strong></td>
+                            <td>Leader deleted WAL to save disk space. SRE must rebuild follower from a clean snapshot.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Leader</strong></td>
+                            <td>Crash / Network Partition</td>
+                            <td><strong>High</strong></td>
+                            <td>Auto/Manual failover. Fencing tokens block the old leader. App route updates.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Old Leader</strong></td>
+                            <td>Comes back online post-failover</td>
+                            <td><strong>Critical</strong> (Split Brain)</td>
+                            <td>Old leader realizes its epoch/fencing token is invalid, steps down to become a Follower.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- SECTION 14 -->
+            <section id="sec-14">
+                <h2>14. Lecture Summary</h2>
+                <ul>
+                    <li><strong>Key Takeaway 1:</strong> Automated failover is a distributed systems minefield. Between split-brain, timeout tuning, and discarded writes, human-in-the-loop failover is often preferred unless you have massive SRE tooling.</li>
+                    <li><strong>Key Takeaway 2:</strong> If you decouple systems (DB + Redis), asynchronous failover in the DB can corrupt the cache.</li>
+                    <li><strong>Key Takeaway 3:</strong> Eventual consistency creates UX anomalies. As a backend engineer, you must handle <strong>Read-Your-Writes</strong> (use leader/LSN routing), <strong>Monotonic Reads</strong> (use consistent hashing), and <strong>Consistent Prefix</strong> (use causal partitioning).</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 15 -->
+            <section id="sec-15">
+                <h2>15. Revision Notes (2-Minute Review Sheet)</h2>
+                <div class="code-block bg-blue-900 border border-blue-800 text-blue-50 shadow-md">
+                    <ul class="mb-0">
+                        <li><strong>Catch-up:</strong> Follower uses log to rebuild. Watch out for Leader disk exhaustion.</li>
+                        <li><strong>Failover Steps:</strong> Detect (timeout) &rarr; Elect (consensus) &rarr; Reconfigure (routing).</li>
+                        <li><strong>Fencing:</strong> Mechanism to brutally shut down old leaders to prevent Split Brain.</li>
+                        <li><strong>Lag Anomalies &amp; Fixes:</strong>
+                            <ul class="mt-2 mb-2">
+                                <li><em>Read Your Writes:</em> Read own data from primary.</li>
+                                <li><em>Monotonic Reads:</em> Hash routing (Sticky sessions).</li>
+                                <li><em>Consistent Prefix:</em> Put causally related data on the same shard.</li>
+                            </ul>
+                        </li>
+                        <li><strong>AZ vs Region:</strong> AZ = low latency (sync possible). Region = high latency (async mandatory).</li>
+                        <li><strong>The SRE Rule:</strong> Never let an external system (Redis/Search) observe a DB state that hasn't been safely replicated, otherwise a DB failover will permanently desync the infrastructure.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <footer class="mt-16 pt-8 border-t border-gray-200 text-center text-gray-500 text-sm pb-16">
+                End of Notes — Engineering Mastery Notes: Single-Leader Failure Handling & Replication Lag
+            </footer>
+        </div>
+    </main>
+
+</body>
+</html>
