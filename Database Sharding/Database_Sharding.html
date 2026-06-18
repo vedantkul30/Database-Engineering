@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Sharding — Production Engineering Notes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            color: #111827;
+        }
+        pre {
+            font-family: 'Fira Code', monospace;
+        }
+        .prose h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin-top: 3rem;
+            margin-bottom: 1.5rem;
+            color: #1e3a8a;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        .prose h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: #1f2937;
+        }
+        .prose h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: #374151;
+        }
+        .prose h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: #4b5563;
+        }
+        .prose p {
+            margin-bottom: 1rem;
+            line-height: 1.75;
+            color: #4b5563;
+        }
+        .prose ul, .prose ol {
+            padding-left: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #4b5563;
+        }
+        .prose ul { list-style-type: disc; }
+        .prose ol { list-style-type: decimal; }
+        .prose li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        .prose strong {
+            color: #111827;
+            font-weight: 600;
+        }
+        .prose blockquote {
+            border-left: 4px solid #3b82f6;
+            background-color: #eff6ff;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            font-style: normal;
+            color: #1e40af;
+            border-radius: 0 0.5rem 0.5rem 0;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        .prose table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+            background-color: white;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .prose th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #374151;
+        }
+        .prose td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #4b5563;
+            vertical-align: top;
+        }
+        .prose tr:last-child td {
+            border-bottom: none;
+        }
+        .code-block {
+            background-color: #1f2937;
+            color: #e5e7eb;
+            padding: 1.25rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            white-space: pre;
+        }
+        .inline-code {
+            background-color: #f3f4f6;
+            color: #ef4444;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.875rem;
+        }
+        .nav-link {
+            transition: all 0.2s ease;
+        }
+        .nav-link:hover {
+            color: #2563eb;
+            background-color: #eff6ff;
+            padding-left: 0.5rem;
+        }
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body class="antialiased flex flex-col md:flex-row h-screen overflow-hidden">
+
+    <!-- Sidebar / Table of Contents -->
+    <aside class="w-full md:w-72 bg-white border-r border-gray-200 h-1/4 md:h-full overflow-y-auto flex-shrink-0 z-10 shadow-sm">
+        <div class="p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Contents</h2>
+            
+            <nav class="space-y-1 text-sm font-medium text-gray-600">
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Theory & Architecture</p>
+                <a href="#sec-1" class="block py-1.5 nav-link rounded-md">1. Big Picture</a>
+                <a href="#sec-2" class="block py-1.5 nav-link rounded-md">2. Core Concepts</a>
+                <a href="#sec-4" class="block py-1.5 nav-link rounded-md">4. The Scaling Decision Tree</a>
+                <a href="#sec-5" class="block py-1.5 nav-link rounded-md">5. Consistent Hashing Deep Dive</a>
+                <a href="#sec-6" class="block py-1.5 nav-link rounded-md">6. Pros and Cons</a>
+                <a href="#sec-7" class="block py-1.5 nav-link rounded-md">7. Vitesse Middleware</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Practical Implementation</p>
+                <a href="#sec-3" class="block py-1.5 nav-link rounded-md">3. The Demo — Step by Step</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Prep & System Design</p>
+                <a href="#sec-8" class="block py-1.5 nav-link rounded-md">8. Interview Questions</a>
+                <a href="#sec-9" class="block py-1.5 nav-link rounded-md">9. Common Mistakes</a>
+                <a href="#sec-10" class="block py-1.5 nav-link rounded-md">10. Perf & Scalability Notes</a>
+                <a href="#sec-11" class="block py-1.5 nav-link rounded-md">11. The Full Architecture</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Review</p>
+                <a href="#sec-12" class="block py-1.5 nav-link rounded-md">12. Revision Cheat Sheet</a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 h-3/4 md:h-full overflow-y-auto bg-gray-50 p-6 md:p-12 lg:p-16">
+        <div class="max-w-4xl mx-auto prose">
+            
+            <header class="mb-12 text-center md:text-left">
+                <p class="text-blue-600 font-semibold tracking-wide uppercase text-sm mb-2">Interview & System Design Ready</p>
+                <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 mt-0 border-none pb-0">Database Sharding</h1>
+                <p class="text-xl text-gray-500 mt-4">Production Engineering Notes</p>
+            </header>
+
+            <!-- SECTION 1 -->
+            <section id="sec-1">
+                <h1>1. Big Picture</h1>
+                
+                <h2>Why Sharding Exists</h2>
+                <p>A single database server has physical limits: CPU cores, RAM, disk I/O bandwidth, network throughput, and connection limits. As data grows and write throughput demands exceed what one machine can handle, you need to distribute both data and load across multiple machines. This is sharding.</p>
+                <p>But sharding is <strong>the last resort</strong> — not the first solution. Before sharding, you have a well-defined escalation path of progressively complex (but less complex than sharding) solutions.</p>
+                <blockquote>"The last thing you want to do is shard your database. There are so many other things you can do before complicating your life with sharding."</blockquote>
+
+                <h2>The Scaling Problem Chain</h2>
+                <pre class="code-block">Problem: "My reads are slow"
+   ↓
+Solution 1: Add indexes on queried columns
+   ↓ (indexes grow large too, queries still slow at scale)
+Solution 2: Add partitioning (same server, smaller indexes)
+   ↓ (server CPU/connection limits hit)
+Solution 3: Add read replicas (scale reads horizontally)
+   ↓ (write throughput saturates the single master)
+Solution 4: Multi-master replication (US-East / US-West)
+   ↓ (write conflicts become unmanageable, need true horizontal write scale)
+Solution 5: SHARD ← you are here. Final option.</pre>
+
+                <h2>Where Sharding Is Used</h2>
+                <table>
+                    <thead>
+                        <tr><th>Company</th><th>Sharding Use Case</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>YouTube/Google</td><td>MySQL sharding via Vitesse — managed app-level sharding at scale</td></tr>
+                        <tr><td>Instagram</td><td>PostgreSQL sharding via Citus — user_id based shards</td></tr>
+                        <tr><td>Uber</td><td>MySQL sharding for trip data</td></tr>
+                        <tr><td>WhatsApp</td><td>Erlang + custom sharding for message storage</td></tr>
+                        <tr><td>Shopify</td><td>MySQL sharding per merchant — each merchant is a shard</td></tr>
+                        <tr><td>Stripe</td><td>Shard by merchant_id</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- SECTION 2 -->
+            <section id="sec-2">
+                <h1>2. Core Concepts</h1>
+
+                <h2>2.1 — What Is Sharding?</h2>
+                <p>Sharding splits a large table across <strong>multiple independent database servers</strong>. Each server holds a <strong>shard</strong> — a subset of the rows. The table name stays the same, but the server (host + port) changes.</p>
+                <pre class="code-block">Non-sharded (1 server, 1M URLs):
+┌──────────────────────────────────────┐
+│  DB Server (port 5432)               │
+│  ┌──────────────────────────────┐   │
+│  │  url_table (1,000,000 rows)  │   │
+│  └──────────────────────────────┘   │
+└──────────────────────────────────────┘
+
+Sharded (3 servers, ~333K URLs each):
+┌─────────────────────┐  ┌─────────────────────┐  ┌─────────────────────┐
+│  Shard 1 (port 5432)│  │  Shard 2 (port 5433)│  │  Shard 3 (port 5434)│
+│  url_table          │  │  url_table          │  │  url_table          │
+│  ~333K rows         │  │  ~333K rows         │  │  ~333K rows         │
+│  (url_id: set A)    │  │  (url_id: set B)    │  │  (url_id: set C)    │
+└─────────────────────┘  └─────────────────────┘  └─────────────────────┘
+        ↑                        ↑                        ↑
+  Client MUST know which shard to hit. No automatic routing.</pre>
+
+                <p><strong>Critical difference from partitioning:</strong></p>
+                <table>
+                    <thead>
+                        <tr><th></th><th>Partitioning</th><th>Sharding</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Servers</td><td>Single server</td><td>Multiple servers</td></tr>
+                        <tr><td>Table names</td><td>Different (customers_0_10M, customers_10M_20M)</td><td>Same (url_table on every shard)</td></tr>
+                        <tr><td>Client awareness</td><td>None — database routes automatically</td><td>Required — client/proxy routes to correct server</td></tr>
+                        <tr><td>Transactions</td><td>Full ACID</td><td>No cross-shard ACID transactions</td></tr>
+                        <tr><td>JOINs</td><td>Normal SQL JOINs work</td><td>Cross-shard JOINs essentially impossible</td></tr>
+                    </tbody>
+                </table>
+
+                <h2>2.2 — Consistent Hashing</h2>
+                <p>Consistent hashing is the algorithm used to determine <strong>which shard</strong> a given input should go to. The requirement: given the same input string, always return the same shard — deterministically and consistently.</p>
+
+                <h3>Why Not Simple Modulo?</h3>
+                <pre class="code-block">Simple modulo approach:
+  hash("wikipedia.com/sharding") % 3 = shard 2
+
+Problem: Add a 4th shard:
+  hash("wikipedia.com/sharding") % 4 = shard 1  ← DIFFERENT!
+
+With 3 shards → 4 shards, ~75% of all keys map to different shards.
+Every cached/stored record must be relocated. Catastrophic.</pre>
+
+                <h3>The Hash Ring</h3>
+                <p>Consistent hashing places both shard nodes and data keys on a virtual circular ring (0 → 2^32 or similar range). Each key maps to the nearest node clockwise on the ring.</p>
+                <pre class="code-block">Hash Ring (0 → MAX):
+
+                    0 / MAX
+                      │
+           Shard A ───┤──── Shard B
+          /           │           \
+    key3 ●            │            ● key1
+        |      ring   │     ring   |
+    key2 ●            │            ● key4
+          \           │           /
+           Shard C ───┤
+                      │
+
+Rules:
+  - Each key maps to the nearest shard clockwise
+  - key1 → Shard B (nearest clockwise)
+  - key2 → Shard C (nearest clockwise)
+  - key3 → Shard A (nearest clockwise)
+
+Adding a new Shard D: only keys between Shard D's position and
+the previous node need to be relocated. ~1/N keys affected (vs 75% with modulo).</pre>
+
+                <h3>How It Works in Practice</h3>
+                <pre class="code-block">Input: "wikipedia.com/sharding"
+Step 1: SHA-256 hash → large hex string
+Step 2: Take first N bytes → a number in [0, MAX)
+Step 3: Find nearest shard clockwise on ring → Shard 2 (port 5433)
+Step 4: Always returns port 5433 for this exact input
+
+Deterministic: same input → same output, always.</pre>
+            </section>
+
+            <!-- SECTION 3 -->
+            <section id="sec-3">
+                <h1>3. The Demo — Step by Step</h1>
+
+                <h2>3.1 — Infrastructure Setup</h2>
+                
+                <p><strong>Step 1: Create the table schema (init.sql)</strong></p>
+                <pre class="code-block">-- init.sql — executed automatically when each Docker container starts
+CREATE TABLE url_table (
+    id       SERIAL PRIMARY KEY,    -- auto-increment, not null by default on PK
+    url      TEXT,                  -- the original long URL
+    url_id   CHAR(5)               -- the 5-character short code
+);</pre>
+
+                <p><strong>Step 2: Create a custom Docker image that auto-runs init.sql</strong></p>
+                <pre class="code-block"># Dockerfile
+FROM postgres
+
+# Copy init.sql into the Docker entrypoint init directory.
+# Postgres image automatically executes all .sql files in this directory on startup.
+COPY init.sql /docker-entrypoint-initdb.d/</pre>
+
+                <p><strong>Step 3: Build the custom image</strong></p>
+                <pre class="code-block"># Build image tagged 'pg_shard'
+docker build -t pg_shard .
+
+# Verify image exists
+docker images | grep pg_shard</pre>
+
+                <p><strong>Step 4: Spin up 3 shard containers</strong></p>
+                <pre class="code-block"># Shard 1 — port 5432
+docker run --name pg_shard1 -p 5432:5432 -d pg_shard
+
+# Shard 2 — port 5433
+docker run --name pg_shard2 -p 5433:5432 -d pg_shard
+
+# Shard 3 — port 5434
+docker run --name pg_shard3 -p 5434:5432 -d pg_shard
+
+# Verify all 3 running
+docker ps</pre>
+                <p>Each container has the same <span class="inline-code">url_table</span> schema, same table name, different port. That is the essence of sharding.</p>
+
+                <hr class="my-8 border-gray-200">
+
+                <h2>3.2 — Application Code (Java Implementation)</h2>
+                <p>The original lecture used Node.js. Below is a complete equivalent Java implementation using Spring Boot + JDBC.</p>
+
+                <h3>Project Dependencies (pom.xml)</h3>
+                <pre class="code-block">&lt;dependencies&gt;
+    &lt;!-- Spring Boot Web (REST API) --&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+        &lt;artifactId&gt;spring-boot-starter-web&lt;/artifactId&gt;
+    &lt;/dependency&gt;
+
+    &lt;!-- Spring JDBC (database access) --&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+        &lt;artifactId&gt;spring-boot-starter-jdbc&lt;/artifactId&gt;
+    &lt;/dependency&gt;
+
+    &lt;!-- PostgreSQL JDBC driver --&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.postgresql&lt;/groupId&gt;
+        &lt;artifactId&gt;postgresql&lt;/artifactId&gt;
+        &lt;scope&gt;runtime&lt;/scope&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;</pre>
+
+                <h3>Step 1: Shard Configuration</h3>
+                <pre class="code-block">import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * ShardManager holds one JdbcTemplate per shard.
+ * Key = port number (String) → Value = JdbcTemplate for that shard.
+ *
+ * In the Node.js version:
+ *   const clients = {
+ *     "5432": new Client({port: 5432}),
+ *     "5433": new Client({port: 5433}),
+ *     "5434": new Client({port: 5434})
+ *   }
+ */
+public class ShardManager {
+
+    // Map of port → JdbcTemplate (one connection pool per shard)
+    private final Map&lt;String, JdbcTemplate&gt; shards = new HashMap&lt;&gt;();
+
+    public ShardManager() {
+        // Initialize 3 shard connections
+        shards.put("5432", createJdbcTemplate("localhost", 5432));
+        shards.put("5433", createJdbcTemplate("localhost", 5433));
+        shards.put("5434", createJdbcTemplate("localhost", 5434));
+    }
+
+    private JdbcTemplate createJdbcTemplate(String host, int port) {
+        DriverManagerDataSource ds = new DriverManagerDataSource();
+        ds.setDriverClassName("org.postgresql.Driver");
+        ds.setUrl("jdbc:postgresql://" + host + ":" + port + "/postgres");
+        ds.setUsername("postgres");
+        ds.setPassword("postgres");
+        return new JdbcTemplate(ds);
+    }
+
+    /**
+     * Get the JdbcTemplate for a given port string (returned by consistent hash).
+     */
+    public JdbcTemplate getShardClient(String port) {
+        return shards.get(port);
+    }
+}</pre>
+
+                <h3>Step 2: Consistent Hashing</h3>
+                <pre class="code-block">import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.*;
+
+/**
+ * ConsistentHashRing maps arbitrary string keys to one of N shard ports.
+ *
+ * Algorithm:
+ *   1. Place virtual nodes for each shard on a sorted ring (TreeMap).
+ *   2. To find a shard for key K: hash K → position on ring → find nearest
+ *      shard clockwise (ceiling entry in TreeMap).
+ *   3. Same key always returns same shard (deterministic).
+ *   4. Adding/removing shards only remaps ~1/N of keys.
+ *
+ * In the Node.js version:
+ *   const hr = new HashRing();
+ *   hr.add("5432"); hr.add("5433"); hr.add("5434");
+ *   const server = hr.get(urlId); // returns "5432", "5433", or "5434"
+ */
+public class ConsistentHashRing {
+
+    // TreeMap: ring position (long) → shard port (String)
+    // TreeMap keeps entries sorted by key → enables ceiling() lookup
+    private final TreeMap&lt;Long, String&gt; ring = new TreeMap&lt;&gt;();
+
+    // Number of virtual nodes per physical shard.
+    // More virtual nodes = more even distribution across the ring.
+    private final int virtualNodes;
+
+    public ConsistentHashRing(int virtualNodes) {
+        this.virtualNodes = virtualNodes;
+    }
+
+    /**
+     * Add a shard to the ring.
+     * Creates 'virtualNodes' positions for this shard across the ring.
+     *
+     * @param shardPort e.g. "5432"
+     */
+    public void addShard(String shardPort) {
+        for (int i = 0; i &lt; virtualNodes; i++) {
+            // Each virtual node has a unique key: "5432-vnode-0", "5432-vnode-1", ...
+            long position = hash(shardPort + "-vnode-" + i);
+            ring.put(position, shardPort);
+        }
+    }
+
+    /**
+     * Given an input key, find which shard it maps to.
+     * Returns the shard port (e.g. "5433").
+     *
+     * @param key e.g. a URL ID "5fJkQ"
+     */
+    public String getShard(String key) {
+        if (ring.isEmpty()) {
+            throw new IllegalStateException("No shards registered");
+        }
+
+        long position = hash(key);
+
+        // Find the nearest shard clockwise from 'position'
+        // ceilingEntry: smallest key &gt;= position
+        Map.Entry&lt;Long, String&gt; entry = ring.ceilingEntry(position);
+
+        // If no entry &gt;= position, wrap around to the first entry on the ring
+        if (entry == null) {
+            entry = ring.firstEntry();
+        }
+
+        return entry.getValue();
+    }
+
+    /**
+     * SHA-256 hash of a string, returns a long for ring positioning.
+     * Same as Node.js: crypto.createHash('sha256').update(input).digest('base64')
+     */
+    private long hash(String key) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest(key.getBytes(StandardCharsets.UTF_8));
+            // Take first 8 bytes and convert to long (ring position)
+            long result = 0;
+            for (int i = 0; i &lt; 8; i++) {
+                result = (result &lt;&lt; 8) | (digest[i] &amp; 0xFF);
+            }
+            return result;
+        } catch (Exception e) {
+            throw new RuntimeException("Hashing failed", e);
+        }
+    }
+}</pre>
+
+                <h3>Step 3: URL Shortener Service</h3>
+                <pre class="code-block">import org.springframework.jdbc.core.JdbcTemplate;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Base64;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * UrlShortenerService handles:
+ *   1. POST /shorten?url=... → generate 5-char code, determine shard, write to shard DB
+ *   2. GET  /{urlId}         → determine shard from urlId, read from shard DB
+ */
+public class UrlShortenerService {
+
+    private final ConsistentHashRing hashRing;
+    private final ShardManager shardManager;
+
+    public UrlShortenerService(ConsistentHashRing hashRing, ShardManager shardManager) {
+        this.hashRing = hashRing;
+        this.shardManager = shardManager;
+    }
+
+    /**
+     * POST /shorten?url=https://wikipedia.com/sharding
+     *
+     * Node.js equivalent:
+     *   app.post("/", async (req, res) =&gt; {
+     *     const url = req.query.url;
+     *     const hash = crypto.createHash('sha256').update(url).digest('base64');
+     *     const urlId = hash.substring(0, 5);
+     *     const server = hr.get(urlId);
+     *     const client = clients[server];
+     *     await client.query("INSERT INTO url_table(url, url_id) VALUES($1,$2)", [url, urlId]);
+     *   });
+     */
+    public Map&lt;String, String&gt; shortenUrl(String url) throws Exception {
+        // Step 1: SHA-256 hash the URL → Base64 string
+        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        byte[] hashBytes = md.digest(url.getBytes(StandardCharsets.UTF_8));
+        String hash = Base64.getEncoder().encodeToString(hashBytes);
+
+        // Step 2: Take first 5 characters as the short code
+        // Same as Node.js: hash.substring(0, 5)
+        String urlId = hash.substring(0, 5);
+
+        // Step 3: Consistent hash the urlId → get which shard port to use
+        // Same as Node.js: const server = hr.get(urlId);
+        String shardPort = hashRing.getShard(urlId);
+
+        // Step 4: Get the JdbcTemplate for that shard
+        // Same as Node.js: const client = clients[server];
+        JdbcTemplate jdbcTemplate = shardManager.getShardClient(shardPort);
+
+        // Step 5: Insert into the correct shard
+        // Same as Node.js: await client.query("INSERT INTO url_table(url, url_id) VALUES($1,$2)")
+        // Use parameterized query — NEVER use string concatenation (SQL injection risk)
+        jdbcTemplate.update(
+            "INSERT INTO url_table(url, url_id) VALUES(?, ?)",
+            url, urlId
+        );
+
+        return Map.of(
+            "urlId",  urlId,
+            "url",    url,
+            "shard",  shardPort   // which shard it went to (for debugging)
+        );
+    }
+
+    /**
+     * GET /{urlId}  →  return original URL
+     *
+     * Node.js equivalent:
+     *   app.get("/:urlId", async (req, res) =&gt; {
+     *     const id = req.params.urlId;
+     *     const server = hr.get(id);
+     *     const client = clients[server];
+     *     const result = await client.query("SELECT * FROM url_table WHERE url_id=$1", [id]);
+     *     if (result.rowCount &gt; 0) res.send(result.rows[0]);
+     *     else res.sendStatus(404);
+     *   });
+     */
+    public Map&lt;String, Object&gt; getUrl(String urlId) {
+        // Step 1: Consistent hash urlId → find which shard holds this record
+        // SAME hash function, SAME input → SAME shard every time
+        String shardPort = hashRing.getShard(urlId);
+
+        // Step 2: Get JdbcTemplate for that shard
+        JdbcTemplate jdbcTemplate = shardManager.getShardClient(shardPort);
+
+        // Step 3: Query that shard
+        List&lt;Map&lt;String, Object&gt;&gt; rows = jdbcTemplate.queryForList(
+            "SELECT * FROM url_table WHERE url_id = ?",
+            urlId
+        );
+
+        if (rows.isEmpty()) {
+            return null;  // Controller will return 404
+        }
+
+        // Add which shard served this request (useful for debugging/observability)
+        rows.get(0).put("shard", shardPort);
+        return rows.get(0);
+    }
+}</pre>
+
+                <h3>Step 4: REST Controller</h3>
+                <pre class="code-block">import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.Map;
+
+/**
+ * REST API Controller — exposes POST and GET endpoints.
+ *
+ * POST /shorten?url=...     → shorten a URL (writes to correct shard)
+ * GET  /{urlId}             → retrieve original URL (reads from correct shard)
+ */
+@RestController
+public class UrlShortenerController {
+
+    private final UrlShortenerService service;
+
+    public UrlShortenerController(UrlShortenerService service) {
+        this.service = service;
+    }
+
+    @PostMapping("/shorten")
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; shortenUrl(
+            @RequestParam String url) throws Exception {
+        Map&lt;String, String&gt; result = service.shortenUrl(url);
+        return ResponseEntity.ok(result);
+    }
+
+    @GetMapping("/{urlId}")
+    public ResponseEntity&lt;?&gt; getUrl(@PathVariable String urlId) {
+        Map&lt;String, Object&gt; result = service.getUrl(urlId);
+        if (result == null) {
+            return ResponseEntity.notFound().build();  // HTTP 404
+        }
+        return ResponseEntity.ok(result);
+    }
+}</pre>
+
+                <h3>Step 5: Application Bootstrap</h3>
+                <pre class="code-block">import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+
+@SpringBootApplication
+public class ShardingApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(ShardingApplication.class, args);
+    }
+
+    /**
+     * Wire up the consistent hash ring with our 3 shard ports.
+     * 150 virtual nodes per shard = 450 total ring positions = even distribution.
+     */
+    @Bean
+    public ConsistentHashRing consistentHashRing() {
+        ConsistentHashRing ring = new ConsistentHashRing(150);
+        ring.addShard("5432");  // Shard 1
+        ring.addShard("5433");  // Shard 2
+        ring.addShard("5434");  // Shard 3
+        return ring;
+    }
+
+    @Bean
+    public ShardManager shardManager() {
+        return new ShardManager();
+    }
+
+    @Bean
+    public UrlShortenerService urlShortenerService(
+            ConsistentHashRing ring, ShardManager shardManager) {
+        return new UrlShortenerService(ring, shardManager);
+    }
+}</pre>
+
+                <h3>Testing the Application</h3>
+                <pre class="code-block"># Shorten a URL (POST)
+curl -X POST "http://localhost:8080/shorten?url=https://wikipedia.com/sharding"
+# Response: {"urlId":"5fJkQ","url":"https://wikipedia.com/sharding","shard":"5433"}
+
+# Retrieve original URL (GET)
+curl "http://localhost:8080/5fJkQ"
+# Response: {"id":1,"url":"https://wikipedia.com/sharding","url_id":"5fJkQ","shard":"5433"}
+
+# Same URL always routes to same shard:
+curl -X POST "http://localhost:8080/shorten?url=https://wikipedia.com/sharding"
+# → shard is ALWAYS 5433 for this URL (deterministic hashing)
+
+# Different URL → likely different shard:
+curl -X POST "http://localhost:8080/shorten?url=https://google.com"
+# → shard may be 5432 or 5434 (different hash → different ring position)
+
+# Not found:
+curl "http://localhost:8080/XXXXX"
+# → HTTP 404</pre>
+            </section>
+
+            <!-- SECTION 4 -->
+            <section id="sec-4">
+                <h1>4. The Scaling Decision Tree</h1>
+                <p>Before sharding, exhaust these options in order:</p>
+
+                <h2>Level 1: Indexing</h2>
+                <pre class="code-block">Problem: Slow reads on large table
+Solution: Add B+ Tree index on queried columns
+
+CREATE INDEX idx_url_table_url_id ON url_table(url_id);
+
+Handles: 10M-100M rows on SSD with < 5ms query latency
+Cost: Minimal. Just disk space and insert overhead.
+Limit: Index grows with table. Eventually too large for buffer pool.</pre>
+
+                <h2>Level 2: Partitioning</h2>
+                <pre class="code-block">Problem: Index too large for RAM, buffer pool misses
+Solution: Horizontal partitioning — split table on same server
+
+CREATE TABLE url_table PARTITION BY RANGE (id);
+-- url_table_0_1M, url_table_1M_2M, etc.
+
+Handles: 100M-10B rows, smaller per-partition indexes fit in RAM
+Cost: Low. Database handles routing transparently.
+Limit: Single server CPU/RAM/connection limits still apply.</pre>
+
+                <h2>Level 3: Read Replicas</h2>
+                <pre class="code-block">Problem: Too many concurrent read connections saturating server
+Solution: Replicate to N read replicas; route reads to replicas
+
+Master: handles all writes
+Replica 1, 2, 3...: handle reads (load balanced by proxy/Nginx)
+
+Handles: Read-heavy workloads (social media, news sites — 95% reads)
+Cost: Medium. Replica lag (eventual consistency for reads).
+Limit: Writes still go to single master. Master write capacity unchanged.</pre>
+                
+                <pre class="code-block">Architecture:
+
+Client → Nginx/HAProxy ─┬→ Master (port 5432) [Writes only]
+                        ├→ Replica 1           [Reads]
+                        ├→ Replica 2           [Reads]
+                        └→ Replica 3           [Reads]
+
+Replication: Master → WAL streaming → Replicas (async, near real-time)</pre>
+
+                <h2>Level 4: Multi-Master (Regional)</h2>
+                <pre class="code-block">Problem: Write throughput saturates single master
+Solution: Two masters in different regions (US-East, US-West)
+
+US-East customers → US-East master
+US-West customers → US-West master
+Conflicts: rare (different customer sets) → resolve when they occur
+
+Handles: Write-heavy, geographically segregated data
+Cost: Medium-High. Conflict resolution logic needed.
+Limit: Geographic overlap or truly global shared state → conflicts.</pre>
+
+                <h2>Level 5: Sharding (Last Resort)</h2>
+                <pre class="code-block">Problem: All of the above exhausted. Write throughput truly exceeded.
+Solution: Horizontal sharding across N database servers.
+
+Cost: VERY HIGH.
+  - Application routing complexity
+  - No cross-shard transactions
+  - No cross-shard JOINs
+  - Schema changes must hit every shard
+  - Resharding is a massive operation</pre>
+            </section>
+
+            <!-- SECTION 5 -->
+            <section id="sec-5">
+                <h1>5. Consistent Hashing Deep Dive</h1>
+
+                <h2>Why Standard Hash + Modulo Fails for Resharding</h2>
+                <pre class="code-block">java
+// Simple hash approach
+int shard = Math.abs(urlId.hashCode()) % numShards;
+
+// With 3 shards: "5fJkQ" → shard 2
+// Add 4th shard: "5fJkQ" → shard 1  ← DIFFERENT!
+// All existing records now point to wrong shards
+// Must relocate ~75% of all data. Catastrophic downtime.</pre>
+
+                <h2>Why Consistent Hashing Solves This</h2>
+                <pre class="code-block">Ring with 3 shards:
+  Position 10% → Shard A
+  Position 40% → Shard B
+  Position 75% → Shard C
+
+Add Shard D at position 55%:
+  Old: 40-75% → Shard B
+  New: 40-55% → Shard B, 55-75% → Shard D
+
+Only keys in the 40-55% range need to move from B to D.
+That's ~1/4 of Shard B's data = ~1/N total data.
+vs modulo: ~75% of ALL data moves.</pre>
+
+                <h2>Virtual Nodes — Why They Matter</h2>
+                <p>Without virtual nodes, with 3 shards you have 3 ring positions. The distribution may be very uneven:</p>
+                <pre class="code-block">Ring without virtual nodes:
+  Shard A at position 5%
+  Shard B at position 6%
+  Shard C at position 90%
+
+Result:
+  Shard A: keys 90% → 5%   = 15% of keyspace
+  Shard B: keys 5% → 6%    =  1% of keyspace  ← overloaded  
+  Shard C: keys 6% → 90%   = 84% of keyspace  ← hot spot</pre>
+                <p>With 150 virtual nodes per shard (450 total positions), distribution becomes statistically even — each shard handles ~33% of the keyspace regardless of the physical ring position assignments.</p>
+            </section>
+
+            <!-- SECTION 6 -->
+            <section id="sec-6">
+                <h1>6. Pros and Cons of Sharding</h1>
+
+                <h2>Pros</h2>
+
+                <h3>1. Horizontal Scalability</h3>
+                <pre class="code-block">Data scalability:   add more shards → store more data
+Memory scalability: each shard has its own RAM → no single server memory limit
+CPU scalability:    queries distributed → parallel execution across shards
+I/O scalability:    separate disks → no I/O bottleneck on one machine</pre>
+
+                <h3>2. Smaller Indexes Per Shard</h3>
+                <pre class="code-block">Non-sharded: url_table (1B rows) → index = 14GB (exceeds RAM, disk I/Os)
+Sharded 100 ways: url_table (10M rows each) → index = 140MB (fits in RAM → 0 disk I/Os)</pre>
+
+                <h3>3. Fault Isolation</h3>
+                <pre class="code-block">Shard 2 crashes → only users whose data lives on Shard 2 are affected
+vs non-sharded: one DB crash → ALL users affected</pre>
+
+                <h3>4. Security / Access Control</h3>
+                <pre class="code-block">VIP customer data → Shard A (restricted access, extra encryption)
+Standard customer data → Shards B, C, D (normal access)
+Regulatory data (EU customers) → EU-region shards (GDPR compliance)</pre>
+
+                <h2>Cons</h2>
+
+                <h3>1. Client Complexity</h3>
+                <pre class="code-block">Application must:
+  - Maintain connections to all N shard servers
+  - Implement or use a consistent hash function
+  - Route EVERY query to the correct shard
+  - Handle shard unavailability gracefully
+
+This logic is in YOUR application code. Every service that touches the
+sharded table must implement this routing.</pre>
+
+                <h3>2. No Cross-Shard ACID Transactions</h3>
+                <pre class="code-block">// IMPOSSIBLE with sharding (different database servers):
+// "Transfer $100 from account A (Shard 1) to account B (Shard 2)"
+
+// Pseudo-code showing the problem:
+try {
+    shard1.begin();
+    shard1.update("accounts SET balance = balance - 100 WHERE id = 'A'");
+
+    shard2.begin();
+    shard2.update("accounts SET balance = balance + 100 WHERE id = 'B'");
+
+    // What if shard2 crashes HERE?
+    // shard1 committed, shard2 didn't → money disappeared
+
+    shard1.commit();
+    shard2.commit();
+    // Even if both commit, there's a window between them where data is inconsistent.
+} catch (Exception e) {
+    shard1.rollback();   // Works for Shard 1
+    shard2.rollback();   // May not work if Shard 2 already committed
+}
+
+// Solutions: 2-Phase Commit (2PC) — complex and slow
+//            Saga pattern — eventual consistency
+//            Both add massive complexity. Neither is simple.</pre>
+
+                <h3>3. Cross-Shard JOINs Are Essentially Impossible</h3>
+                <pre class="code-block">-- On a non-sharded DB: simple JOIN
+SELECT u.name, o.total
+FROM users u
+JOIN orders o ON u.id = o.user_id
+WHERE o.total > 1000;
+
+-- With sharding: users on Shard 1-3, orders on Shard 4-6
+-- You CANNOT run this SQL. Different servers don't know about each other.
+
+-- Workaround (ugly):
+-- 1. Query all order shards → collect user_ids in application
+-- 2. For each user_id → determine shard → query that shard
+-- This is O(n) queries instead of O(1) JOIN. Terrible at scale.</pre>
+
+                <h3>4. Resharding Is a Major Operation</h3>
+                <pre class="code-block">Current: 3 shards, each holding 333M rows
+Need: 4 shards (one shard is getting too large)
+
+Problem: All existing records were routed via hash(key) % 3 logic.
+         With 4 shards, ~25% of records are now on the wrong shard.
+
+Solution: 
+  1. Set up Shard 4
+  2. For every record: recalculate shard with new N
+  3. If new shard ≠ current shard: migrate the record
+  4. This can take DAYS on hundreds of millions of rows
+  5. Must be done without downtime (shadow writes, dual-read)
+  6. Consistent hashing reduces this to ~1/N records, but still significant
+
+This is why Shopify, YouTube etc. used fixed shard counts for years
+before building Vitesse or similar middleware.</pre>
+
+                <h3>5. Schema Changes Are Risky</h3>
+                <pre class="code-block">-- Add a column to url_table:
+-- Must run this on ALL shards:
+ALTER TABLE url_table ADD COLUMN created_at TIMESTAMPTZ DEFAULT NOW();
+
+-- If Shard 2 fails during migration:
+-- Shard 1: has created_at column
+-- Shard 2: missing created_at column
+-- Shard 3: has created_at column
+-- → Application crashes on Shard 2 queries for created_at
+-- → Rollback is a nightmare across multiple servers</pre>
+
+                <h3>6. Queries Without Shard Key Hit All Shards (Scatter-Gather)</h3>
+                <pre class="code-block">// You have shard key: url_id → know exactly which shard to query
+service.getUrl("5fJkQ");  // → 1 shard queried
+
+// You DON'T have shard key: search by url domain
+// "Find all URLs from wikipedia.com"
+// → Must query ALL shards and merge results
+// This is called "scatter-gather" — performance degrades with more shards
+for (String port : ALL_SHARD_PORTS) {
+    List&lt;Map&gt; results = shardManager.getShardClient(port)
+        .queryForList("SELECT * FROM url_table WHERE url LIKE ?", "%wikipedia.com%");
+    allResults.addAll(results);
+}
+// Latency = max(latency of slowest shard) instead of 1 shard</pre>
+            </section>
+
+            <!-- SECTION 7 -->
+            <section id="sec-7">
+                <h1>7. Vitesse — Production Sharding Middleware</h1>
+                <p>YouTube's answer to application-level sharding complexity.</p>
+
+                <pre class="code-block">Without Vitesse (application-level sharding):
+
+Application → [routing logic in code] → Shard 1
+                                      → Shard 2
+                                      → Shard 3
+
+Every application that touches the DB must implement routing.
+Schema changes must be coordinated manually.
+Resharding requires code changes in every application.
+
+
+With Vitesse:
+
+Application → SQL query → Vitesse Proxy → Shard 1
+                                        → Shard 2
+                                        → Shard 3
+
+Vitesse parses the SQL query, determines the shard, routes automatically.
+Application is UNAWARE of sharding.
+Resharding is handled by Vitesse.
+Schema changes via Vitesse's online schema migration tool (gh-ost integration).
+Read/write splitting is supported.</pre>
+
+                <p><strong>What Vitesse provides:</strong></p>
+                <ul>
+                    <li>Transparent query routing (parse SQL → determine shard → route)</li>
+                    <li>Connection pooling across shards</li>
+                    <li>Online schema migrations (ALTER TABLE without downtime)</li>
+                    <li>Resharding support</li>
+                    <li>Read/write splitting</li>
+                    <li>Compatible with MySQL wire protocol — any MySQL client works</li>
+                </ul>
+                <p><strong>Cost:</strong> Vitesse is complex to deploy and operate. Kubernetes-native. Requires operational investment. Only justified at YouTube/Shopify scale.</p>
+            </section>
+
+            <!-- SECTION 8 -->
+            <section id="sec-8">
+                <h1>8. Important Interview Questions</h1>
+
+                <h2>Basic</h2>
+                <p><strong>Q: What is database sharding?</strong><br>
+                A: Sharding splits a large table across multiple independent database servers. Each server holds a shard — a horizontal subset of the rows. The table name stays the same on each shard, but the server changes. Unlike partitioning (which is on a single server with automatic routing), sharding requires the client or a proxy to determine which server to connect to.</p>
+
+                <p><strong>Q: What is the difference between sharding and partitioning?</strong><br>
+                A: Partitioning splits data into multiple sub-tables on the same database server. The client queries the master table and routing is transparent. Sharding splits data across multiple database servers. The client must know (or use a proxy to determine) which server to connect to. Partitioning supports full ACID transactions; sharding does not support cross-shard transactions.</p>
+
+                <p><strong>Q: What is consistent hashing and why is it used for sharding?</strong><br>
+                A: Consistent hashing places shard nodes and data keys on a virtual ring (0 → MAX). Each key maps to the nearest shard clockwise. It's used because simple modulo hashing (<span class="inline-code">key % N</span>) remaps ~(N-1)/N of all keys when N changes (catastrophic for resharding). Consistent hashing remaps only ~1/N of keys when a shard is added or removed.</p>
+
+                <p><strong>Q: What is a shard key?</strong><br>
+                A: The shard key is the column value used to determine which shard a row belongs to. The consistent hash function is applied to this value. It must be included in every query to enable direct shard routing; queries without the shard key must hit all shards (scatter-gather), which is expensive.</p>
+
+                <p><strong>Q: Why should sharding be the last resort?</strong><br>
+                A: Sharding eliminates ACID transactions across shards, makes JOINs extremely difficult, requires complex client routing logic, complicates schema migrations, and makes resharding a massive operation. Many cheaper alternatives (indexing, partitioning, read replicas, multi-master) should be exhausted first.</p>
+
+                <h2>Intermediate</h2>
+                <p><strong>Q: What happens to existing data when you add a new shard?</strong><br>
+                A: With simple modulo hashing, ~(N-1)/N of all records map to different shards — requiring massive data migration. With consistent hashing, only ~1/N of records (those between the new shard's ring position and its predecessor) need to be migrated. The migration itself still requires dual-write periods, shadow reads, and careful cutover to avoid data loss or downtime.</p>
+
+                <p><strong>Q: A user's shopping cart involves updating inventory (Shard 1) and creating an order (Shard 2) atomically. How do you handle this in a sharded database?</strong><br>
+                A: Options include: (1) <strong>2-Phase Commit (2PC)</strong>: coordinator locks both shards, then commits both or aborts both — correct but slow and fragile (coordinator failure leaves locks held). (2) <strong>Saga pattern</strong>: execute each step independently with compensating transactions for rollback — eventually consistent but complex. (3) <strong>Design away the problem</strong>: ensure all data for one transaction lives on the same shard (customer-based sharding ensures cart + order + inventory-reservation are on one shard). Option 3 is usually best — choose your shard key to colocate related data.</p>
+
+                <p><strong>Q: What is scatter-gather in sharding and when does it happen?</strong><br>
+                A: Scatter-gather occurs when a query doesn't include the shard key in its WHERE clause. The application must broadcast the query to ALL shards, collect all results, merge them, and return the final result. Latency = latency of the slowest shard. This defeats the purpose of sharding for those query patterns. Design shard keys to match the most frequent access patterns, and consider denormalization or secondary indexes (maintained at application level) for other patterns.</p>
+
+                <p><strong>Q: Walk through exactly what happens when the Node.js / Java application handles <span class="inline-code">POST /shorten?url=https://wikipedia.com/sharding</span>.</strong><br>
+                A: (1) URL is SHA-256 hashed → large hash string. (2) First 5 characters extracted → <span class="inline-code">urlId = "5fJkQ"</span>. (3) Consistent hash ring: <span class="inline-code">ring.getShard("5fJkQ")</span> → position on ring → nearest shard clockwise → returns <span class="inline-code">"5433"</span>. (4) JDBC connection for port 5433 retrieved from ShardManager. (5) Parameterized INSERT executed on Shard 2 (port 5433): <span class="inline-code">INSERT INTO url_table(url, url_id) VALUES(?, ?)</span>. (6) Same urlId always returns <span class="inline-code">"5433"</span> for this input → GET request will always find it on Shard 2.</p>
+
+                <h2>Advanced</h2>
+                <p><strong>Q: Design the sharding strategy for a global e-commerce platform with 500M users, 10B orders, operating in US, EU, and Asia.</strong><br>
+                A:<br>
+                1. <strong>Shard key</strong>: <span class="inline-code">user_id</span> (hash-based sharding) — colocates all of a user's orders on one shard, enabling transactional operations per user<br>
+                2. <strong>Consistent hashing ring</strong>: 100 shards, 150 virtual nodes each → even distribution<br>
+                3. <strong>Geographic sharding</strong>: US shards in US-East/West, EU shards in Frankfurt/Dublin (GDPR compliance), Asia shards in Singapore/Tokyo<br>
+                4. <strong>Cross-region queries</strong>: Handled by a global metadata service that knows which region a user_id maps to; route to correct region first, then shard within region<br>
+                5. <strong>Transactions</strong>: All user operations (checkout, refund, inventory reserve) colocated on user's shard → single-shard ACID works<br>
+                6. <strong>Cross-shard queries</strong> (analytics, fraud detection): Routed to separate OLAP system (BigQuery/Redshift) via CDC streaming — never run analytics on sharded OLTP<br>
+                7. <strong>Resharding</strong>: Managed via Vitesse or custom middleware; consistent hashing ensures &lt; 1% of records relocated per shard added</p>
+
+                <p><strong>Q: Explain why Shopify chose per-merchant sharding and how this influenced their data model.</strong><br>
+                A: Shopify shards by <span class="inline-code">shop_id</span> (merchant). Each merchant's store, products, orders, and customers all live on the same shard. This design: (1) enables full ACID transactions per merchant (checkout, refund, inventory all on one shard); (2) enables per-merchant schema variations; (3) provides natural data isolation (GDPR compliance, data portability); (4) makes scaling predictable (add shards for more merchants). The tradeoff: cross-merchant queries (platform-wide analytics, trending products) are scatter-gather operations — routed to a separate analytics warehouse instead.</p>
+            </section>
+
+            <!-- SECTION 9 -->
+            <section id="sec-9">
+                <h1>9. Common Mistakes</h1>
+
+                <h2>Beginner Mistakes</h2>
+                <ul>
+                    <li><strong>Sharding too early</strong>: Sharding before exhausting indexing, partitioning, and read replicas. Adds massive complexity for problems that could have been solved much more simply.</li>
+                    <li><strong>Using mutable data as shard key</strong>: If the shard key value changes, the row must move to a different shard — a DELETE + INSERT across servers. Use immutable fields (user_id, order_id, created_at bucket) as shard keys.</li>
+                    <li><strong>Simple modulo hashing</strong>: <span class="inline-code">key % N</span> — any change in N remaps the majority of data. Always use consistent hashing for production sharding.</li>
+                </ul>
+
+                <h2>Backend Engineer Mistakes</h2>
+                <ul>
+                    <li><strong>No connection pooling per shard</strong>: Opening a new TCP connection for every request to each shard is catastrophic. Use a connection pool (HikariCP in Java, pg-pool in Node.js) per shard.</li>
+                    <li><strong>Querying without shard key in WHERE clause</strong>: Leads to scatter-gather across all shards. Design queries so the shard key is always present in the filter.</li>
+                    <li><strong>Ignoring the scatter-gather problem at design time</strong>: Discovering that your second most common query pattern doesn't include the shard key after sharding is live. Model your access patterns first, then choose shard key accordingly.</li>
+                </ul>
+
+                <h2>Production Mistakes</h2>
+                <ul>
+                    <li><strong>No resharding plan</strong>: Building a sharded system with no plan for when individual shards grow too large. Always design resharding strategy before going live.</li>
+                    <li><strong>Schema migrations without a rollout plan</strong>: Applying ALTER TABLE on all shards simultaneously can cause brief incompatibilities. Use backward-compatible migrations (add columns before making them required, deploy code that handles both old and new schema).</li>
+                    <li><strong>Not monitoring shard hotspots</strong>: Consistent hashing distributes keys evenly, but data hotspots (a celebrity user with 100M followers on one shard) can overload individual shards. Monitor per-shard query rates and data sizes.</li>
+                    <li><strong>No fallback for shard unavailability</strong>: If Shard 2 is down, what happens? Application should handle shard failures gracefully (circuit breaker, fallback response) rather than returning 500 for all users on that shard.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 10 -->
+            <section id="sec-10">
+                <h1>10. Performance & Scalability Notes</h1>
+
+                <h2>Throughput Scaling With Sharding</h2>
+                <pre class="code-block">Single server:
+  Max write throughput: ~50,000 writes/sec (modern SSD, simple INSERT)
+  Max read throughput:  ~100,000 reads/sec (with buffer pool hits)
+  Max connections:      ~1,000 (PostgreSQL default max_connections)
+
+3-shard setup (linear scaling for independent workloads):
+  Write throughput: ~150,000 writes/sec
+  Read throughput:  ~300,000 reads/sec
+  Connections:      ~3,000 total
+
+100-shard setup:
+  Write throughput: ~5,000,000 writes/sec
+  Read throughput:  ~10,000,000 reads/sec</pre>
+
+                <p><strong>Caveat:</strong> This assumes perfect key distribution (consistent hashing + virtual nodes) and workloads where no cross-shard operations are needed. Cross-shard queries do NOT benefit from sharding.</p>
+
+                <h2>Index Size Per Shard</h2>
+                <pre class="code-block">Non-sharded (1B rows, INTEGER key):
+  Full index: ~14 GB — does not fit in typical server RAM (8-64GB)
+  Result: many disk I/Os per query
+
+100 shards (10M rows each, same key):
+  Per-shard index: ~140 MB — fits in RAM
+  Result: index traversal = 0 disk I/Os (all in buffer pool)
+
+This is why sharding AND partitioning are often used together:
+  shard → partition → index → row</pre>
+            </section>
+
+            <!-- SECTION 11 -->
+            <section id="sec-11">
+                <h1>11. System Design Connection: The Full Architecture</h1>
+                <pre class="code-block">                        ┌─────────────────────┐
+                        │   Client Requests    │
+                        └──────────┬──────────┘
+                                   │
+                        ┌──────────▼──────────┐
+                        │    Load Balancer      │
+                        │  (Nginx / HAProxy)    │
+                        └──────────┬──────────┘
+                                   │
+                    ┌──────────────┼──────────────┐
+                    │              │              │
+           ┌────────▼────┐ ┌──────▼──────┐ ┌────▼────────┐
+           │  App Server │ │  App Server │ │  App Server  │
+           │  (Java/Node)│ │  (Java/Node)│ │  (Java/Node) │
+           │  + Shard    │ │  + Shard    │ │  + Shard     │
+           │    Router   │ │    Router   │ │    Router    │
+           └──┬──┬──┬────┘ └──┬──┬──┬───┘ └──┬──┬──┬────┘
+              │  │  │         │  │  │          │  │  │
+         ┌────┘  │  └────┐    │  │  │    ┌────┘  │  └────┐
+         │       │       │    │  │  │    │       │       │
+    ┌────▼──┐ ┌──▼──┐ ┌──▼──┐ │  │  │
+    │Shard 1│ │Shard│ │Shard│ (all app servers connect
+    │:5432  │ │2:   │ │3:   │  to all shards — pooled)
+    │       │ │5433 │ │5434 │
+    └───────┘ └─────┘ └─────┘
+
+Each Shard:
+  ┌─────────────────────────────────┐
+  │  PostgreSQL Server              │
+  │  ┌───────────────────────────┐  │
+  │  │  url_table (partitioned)  │  │
+  │  │  Partition 1: id 0-1M     │  │
+  │  │  Partition 2: id 1M-2M    │  │
+  │  │  Per-partition B+ Tree    │  │
+  │  └───────────────────────────┘  │
+  │  Read Replica ↗ (optional)      │
+  └─────────────────────────────────┘
+
+Note: Partitioning WITHIN each shard is common.
+      Sharding + Partitioning together = maximum scalability.</pre>
+            </section>
+
+            <!-- SECTION 12 -->
+            <section id="sec-12">
+                <h1>12. Revision Notes — One Page</h1>
+                <pre class="code-block bg-blue-900 border border-blue-800 text-blue-50 shadow-md">┌──────────────────────────────────────────────────────────────────────┐
+│              DATABASE SHARDING CHEAT SHEET                           │
+├──────────────────────────────────────────────────────────────────────┤
+│  WHAT IT IS:                                                         │
+│  Split one large table across multiple INDEPENDENT database servers. │
+│  Same table name per shard, different server (host/port).            │
+│  Client/proxy must route to the correct server. NOT transparent.     │
+├──────────────────────────────────────────────────────────────────────┤
+│  DO THESE FIRST (scaling escalation order):                          │
+│  1. Index → 2. Partition → 3. Read Replicas → 4. Multi-Master        │
+│  5. SHARD ← last resort only                                         │
+├──────────────────────────────────────────────────────────────────────┤
+│  CONSISTENT HASHING:                                                 │
+│  • Place shards + keys on a virtual ring (0 → MAX)                   │
+│  • key → hash → find nearest shard clockwise                         │
+│  • Same key → always same shard (deterministic)                      │
+│  • Add shard: only ~1/N keys move (vs modulo: ~75% move!)            │
+│  • Virtual nodes (150/shard): ensures even distribution              │
+├──────────────────────────────────────────────────────────────────────┤
+│  SHARDING vs PARTITIONING:                                           │
+│  Partitioning: same server, diff table names, client-transparent     │
+│  Sharding: diff servers, same table name, client must route          │
+│  Partitioning: full ACID | Sharding: NO cross-shard ACID             │
+├──────────────────────────────────────────────────────────────────────┤
+│  PROS:                                                               │
+│  ✅ Horizontal scale (data, CPU, RAM, I/O)                           │
+│  ✅ Smaller indexes per shard → fit in RAM → 0 disk I/Os             │
+│  ✅ Fault isolation (one shard down ≠ all users affected)            │
+│  ✅ Security boundaries (VIP/regional data isolation)                │
+├──────────────────────────────────────────────────────────────────────┤
+│  CONS:                                                               │
+│  ❌ No cross-shard ACID transactions (2PC is complex and slow)       │
+│  ❌ No cross-shard JOINs                                             │
+│  ❌ Client routing complexity (or need Vitesse/middleware)           │
+│  ❌ Resharding = major operation (consistent hashing helps)          │
+│  ❌ Schema changes must run on ALL shards                            │
+│  ❌ Queries without shard key = scatter-gather (all shards)          │
+├──────────────────────────────────────────────────────────────────────┤
+│  SHARD KEY RULES:                                                    │
+│  ✅ Immutable: user_id, order_id, merchant_id                        │
+│  ✅ High cardinality (enough unique values to spread evenly)         │
+│  ✅ Present in most queries (avoids scatter-gather)                  │
+│  ✅ Colocates related data (all user's orders on same shard)         │
+│  ❌ Mutable fields (status, email) → cross-shard moves               │
+│  ❌ Low cardinality (country codes) → hotspots                       │
+├──────────────────────────────────────────────────────────────────────┤
+│  VITESSE (YouTube's solution):                                       │
+│  Middleware that parses SQL, routes to correct MySQL shard,          │
+│  handles connection pooling, resharding, and schema migrations.      │
+│  Client is completely unaware of sharding. Kubernetes-native.        │
+│  Cost: complex to deploy. Only justified at massive scale.           │
+├──────────────────────────────────────────────────────────────────────┤
+│  JAVA IMPLEMENTATION KEY POINTS:                                     │
+│  • TreeMap&lt;Long, String&gt; as hash ring (sorted by ring position)      │
+│  • SHA-256 hash → long → ceilingEntry() → shard port                │
+│  • One HikariCP connection pool per shard (never new connection/req) │
+│  • Parameterized queries always (SQL injection prevention)           │
+│  • Same hash function for write and read → same shard guaranteed     │
+└──────────────────────────────────────────────────────────────────────┘</pre>
+            </section>
+
+            <footer class="mt-16 pt-8 border-t border-gray-200 text-center text-gray-500 text-sm pb-16">
+                End of Notes — Database Sharding
+            </footer>
+        </div>
+    </main>
+
+</body>
+</html>
