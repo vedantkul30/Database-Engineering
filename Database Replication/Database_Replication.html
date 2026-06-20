@@ -1,0 +1,1279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Replication — Production Engineering Notes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            color: #111827;
+        }
+        pre {
+            font-family: 'Fira Code', monospace;
+        }
+        .prose h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin-top: 3rem;
+            margin-bottom: 1.5rem;
+            color: #1e3a8a;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        .prose h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: #1f2937;
+        }
+        .prose h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: #374151;
+        }
+        .prose h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: #4b5563;
+        }
+        .prose p {
+            margin-bottom: 1rem;
+            line-height: 1.75;
+            color: #4b5563;
+        }
+        .prose ul, .prose ol {
+            padding-left: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #4b5563;
+        }
+        .prose ul { list-style-type: disc; }
+        .prose ol { list-style-type: decimal; }
+        .prose li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        .prose strong {
+            color: #111827;
+            font-weight: 600;
+        }
+        .prose blockquote {
+            border-left: 4px solid #3b82f6;
+            background-color: #eff6ff;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            font-style: normal;
+            color: #1e40af;
+            border-radius: 0 0.5rem 0.5rem 0;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        .prose table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+            background-color: white;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .prose th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #374151;
+        }
+        .prose td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #4b5563;
+            vertical-align: top;
+        }
+        .prose tr:last-child td {
+            border-bottom: none;
+        }
+        .code-block {
+            background-color: #1f2937;
+            color: #e5e7eb;
+            padding: 1.25rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            white-space: pre;
+        }
+        .inline-code {
+            background-color: #f3f4f6;
+            color: #ef4444;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.875rem;
+        }
+        .nav-link {
+            transition: all 0.2s ease;
+        }
+        .nav-link:hover {
+            color: #2563eb;
+            background-color: #eff6ff;
+            padding-left: 0.5rem;
+        }
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body class="antialiased flex flex-col md:flex-row h-screen overflow-hidden">
+
+    <!-- Sidebar / Table of Contents -->
+    <aside class="w-full md:w-72 bg-white border-r border-gray-200 h-1/4 md:h-full overflow-y-auto flex-shrink-0 z-10 shadow-sm">
+        <div class="p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Contents</h2>
+            
+            <nav class="space-y-1 text-sm font-medium text-gray-600">
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Concepts</p>
+                <a href="#sec-1" class="block py-1.5 nav-link rounded-md">1. Big Picture</a>
+                <a href="#sec-2" class="block py-1.5 nav-link rounded-md">2. Core Concepts</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Practical Implementation</p>
+                <a href="#sec-3" class="block py-1.5 nav-link rounded-md">3. The Demo — Step by Step</a>
+                <a href="#sec-4" class="block py-1.5 nav-link rounded-md">4. Java Application Integration</a>
+                <a href="#sec-7" class="block py-1.5 nav-link rounded-md">7. Key Config (PostgreSQL)</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Evaluation & Design</p>
+                <a href="#sec-5" class="block py-1.5 nav-link rounded-md">5. Pros and Cons</a>
+                <a href="#sec-6" class="block py-1.5 nav-link rounded-md">6. Scaling Strategies</a>
+                <a href="#sec-8" class="block py-1.5 nav-link rounded-md">8. Interview Questions</a>
+                <a href="#sec-9" class="block py-1.5 nav-link rounded-md">9. Common Mistakes</a>
+                <a href="#sec-10" class="block py-1.5 nav-link rounded-md">10. Performance Notes</a>
+                <a href="#sec-11" class="block py-1.5 nav-link rounded-md">11. System Design Connections</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Review</p>
+                <a href="#sec-12" class="block py-1.5 nav-link rounded-md">12. Visual Mental Models</a>
+                <a href="#sec-13" class="block py-1.5 nav-link rounded-md">13. Revision Cheat Sheet</a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 h-3/4 md:h-full overflow-y-auto bg-gray-50 p-6 md:p-12 lg:p-16">
+        <div class="max-w-4xl mx-auto prose">
+            
+            <header class="mb-12 text-center md:text-left">
+                <p class="text-blue-600 font-semibold tracking-wide uppercase text-sm mb-2">Interview & System Design Ready</p>
+                <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 mt-0 border-none pb-0">Database Replication</h1>
+                <p class="text-xl text-gray-500 mt-4">Production Engineering Notes</p>
+            </header>
+
+            <!-- SECTION 1 -->
+            <section id="sec-1">
+                <h1>1. Big Picture</h1>
+                
+                <h2>Why Replication Exists</h2>
+                <p>A single database server is a single point of failure and a single point of performance limitation. Replication solves three distinct problems simultaneously:</p>
+                <ol>
+                    <li><strong>Reliability</strong> — if the primary database crashes, a replica can take over</li>
+                    <li><strong>Fault Tolerance</strong> — data survives hardware failure because it exists on multiple machines</li>
+                    <li><strong>Accessibility / Scalability</strong> — reads can be distributed across multiple replicas, reducing load on the primary</li>
+                </ol>
+
+                <pre class="code-block">Single database (no replication):
+┌─────────────────────────┐
+│  Primary DB             │
+│  Reads + Writes         │  ← Single point of failure
+│  Single server RAM/CPU  │  ← Single point of bottleneck
+└─────────────────────────┘
+
+With replication:
+┌─────────────────────────┐
+│  Primary (Master)       │  ← Writes go here only
+│  All writes             │
+└────────────┬────────────┘
+             │ WAL streaming
+    ┌────────┴────────────────────────┐
+    │                                 │
+┌───▼─────────────┐      ┌───────────▼───────┐
+│  Replica 1      │      │  Replica 2        │
+│  (US-East)      │      │  (EU-West)        │
+│  Reads only     │      │  Reads only       │
+└─────────────────┘      └───────────────────┘</pre>
+
+                <h2>Where Replication Is Used</h2>
+                <table>
+                    <thead>
+                        <tr><th>Company / System</th><th>Replication Use Case</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Instagram</td><td>Read replicas for feed/profile reads (95%+ of traffic); single master for writes</td></tr>
+                        <tr><td>GitHub</td><td>MySQL master + replicas; failover to replica on master failure</td></tr>
+                        <tr><td>Netflix</td><td>Cassandra multi-region replication for globally consistent content metadata</td></tr>
+                        <tr><td>Banking systems</td><td>Synchronous replication to standby for zero data loss (RPO = 0)</td></tr>
+                        <tr><td>YouTube</td><td>MySQL master + replicas before Vitesse sharding was added</td></tr>
+                        <tr><td>Amazon RDS</td><td>Automated Multi-AZ standby with synchronous replication for RDS instances</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- SECTION 2 -->
+            <section id="sec-2">
+                <h1>2. Core Concepts</h1>
+
+                <h2>2.1 — Master / Standby Replication (Primary / Replica)</h2>
+                <p>Also called: master-backup, master-follower, primary-replica, leader-follower.</p>
+                <p><strong>The model:</strong></p>
+                <ul>
+                    <li>One <strong>master/primary</strong> node accepts ALL writes (INSERT, UPDATE, DELETE, DDL like CREATE TABLE)</li>
+                    <li>One or more <strong>standby/replica</strong> nodes receive those writes from the master and are <strong>read-only</strong></li>
+                    <li>Clients can read from any replica; they MUST write to the master</li>
+                </ul>
+
+                <pre class="code-block">                    ┌──────────────────────┐
+                    │  PRIMARY (Master)    │
+                    │  port: 5432          │
+                    │  Accepts: R + W      │
+                    │  Sends: WAL stream   │
+                    └──────────┬───────────┘
+                               │
+              ┌────────────────┼────────────────┐
+              │                │                │
+   ┌──────────▼──────┐ ┌───────▼──────┐ ┌──────▼────────┐
+   │ Standby 1       │ │ Standby 2    │ │ Standby 3     │
+   │ port: 5433      │ │ US-West      │ │ EU-Frankfurt  │
+   │ Read-only       │ │ Read-only    │ │ Read-only     │
+   │ "standby1"      │ │ "standby2"   │ │ "standby3"    │
+   └─────────────────┘ └──────────────┘ └───────────────┘
+
+Client writing:  → Always to PRIMARY only
+Client reading:  → Can go to PRIMARY or any STANDBY
+                   (PRIMARY always has latest data)
+                   (STANDBY may have slight lag — eventual consistency)</pre>
+
+                <p><strong>Why this is the preferred model:</strong></p>
+                <ul>
+                    <li>No conflict resolution needed — only one node ever accepts writes</li>
+                    <li>Simple to reason about: one source of truth</li>
+                    <li>Easy to scale reads: add more replicas</li>
+                    <li>Easy to implement: Postgres WAL streaming, MySQL binlog replication, etc.</li>
+                </ul>
+
+                <h2>2.2 — Multi-Master Replication</h2>
+                <p>Multiple nodes accept writes simultaneously. Each write from any master is propagated to all other masters.</p>
+
+                <pre class="code-block">┌──────────────────┐        ┌──────────────────┐
+│   Master 1       │ ←────→ │   Master 2       │
+│   US-East        │        │   US-West        │
+│   Reads + Writes │        │   Reads + Writes │
+└──────────────────┘        └──────────────────┘
+
+Client A writes row X to Master 1 simultaneously with
+Client B writing row X to Master 2 with different values.
+→ CONFLICT. Which value wins?</pre>
+
+                <p><strong>Why this is avoided:</strong></p>
+                <ul>
+                    <li><strong>Write conflicts</strong> are mathematically unavoidable — two masters can receive conflicting writes for the same row</li>
+                    <li><strong>Conflict resolution</strong> is complex: last-write-wins? application logic? user prompt?</li>
+                    <li>Correct conflict resolution requires understanding business domain semantics — the database can't know which write "should" win</li>
+                    <li>Most systems with high write throughput use sharding instead</li>
+                </ul>
+
+                <p><strong>When multi-master is used:</strong></p>
+                <ul>
+                    <li>Geographic distribution where network latency between regions makes single-master unacceptable for writes</li>
+                    <li>US-East / US-West with segregated customer sets (rare conflicts between regions)</li>
+                    <li>Active-active setups with careful application-level conflict avoidance</li>
+                </ul>
+
+                <hr class="my-8 border-gray-200">
+
+                <h2>2.3 — Synchronous vs Asynchronous Replication</h2>
+                <p>This is the most operationally important dimension of replication. It determines the trade-off between <strong>durability/consistency</strong> and <strong>write latency</strong>.</p>
+
+                <h3>Synchronous Replication</h3>
+                <p>The client's write transaction does NOT complete (commit returns to client) until the data has been written on the master AND confirmed by at least N standby replicas.</p>
+                <pre class="code-block">Client writes:
+
+  Client                  Master              Standby 1
+     │                      │                     │
+     │── INSERT ──────────→ │                     │
+     │                      │── WAL ──────────→  │
+     │                      │                     │── write to disk
+     │                      │ ←──── ACK ─────────│
+     │ ←──── COMMIT ───────│                     │
+     │ (unblocked)          │                     │
+
+Client is BLOCKED until standby confirms.
+Write latency = time to write master + network RTT + standby write time.</pre>
+
+                <p><strong>PostgreSQL configuration:</strong></p>
+                <pre class="code-block">-- In master postgresql.conf or standby recovery config:
+-- Wait for at least 1 standby before returning commit to client
+synchronous_standby_names = 'FIRST 1 (standby1, standby2, standby3)';
+
+-- Wait for any 2 standbys:
+synchronous_standby_names = 'ANY 2 (standby1, standby2, standby3)';
+
+-- Priority order (standby1 preferred, standby2 is fallback):
+synchronous_standby_names = 'FIRST 1 (standby1, standby2)';
+
+-- Wait for ALL standbys (maximum durability, maximum latency):
+synchronous_standby_names = 'standby1, standby2, standby3';</pre>
+
+                <p><strong>Pros:</strong></p>
+                <ul>
+                    <li>Zero data loss (RPO = 0) — even if master dies immediately after commit, standby has the data</li>
+                    <li>Strong consistency — clients always read the latest committed data from any replica</li>
+                    <li>Required for financial systems, healthcare records, any system where data loss is catastrophic</li>
+                </ul>
+
+                <p><strong>Cons:</strong></p>
+                <ul>
+                    <li>Write latency increases proportionally to network distance between master and standby</li>
+                    <li>If standby is unreachable, master BLOCKS all writes (configurable behavior)</li>
+                    <li>Lower write throughput</li>
+                </ul>
+
+                <h3>Asynchronous Replication</h3>
+                <p>The client's write transaction completes on the master only. The master then propagates the WAL to standbys in the background — the client does not wait.</p>
+                <pre class="code-block">Client writes:
+
+  Client                  Master              Standby 1
+     │                      │                     │
+     │── INSERT ──────────→ │                     │
+     │ ←──── COMMIT ───────│                     │
+     │ (unblocked)          │── WAL ──────────→  │  ← happens asynchronously
+                            │                     │    after client is already done</pre>
+
+                <p><strong>Pros:</strong></p>
+                <ul>
+                    <li>Write latency = master write time only (no waiting for standbys)</li>
+                    <li>Master does not block if standbys are slow or temporarily unavailable</li>
+                    <li>High write throughput</li>
+                    <li>Standbys can be geographically distant without impacting write performance</li>
+                </ul>
+
+                <p><strong>Cons:</strong></p>
+                <ul>
+                    <li>Potential data loss — if master crashes between commit and WAL propagation, committed data is lost</li>
+                    <li>Eventual consistency — standbys may lag behind master by milliseconds to seconds</li>
+                    <li>RPO &gt; 0 (Recovery Point Objective — some data may be lost on failover)</li>
+                </ul>
+
+                <h3>Comparison Table</h3>
+                <table>
+                    <thead>
+                        <tr><th>Dimension</th><th>Synchronous</th><th>Asynchronous</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Client write latency</td><td>Higher (master + network + standby)</td><td>Lower (master only)</td></tr>
+                        <tr><td>Write throughput</td><td>Lower</td><td>Higher</td></tr>
+                        <tr><td>Data loss on master failure</td><td>Zero (RPO = 0)</td><td>Possible (RPO > 0)</td></tr>
+                        <tr><td>Read consistency</td><td>Strong</td><td>Eventual</td></tr>
+                        <tr><td>Standby lag</td><td>Zero (by definition)</td><td>Milliseconds to seconds</td></tr>
+                        <tr><td>Master behavior if standby unreachable</td><td>Blocks writes (configurable)</td><td>Continues normally</td></tr>
+                        <tr><td>Use cases</td><td>Banking, healthcare, financial</td><td>Social media, analytics, CDN</td></tr>
+                    </tbody>
+                </table>
+
+                <hr class="my-8 border-gray-200">
+
+                <h2>2.4 — How WAL Streaming Works in PostgreSQL</h2>
+                <p>The Write-Ahead Log (WAL) is the mechanism that makes replication work.</p>
+                <pre class="code-block">Write path on master:
+
+  Transaction:
+  BEGIN
+  UPDATE users SET name = 'Alice' WHERE id = 1;
+  COMMIT;
+
+  Internally:
+  Step 1: WAL record written to WAL buffer (in memory)
+  Step 2: WAL record flushed to WAL file on disk (durability on master)
+  Step 3: WAL record streamed to standby replica(s) over TCP
+  Step 4: Standby applies WAL record to its own data files
+  Step 5 (sync): Master waits for standby ACK before returning COMMIT to client
+  Step 5 (async): Master returns COMMIT to client immediately; standby applies later</pre>
+
+                <p><strong>WAL as the unit of replication:</strong></p>
+                <ul>
+                    <li>WAL records contain the exact byte-level changes to each page</li>
+                    <li>Standby replays WAL in order — its data files become byte-for-byte identical to master</li>
+                    <li>WAL replay is idempotent: replaying the same WAL twice produces the same result</li>
+                    <li>This is also how crash recovery works: on restart, PostgreSQL replays uncommitted WAL</li>
+                </ul>
+
+                <pre class="code-block">pg_stat_replication view on master — shows connected standbys:
+
+SELECT
+    application_name,   -- "standby1"
+    state,              -- "streaming"
+    sync_state,         -- "sync" or "async"
+    sent_lsn,           -- how far master has sent
+    write_lsn,          -- how far standby has written
+    flush_lsn,          -- how far standby has flushed to disk
+    replay_lsn,         -- how far standby has applied
+    write_lag,          -- network + write lag
+    flush_lag,          -- network + write + flush lag
+    replay_lag          -- total lag before standby is current
+FROM pg_stat_replication;</pre>
+            </section>
+
+            <!-- SECTION 3 -->
+            <section id="sec-3">
+                <h1>3. The Demo — Step by Step</h1>
+
+                <h2>3.1 — Setup: Two PostgreSQL Instances (Master + Standby)</h2>
+
+                <h3>Step 1: Create folder structure</h3>
+                <pre class="code-block">mkdir -p ~/replication
+# Will hold: master_data/ and standby_data/ — PostgreSQL data directories</pre>
+
+                <h3>Step 2: Start Master container</h3>
+                <pre class="code-block">docker run \
+  --name p_master \
+  -p 5432:5432 \
+  -v ~/replication/master_data:/var/lib/postgresql/data \
+  -e POSTGRES_PASSWORD=postgres \
+  -d postgres:13
+
+# Verify running:
+docker logs p_master
+# Should show: "database system is ready to accept connections"</pre>
+
+                <h3>Step 3: Start Standby container</h3>
+                <pre class="code-block">docker run \
+  --name p_standby \
+  -p 5433:5432 \
+  -v ~/replication/standby_data:/var/lib/postgresql/data \
+  -e POSTGRES_PASSWORD=postgres \
+  -d postgres:13</pre>
+                <p>At this point: two completely independent PostgreSQL instances with <strong>no replication</strong>. Their data directories are different — this must be fixed.</p>
+
+                <h3>Step 4: Stop both instances</h3>
+                <pre class="code-block">docker stop p_master p_standby
+# Must stop to safely copy data files</pre>
+
+                <h3>Step 5: Copy master data directory to standby</h3>
+                <pre class="code-block"># Back up original standby data
+mv ~/replication/standby_data ~/replication/standby_data_backup
+
+# Copy master data directory to standby location
+# -r = recursive (copy entire directory tree)
+cp -r ~/replication/master_data ~/replication/standby_data
+
+# Why: Replication requires the standby to start with an IDENTICAL
+# copy of the master's data. If the data files are different,
+# the WAL stream cannot be applied correctly → replication errors.</pre>
+
+                <h3>Step 6: Configure Master — Allow replication connections</h3>
+                <pre class="code-block"># Edit the pg_hba.conf in master's data directory
+vim ~/replication/master_data/pg_hba.conf
+
+# Add this line at the end:
+# TYPE    DATABASE      USER        ADDRESS        METHOD
+host      replication   postgres    all            md5
+
+# This allows: any host to connect to master AS the postgres user
+# in "replication" mode using MD5 password authentication.
+# Production: use a dedicated replication user, restrict to specific IP.</pre>
+
+                <pre class="code-block"># Edit postgresql.conf on master:
+vim ~/replication/master_data/postgresql.conf
+
+# Add/uncomment this line:
+synchronous_standby_names = 'FIRST 1 (standby1)'
+
+# Meaning: before returning COMMIT to client, wait for at least 1
+# of the listed standbys ("standby1") to confirm receipt of WAL.
+# "standby1" is the application_name we'll configure in the standby.</pre>
+
+                <h3>Step 7: Configure Standby — Connect to master</h3>
+                <pre class="code-block"># Edit postgresql.conf on STANDBY:
+vim ~/replication/standby_data/postgresql.conf
+
+# Add/uncomment this line:
+primary_conninfo = 'application_name=standby1 host=localhost port=5432 user=postgres password=postgres'
+
+# application_name=standby1: must match what master expects in synchronous_standby_names
+# host=localhost: master is on the same machine (exposed via docker -p 5432:5432)
+# port=5432: master's exposed port
+# user/password: replication authentication (use dedicated user in production)</pre>
+
+                <pre class="code-block"># Create the standby.signal file in standby's data directory:
+touch ~/replication/standby_data/standby.signal
+
+# This file tells PostgreSQL: "run this instance as a standby replica, not a primary."
+# Without this file, PostgreSQL would start as another independent primary.
+# The file can be empty — its mere presence triggers standby mode.</pre>
+
+                <h3>Step 8: Start both instances</h3>
+                <pre class="code-block">docker start p_master p_standby
+
+# Check master logs:
+docker logs p_master
+# Should show: "standby1 is now a synchronous standby with priority 1"
+
+# Check standby logs:
+docker logs p_standby
+# Should show: "started streaming WAL from the primary"</pre>
+
+                <h3>Step 9: Verify replication is working</h3>
+                <pre class="code-block"># Connect to MASTER:
+docker exec -it p_master psql -U postgres
+
+# Check replication status:
+SELECT application_name, state, sync_state, replay_lag
+FROM pg_stat_replication;
+# → Row for "standby1", state="streaming", sync_state="sync"
+# Empty result = replication not working</pre>
+
+                <pre class="code-block"># Connect to STANDBY:
+docker exec -it p_standby psql -U postgres</pre>
+
+                <h3>Step 10: Test replication</h3>
+                <pre class="code-block">-- On MASTER: Create table
+CREATE TABLE test (id INTEGER, t VARCHAR(200));
+
+-- On STANDBY: Table appears automatically
+\d test
+-- → Shows the table (received via WAL)
+
+-- On MASTER: Insert data
+INSERT INTO test (id, t)
+SELECT FLOOR(RANDOM() * 1000), RANDOM()::TEXT
+FROM GENERATE_SERIES(1, 10000);
+
+-- On STANDBY: Data appears
+SELECT COUNT(*) FROM test;
+-- → 10000 (or appearing rapidly)
+
+-- On STANDBY: Try to write (will FAIL — read-only)
+CREATE TABLE test2 (id INTEGER);
+-- ERROR: cannot execute CREATE TABLE in a read-only transaction
+
+-- On MASTER: Schema change propagates
+ALTER TABLE test ADD COLUMN g INTEGER;
+
+-- On STANDBY: Column appears
+\d test
+-- → Shows id, t, g columns</pre>
+            </section>
+
+            <!-- SECTION 4 -->
+            <section id="sec-4">
+                <h1>4. Java Application Integration</h1>
+
+                <h2>Read/Write Routing Pattern</h2>
+                <p>In a replicated setup, the application must route writes to the primary and reads to replicas.</p>
+
+                <pre class="code-block">import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+
+/**
+ * ReplicationAwareDataSource routes queries to the correct node:
+ *   - Writes (INSERT, UPDATE, DELETE, DDL) → Primary only
+ *   - Reads (SELECT) → Any replica (round-robin load balancing)
+ *
+ * In production: use a proxy like PgBouncer, HAProxy, or AWS RDS Proxy
+ * instead of implementing this in application code.
+ */
+public class ReplicationAwareDataSource {
+
+    // Primary — accepts all writes and reads
+    private final JdbcTemplate primary;
+
+    // Read replicas — reads only, load balanced
+    private final List&lt;JdbcTemplate&gt; replicas;
+    private final AtomicInteger replicaIndex = new AtomicInteger(0);
+
+    public ReplicationAwareDataSource() {
+        // Primary connection (master)
+        this.primary = createJdbcTemplate("localhost", 5432);
+
+        // Replica connections (standbys)
+        this.replicas = List.of(
+            createJdbcTemplate("localhost", 5433),  // Standby 1
+            createJdbcTemplate("localhost", 5434)   // Standby 2 (if present)
+        );
+    }
+
+    /**
+     * Get the primary JdbcTemplate for write operations.
+     * ALL writes must go here.
+     */
+    public JdbcTemplate getPrimary() {
+        return primary;
+    }
+
+    /**
+     * Get a replica JdbcTemplate for read operations.
+     * Round-robin load balancing across replicas.
+     *
+     * If no replicas available, falls back to primary.
+     */
+    public JdbcTemplate getReplica() {
+        if (replicas.isEmpty()) {
+            return primary;  // Fallback to primary
+        }
+        // Round-robin: 0, 1, 0, 1, 0, 1, ...
+        int index = replicaIndex.getAndIncrement() % replicas.size();
+        return replicas.get(index);
+    }
+
+    private JdbcTemplate createJdbcTemplate(String host, int port) {
+        DriverManagerDataSource ds = new DriverManagerDataSource();
+        ds.setUrl("jdbc:postgresql://" + host + ":" + port + "/postgres");
+        ds.setUsername("postgres");
+        ds.setPassword("postgres");
+        return new JdbcTemplate(ds);
+    }
+}</pre>
+
+                <pre class="code-block">/**
+ * UserService demonstrates write-to-primary, read-from-replica routing.
+ */
+@Service
+public class UserService {
+
+    private final ReplicationAwareDataSource dataSource;
+
+    public UserService(ReplicationAwareDataSource dataSource) {
+        this.dataSource = dataSource;
+    }
+
+    /**
+     * WRITE operation → always uses PRIMARY.
+     * If sent to a replica: ERROR "cannot execute INSERT in a read-only transaction"
+     */
+    public void createUser(String name, String email) {
+        dataSource.getPrimary().update(
+            "INSERT INTO users(name, email) VALUES(?, ?)",
+            name, email
+        );
+        // Write is:
+        // 1. Applied to primary's WAL
+        // 2. (Sync) Confirmed by standby before returning
+        // 3. (Async) Returned immediately; standby applies later
+    }
+
+    /**
+     * READ operation → routes to a replica.
+     * Replica may be slightly behind primary (async replication lag).
+     * Acceptable for: profile views, feeds, search, analytics.
+     * NOT acceptable for: "read your own write" scenarios.
+     */
+    public List&lt;Map&lt;String, Object&gt;&gt; searchUsers(String namePrefix) {
+        return dataSource.getReplica().queryForList(
+            "SELECT id, name, email FROM users WHERE name LIKE ?",
+            namePrefix + "%"
+        );
+    }
+
+    /**
+     * READ YOUR OWN WRITE pattern — use primary for reads immediately
+     * after a write to guarantee you see what you just wrote.
+     *
+     * Example: after updating profile, redirect to profile page —
+     * that read should go to primary to avoid seeing stale data.
+     */
+    public Map&lt;String, Object&gt; getUserAfterUpdate(long userId) {
+        // Must read from primary — replica may not have applied the update yet
+        return dataSource.getPrimary().queryForMap(
+            "SELECT * FROM users WHERE id = ?",
+            userId
+        );
+    }
+}</pre>
+
+                <h2>Monitoring Replication Lag in Java</h2>
+                <pre class="code-block">/**
+ * ReplicationMonitor checks replication health and lag.
+ * Run periodically (every 30 seconds) to detect replication issues.
+ */
+@Component
+public class ReplicationMonitor {
+
+    private final JdbcTemplate primary;
+
+    @Scheduled(fixedRate = 30_000)
+    public void checkReplicationHealth() {
+        List&lt;Map&lt;String, Object&gt;&gt; replicas = primary.queryForList("""
+            SELECT
+                application_name,
+                state,
+                sync_state,
+                write_lag,
+                flush_lag,
+                replay_lag,
+                pg_size_pretty(pg_wal_lsn_diff(sent_lsn, replay_lsn)) AS lag_size
+            FROM pg_stat_replication
+            ORDER BY replay_lag DESC
+            """);
+
+        if (replicas.isEmpty()) {
+            log.error("CRITICAL: No standbys connected to primary! Replication may be broken.");
+            // Alert: PagerDuty / Slack / email
+            return;
+        }
+
+        for (Map&lt;String, Object&gt; replica : replicas) {
+            String name = (String) replica.get("application_name");
+            Object replayLag = replica.get("replay_lag");
+
+            log.info("Replica {}: state={}, sync={}, replay_lag={}",
+                name,
+                replica.get("state"),
+                replica.get("sync_state"),
+                replayLag
+            );
+
+            // Alert if replica is significantly behind
+            // In production: parse the interval and threshold
+            // Example threshold: lag > 10 seconds → alert
+        }
+    }
+}</pre>
+            </section>
+
+            <!-- SECTION 5 -->
+            <section id="sec-5">
+                <h1>5. Pros and Cons of Replication</h1>
+
+                <h2>Pros</h2>
+
+                <h3>1. Horizontal Read Scalability</h3>
+                <pre class="code-block">Without replicas: All reads + writes → single server
+  Server handles: 10,000 reads/sec + 1,000 writes/sec
+
+With 3 read replicas: Reads distributed across 4 nodes
+  Primary: 1,000 writes/sec + ~2,500 reads/sec (25% of reads)
+  Replica 1: ~2,500 reads/sec
+  Replica 2: ~2,500 reads/sec
+  Replica 3: ~2,500 reads/sec
+  Total read capacity: ~10,000 reads/sec on primary → ~40,000 reads/sec</pre>
+
+                <h3>2. Fault Tolerance / High Availability</h3>
+                <p>If the primary fails, a standby can be promoted to primary. Read traffic continues on surviving replicas during failover.</p>
+                <pre class="code-block">Failure scenario:
+  Primary dies at 14:32:05
+  Ops/automation detects failure by 14:32:10 (5 seconds)
+  Standby 1 promoted to primary by 14:32:15 (10 seconds total)
+  Application reconnects to new primary by 14:32:20
+
+Result: ~15 seconds of write unavailability, reads continue on other standbys.</pre>
+
+                <h3>3. Region-Based Query Routing</h3>
+                <pre class="code-block">Architecture:
+  Primary:   AWS us-east-1 (Virginia)   — handles writes from all regions
+  Standby 1: AWS eu-west-1 (Ireland)    — handles reads for European users
+  Standby 2: AWS ap-southeast-1 (Singapore) — handles reads for Asian users
+
+European user reads their profile:
+  → Request goes to eu-west-1 standby (< 10ms latency)
+  vs → Request goes to us-east-1 primary (> 100ms latency)
+
+Result: 10× better read latency for European users.
+Trade-off: European users may see writes committed 50-200ms after they happen
+           (asynchronous replication lag across regions).</pre>
+
+                <h3>4. Backup Without Impacting Primary</h3>
+                <pre class="code-block">-- Run pg_dump against a replica, not the primary
+-- This avoids placing I/O load from backup on the primary
+pg_dump -h replica-host -p 5433 -U postgres mydb > backup.sql
+
+-- Run long analytical queries against replica
+SELECT region, SUM(revenue) FROM orders
+GROUP BY region;
+-- → Runs on replica, doesn't slow down primary serving user traffic</pre>
+
+                <h2>Cons</h2>
+
+                <h3>1. Eventual Consistency</h3>
+                <pre class="code-block">Timeline (asynchronous replication, 50ms lag):
+
+T=0ms:  User submits a post (write to primary)
+T=0ms:  Primary commits → returns OK to user
+T=50ms: WAL propagated to replica
+T=51ms: User refreshes their feed (read from replica)
+         → Post NOT visible yet (replica 1ms behind)
+T=100ms: User refreshes again
+          → Post NOW visible (replica caught up)
+
+This is "eventual consistency." The data will be consistent, eventually.</pre>
+
+                <p><strong>When this is acceptable:</strong></p>
+                <ul>
+                    <li>Social media likes, follower counts</li>
+                    <li>Product view counts</li>
+                    <li>Comment counts</li>
+                    <li>Any metric where slight delay is imperceptible</li>
+                </ul>
+
+                <p><strong>When this is NOT acceptable:</strong></p>
+                <ul>
+                    <li>Bank balance after a transfer</li>
+                    <li>Inventory count after a purchase</li>
+                    <li>Order status after payment</li>
+                    <li>Any "read your own write" scenario</li>
+                </ul>
+
+                <h3>2. Slower Writes (Synchronous Mode)</h3>
+                <pre class="code-block">Synchronous replication write latency breakdown:
+
+                  Master write:   5ms
+            Network to standby:   3ms  (same data center)
+               Standby write:     4ms
+            ACK back to master:   3ms  (same data center)
+                               ──────
+              Total for client:  15ms  vs 5ms without sync replication
+
+With cross-region standbys (US-East → EU-West):
+              Network (one way):  100ms
+              Network (return):   100ms
+              Total overhead:    200ms+ per write!
+
+This is why synchronous replication to remote regions is almost never used.
+Typical setup: synchronous to same-DC standby, async to remote replicas.</pre>
+
+                <h3>3. Multi-Master Conflict Resolution Complexity</h3>
+                <pre class="code-block">Conflict scenario:
+
+T=0:   User changes email to "alice@gmail.com" on Master 1 (US-East)
+T=0:   Same user changes email to "alice@yahoo.com" on Master 2 (US-West)
+       (Both happen at the same millisecond — network partition)
+T=5ms: Masters sync. CONFLICT: which email is correct?
+
+Resolution strategies:
+  Last-Write-Wins (LWW): Use timestamp → but clocks are never perfectly synchronized
+  Application logic: Route all writes for user X to Master 1 (defeats the purpose)
+  CRDTs: Special data structures that merge automatically (complex, limited types)
+  User resolution: Ask the user → unacceptable UX
+
+No perfect solution. This is why multi-master is avoided.</pre>
+
+                <h3>4. Replication Lag Under Heavy Write Load</h3>
+                <pre class="code-block">Problem: Primary is processing 50,000 writes/second.
+         Standby can only apply 40,000 WAL records/second.
+         Lag grows by 10,000 records/second.
+
+After 1 minute: 600,000 records of lag.
+After 1 hour: 36,000,000 records of lag.
+
+The standby is now 1 hour behind the primary.
+Reads from standby return data that is 1 hour stale.
+
+Mitigation:
+  - Synchronous replication: forces standby to keep up (at cost of write speed)
+  - More powerful standby hardware
+  - Reduce write load (caching, batching)
+  - Multiple standbys each handling a subset of WAL</pre>
+            </section>
+
+            <!-- SECTION 6 -->
+            <section id="sec-6">
+                <h1>6. Replication vs Other Scaling Techniques</h1>
+
+                <h2>Complete Scaling Strategy (The Right Order)</h2>
+                <pre class="code-block">Step 1: Single server + indexes
+        Handles: read-heavy, < 1M rows, < 1,000 concurrent users
+
+Step 2: Single server + indexes + partitioning
+        Handles: > 10M rows, index doesn't fit in RAM
+
+Step 3: Single primary + read replicas
+        Handles: read-heavy (90%+ reads), global user base
+        Cost: eventual consistency for reads
+
+Step 4: Single primary + replicas + caching (Redis)
+        Handles: extremely hot reads (same data read millions of times)
+        Cost: cache invalidation complexity
+
+Step 5: Multi-master replication (same region)
+        Handles: write-heavy, acceptable conflict resolution
+        Cost: conflict resolution logic
+
+Step 6: Sharding
+        Handles: write throughput beyond any single server
+        Cost: no cross-shard ACID, no JOINs, massive complexity</pre>
+            </section>
+
+            <!-- SECTION 7 -->
+            <section id="sec-7">
+                <h1>7. Key Configuration Reference (PostgreSQL)</h1>
+
+                <h2>Master postgresql.conf</h2>
+                <pre class="code-block"># Enable WAL replication
+wal_level = replica          # Minimum for streaming replication
+                              # Options: minimal, replica, logical
+
+max_wal_senders = 10         # Max number of standby connections
+                              # Set to at least the number of standbys + 1
+
+wal_keep_size = 1GB          # Keep at least 1GB of WAL on disk
+                              # Prevents standbys from falling too far behind
+                              # and losing their replication slot
+
+# Synchronous replication config
+# FIRST 1: wait for the highest-priority standby
+# ANY 2: wait for any 2 standbys
+# '' (empty): asynchronous mode (default)
+synchronous_standby_names = 'FIRST 1 (standby1, standby2)'</pre>
+
+                <h2>Master pg_hba.conf</h2>
+                <pre class="code-block"># Allow standby servers to connect for replication
+# In production: replace 'all' with the specific standby IP/subnet
+host    replication    replication_user    0.0.0.0/0    md5</pre>
+
+                <h2>Standby postgresql.conf</h2>
+                <pre class="code-block"># Connection string to primary
+# application_name: must match what master expects in synchronous_standby_names
+primary_conninfo = 'application_name=standby1 host=primary-host port=5432 user=replication_user password=secret'
+
+# How far standby can lag before it pauses (optional safety valve)
+# recovery_min_apply_delay = '30s'  # Delayed standby (useful for human error recovery)</pre>
+
+                <h2>standby.signal</h2>
+                <pre class="code-block"># Simply create this empty file in the standby's data directory:
+touch /var/lib/postgresql/data/standby.signal
+
+# This is the ONLY trigger needed to start PostgreSQL in standby mode.
+# Without it, the instance starts as an independent primary.
+# When standby is promoted to primary, this file is automatically removed.</pre>
+
+                <h2>Monitoring Queries</h2>
+                <pre class="code-block">-- On PRIMARY: Check connected standbys and their lag
+SELECT
+    application_name,
+    state,          -- 'streaming' = active, 'catchup' = falling behind
+    sync_state,     -- 'sync', 'async', 'potential'
+    write_lag,      -- Time for WAL to reach standby
+    flush_lag,      -- Time for WAL to be flushed to standby disk
+    replay_lag,     -- Time for WAL to be applied on standby
+    pg_size_pretty(
+        pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn)
+    ) AS bytes_behind
+FROM pg_stat_replication;
+
+-- On STANDBY: Check own replication status
+SELECT
+    status,
+    receive_start_lsn,
+    received_lsn,
+    last_msg_send_time,
+    last_msg_receipt_time,
+    latest_end_lsn,
+    latest_end_time
+FROM pg_stat_wal_receiver;
+
+-- Check if this instance is primary or standby
+SELECT pg_is_in_recovery();
+-- → true  = this is a standby
+-- → false = this is a primary</pre>
+            </section>
+
+            <!-- SECTION 8 -->
+            <section id="sec-8">
+                <h1>8. Important Interview Questions</h1>
+
+                <h2>Basic</h2>
+                <p><strong>Q: What is database replication?</strong><br>
+                A: Replication is the process of continuously copying data from one database server (the primary/master) to one or more other servers (standbys/replicas). It ensures multiple servers hold the same data, providing redundancy against failure, distributing read load across replicas, and enabling geographic distribution of data.</p>
+
+                <p><strong>Q: What is the difference between master-standby and multi-master replication?</strong><br>
+                A: In master-standby, only the primary accepts writes. Standbys are read-only and receive writes from the primary via WAL streaming. No conflicts are possible — simple and reliable. In multi-master, multiple nodes accept writes simultaneously. Conflicts (same row updated differently on two masters) are unavoidable and require complex conflict resolution logic. Most systems avoid multi-master due to this complexity.</p>
+
+                <p><strong>Q: What is the difference between synchronous and asynchronous replication?</strong><br>
+                A: Synchronous: the client's write transaction doesn't complete until at least one standby confirms receipt of the WAL. Zero data loss, strong consistency, higher write latency. Asynchronous: the client's write completes on the primary immediately; standbys receive WAL in the background. Lower write latency, potential data loss if primary fails before WAL is propagated, eventual consistency on standbys.</p>
+
+                <p><strong>Q: What is a standby.signal file in PostgreSQL?</strong><br>
+                A: An empty file placed in the PostgreSQL data directory that signals the instance to start in standby (read-only replica) mode instead of as an independent primary. Its presence alone triggers standby behavior — the file content doesn't matter. When the standby is promoted to primary, PostgreSQL automatically removes this file.</p>
+
+                <p><strong>Q: What is WAL and how does it enable replication?</strong><br>
+                A: WAL (Write-Ahead Log) is PostgreSQL's durability mechanism. Every data modification is first written to the WAL before being applied to data files. For replication, the master streams its WAL to standbys over a TCP connection. Standbys replay the WAL in order, applying the same changes to their own data files. The result: standbys maintain a byte-for-byte copy of the master's data, slightly delayed by network and processing time.</p>
+
+                <h2>Intermediate</h2>
+                <p><strong>Q: A client writes a record and immediately reads it back. With asynchronous replication, what can go wrong, and how do you fix it?</strong><br>
+                A: The read may be routed to a replica that hasn't yet applied the WAL for that write. The client sees stale data — the record they just wrote appears not to exist. This is the "read your own write" problem. Solutions: (1) Route the read to the primary (always up-to-date). (2) Sticky sessions — route all requests from a given user to the same replica for a time window. (3) Include a write timestamp in the response; replica checks if it has applied WAL up to that timestamp before serving the read. Option 1 is simplest and most reliable.</p>
+
+                <p><strong>Q: In the demo, why was it necessary to copy the master's data directory to the standby before starting replication?</strong><br>
+                A: PostgreSQL WAL streaming replication works by the standby applying WAL records on top of an existing identical baseline. The WAL records describe byte-level changes ("write bytes X at page Y"). If the standby's data files don't match the master's baseline, the WAL operations produce incorrect results — like applying a diff to the wrong version of a file. The initial data copy ensures both instances start from the same state. In production, this is done with <span class="inline-code">pg_basebackup</span> instead of a filesystem copy (safe for live systems).</p>
+
+                <p><strong>Q: What does <span class="inline-code">synchronous_standby_names = 'FIRST 1 (standby1, standby2)'</span> mean?</strong><br>
+                A: It tells the master: before returning a commit to the client, wait for at least 1 of the listed standbys (in priority order: standby1 first, standby2 as fallback) to confirm receipt and write of the WAL. <span class="inline-code">FIRST 1</span> means the highest-priority available standby. If you wrote <span class="inline-code">ANY 2</span>, any 2 of the listed standbys must confirm. The <span class="inline-code">application_name</span> in each standby's <span class="inline-code">primary_conninfo</span> must match the names listed here.</p>
+
+                <p><strong>Q: What is replication lag and what causes it?</strong><br>
+                A: Replication lag is how far a standby is behind the primary in applying WAL changes. Causes: (1) Network latency between primary and standby. (2) Standby disk I/O can't keep up with primary's write rate. (3) Standby CPU overloaded (running heavy queries while applying WAL). (4) Network packet loss or disconnection requiring re-connection. Consequences: stale reads from standbys, potential data loss window on failover (larger lag = more potential data loss).</p>
+
+                <h2>Advanced</h2>
+                <p><strong>Q: Walk through exactly what happens — at the WAL level — when a transaction commits in synchronous replication mode.</strong><br>
+                A: (1) Client sends COMMIT. (2) Primary writes WAL record for the transaction to WAL buffer. (3) Primary flushes WAL buffer to WAL file on disk (durability on primary). (4) Primary sends WAL record to standby(s) over the walsender process via TCP. (5) Standby's walreceiver process receives WAL, writes it to standby WAL buffer, flushes to standby WAL file, sends ACK to primary. (6) Primary's walsender receives ACK, updates <span class="inline-code">flush_lsn</span> in <span class="inline-code">pg_stat_replication</span>. (7) Primary checks if the synchronous commit condition is satisfied (e.g., FIRST 1 ACK received). (8) Primary returns COMMIT success to client. Only now is the client unblocked.</p>
+
+                <p><strong>Q: Design the replication topology for a global e-commerce platform (write-heavy checkout, read-heavy browse, EU GDPR requirements, 99.99% uptime SLA).</strong><br>
+                A:<br>
+                - <strong>Primary</strong>: AWS us-east-1, handles all writes globally<br>
+                - <strong>Synchronous standby</strong>: AWS us-east-1b (same region, different AZ) — zero data loss on primary failure, sub-millisecond lag, auto-failover<br>
+                - <strong>Asynchronous read replicas</strong>: us-west-2 (West Coast users), eu-west-1 (EU users — also satisfies GDPR data residency for EU customer reads), ap-southeast-1 (Asia users)<br>
+                - <strong>GDPR compliance</strong>: EU customer writes still go to us-east-1 primary; a separate EU-only cluster with its own primary handles EU customer data for full GDPR isolation (data never leaves EU)<br>
+                - <strong>Read routing</strong>: Application uses PgBouncer connection pooler; reads for browsing, search, recommendations go to nearest replica; checkout reads (inventory, price) go to primary<br>
+                - <strong>Failover</strong>: Patroni (or AWS RDS Multi-AZ) monitors primary; promotes synchronous standby in &lt;30 seconds; DNS failover redirects application connections</p>
+
+                <p><strong>Q: What are the database-level implications of promoting a standby to primary?</strong><br>
+                A: (1) <span class="inline-code">standby.signal</span> file is removed from the data directory — instance transitions from recovery mode to primary mode. (2) PostgreSQL begins accepting write transactions. (3) The old primary (if it recovers) must be fenced — otherwise you have split-brain (two nodes believing they are primary). (4) The promoted standby may have slightly less data than the original primary if async replication had lag — this data is permanently lost. (5) Other standbys must be reconfigured to follow the new primary (update <span class="inline-code">primary_conninfo</span>). (6) In Postgres 12+, <span class="inline-code">pg_promote()</span> function can trigger promotion from within a SQL session. In production: use Patroni, Repmgr, or cloud provider automation (AWS RDS Multi-AZ) to handle this automatically.</p>
+            </section>
+
+            <!-- SECTION 9 -->
+            <section id="sec-9">
+                <h1>9. Common Mistakes</h1>
+
+                <h2>Beginner Mistakes</h2>
+                <ul>
+                    <li><strong>Reading from primary for everything</strong>: defeats the purpose of read replicas; all read load still falls on primary</li>
+                    <li><strong>Not monitoring replication lag</strong>: replicas fall behind silently; users see increasingly stale data without any alert</li>
+                    <li><strong>Using the postgres superuser for replication</strong>: security risk — create a dedicated replication user with only REPLICATION privilege
+<pre class="code-block">CREATE USER replicator WITH REPLICATION LOGIN PASSWORD 'strong_password';</pre>
+                    </li>
+                </ul>
+
+                <h2>Backend Engineer Mistakes</h2>
+                <ul>
+                    <li><strong>Routing writes to replicas</strong>: <span class="inline-code">ERROR: cannot execute INSERT in a read-only transaction</span> — entire feature breaks</li>
+                    <li><strong>"Read your own write" without sticky primary</strong>: user submits a form, immediately sees the old value because the read hit a lagging replica</li>
+                    <li><strong>Not handling replica unavailability</strong>: if a replica goes down, application must fall back to primary for reads — hardcoded replica connections cause failures</li>
+                    <li><strong>Assuming synchronous replication = zero performance impact</strong>: synchronous replication to a same-DC standby adds ~5-15ms. To a cross-region standby, it adds 100-300ms per write — absolutely unacceptable for interactive applications</li>
+                </ul>
+
+                <h2>Production Mistakes</h2>
+                <ul>
+                    <li><strong><span class="inline-code">wal_keep_size</span> too small</strong>: if a standby disconnects briefly and reconnects, the WAL segment it needs may have already been recycled — standby must be rebuilt from scratch</li>
+                    <li><strong>No automated failover</strong>: primary fails at 3 AM; engineers manually promote a standby 45 minutes later — 45 minutes of downtime. Use Patroni, Repmgr, or cloud-managed replication (RDS Multi-AZ, Cloud SQL HA)</li>
+                    <li><strong>Not testing failover</strong>: replication looks healthy on dashboards but the failover procedure has never been practiced — when primary actually fails, the process breaks</li>
+                    <li><strong>Forgetting to fence the old primary</strong>: after promoting a standby, the original primary recovers and starts accepting writes again — split-brain, data divergence, potential data loss and corruption</li>
+                    <li><strong>Using replication as a backup strategy</strong>: replication propagates DELETE, TRUNCATE, and DROP TABLE immediately to all replicas — a human error deleting a table is replicated in milliseconds. Replication ≠ backup. Always maintain point-in-time recovery (PITR) backups separately.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 10 -->
+            <section id="sec-10">
+                <h1>10. Performance & Scalability Notes</h1>
+
+                <h2>Read Scalability with Replicas</h2>
+                <pre class="code-block">Single server capacity (8-core, 64GB RAM, NVMe SSD):
+  Read throughput:  ~50,000 queries/second
+  Write throughput: ~10,000 writes/second
+
+With 5 read replicas (reads distributed):
+  Read throughput:  ~250,000 queries/second (5×)
+  Write throughput: ~10,000 writes/second (unchanged — writes still to single primary)
+  Primary read load: reduced by ~80% (reads go to replicas)
+
+Important: write throughput does NOT scale with replicas.
+For write scale → sharding (much more complex).</pre>
+
+                <h2>Replication Lag Budget</h2>
+                <pre class="code-block">Acceptable lag depends on use case:
+
+Use case                     Max acceptable lag
+────────────────────────────────────────────────
+Social media feed             5 seconds
+Product catalog               1 second
+Inventory count (high-value)  100 milliseconds
+Bank balance                  0 (use primary)
+Order status after payment    0 (use primary)
+Analytics dashboard           5 minutes
+
+Design your routing strategy based on acceptable lag per query type.</pre>
+
+                <h2>WAL Volume and Network</h2>
+                <pre class="code-block">Write-heavy workload: 10,000 rows/second
+Typical WAL record size: ~100 bytes per row change
+WAL generated: ~1 MB/second
+
+Network requirements for WAL streaming:
+  Same data center:  1 MB/s easily handled
+  Cross-region:      1 MB/s = ~8 Mbps (fine on 1Gbps links)
+  
+Spike workload: 100,000 rows/second
+WAL generated: ~10 MB/second
+Cross-region: ~80 Mbps — monitor network utilization</pre>
+            </section>
+
+            <!-- SECTION 11 -->
+            <section id="sec-11">
+                <h1>11. System Design Connections</h1>
+
+                <h2>Replication + Load Balancing</h2>
+                <pre class="code-block">Application → PgBouncer/HAProxy → Primary (writes)
+                                → Replica 1 (reads)
+                                → Replica 2 (reads)
+                                → Replica 3 (reads)
+
+HAProxy health check: SELECT pg_is_in_recovery()
+→ false = primary (route writes here)
+→ true  = standby (route reads here)</pre>
+
+                <h2>Replication + Caching</h2>
+                <pre class="code-block">Hot data path (social media likes):
+
+Write:  App → Primary → [replicated] → Replicas
+              Also invalidate Redis cache key
+
+Read:   App → Redis cache → HIT: return cached value (fastest)
+                           → MISS: read from Replica → cache in Redis
+
+Result:
+  Redis handles 99% of reads (microseconds)
+  Replicas handle cache misses (milliseconds)
+  Primary handles writes only</pre>
+
+                <h2>Replication + Failover Automation (Patroni)</h2>
+                <pre class="code-block">Patroni topology:
+
+  ┌──────────────────────────────────────────────┐
+  │  etcd cluster (distributed configuration)    │
+  │  Stores: who is primary, health status        │
+  └──────────────────────────────────────────────┘
+              ↑ heartbeat every 10s
+  ┌───────────┼────────────────────────────┐
+  │           │                            │
+  ┌───▼─────────────┐         ┌────────────▼───┐
+  │  Patroni + PG   │         │  Patroni + PG  │
+  │  (Primary)      │         │  (Standby)     │
+  └─────────────────┘         └────────────────┘
+
+Primary fails → etcd loses heartbeat after 30s
+→ Patroni on standby promotes itself
+→ Updates etcd: "I am now primary"
+→ HAProxy re-reads etcd → routes writes to new primary
+→ Total failover time: 30-60 seconds, automatic</pre>
+            </section>
+
+            <!-- SECTION 12 -->
+            <section id="sec-12">
+                <h1>12. Visual Mental Models</h1>
+
+                <pre class="code-block">MASTER-STANDBY REPLICATION (Sync):
+
+Client
+  │
+  │ 1. INSERT INTO orders VALUES(...)
+  ▼
+PRIMARY (port 5432)
+  │ 2. Write to WAL buffer
+  │ 3. Flush WAL to disk (durable on primary)
+  │ 4. Stream WAL to standby
+  ├────────────────────────────────→ STANDBY 1 (port 5433)
+  │                                      │
+  │                                      │ 5. Write WAL to standby disk
+  │ ←────────────────── ACK ────────────│
+  │ 6. COMMIT returned to client
+  ▼
+Client receives: COMMIT SUCCESS
+(Data now on primary disk AND standby disk)
+
+
+ASYNC REPLICATION:
+
+Client
+  │
+  │ 1. INSERT INTO orders VALUES(...)
+  ▼
+PRIMARY (port 5432)
+  │ 2. Write to WAL buffer
+  │ 3. Flush WAL to disk
+  │ 4. COMMIT returned to client IMMEDIATELY
+  ▼
+Client receives: COMMIT SUCCESS (before standby has anything)
+  
+  Background (after client is done):
+PRIMARY ──────── WAL stream ──────→ STANDBY 1
+                                    (50ms later)
+
+
+READ ROUTING:
+
+           ┌──────── WRITE ─────────→ PRIMARY ─────── WAL ──→ STANDBY 1
+Client ────┤                                                       │
+           └──────── READ ──────────→ STANDBY 1                  │
+                     (may lag        (gives result              (lag)
+                      50ms)           50ms stale)</pre>
+            </section>
+
+            <!-- SECTION 13 -->
+            <section id="sec-13">
+                <h1>13. Revision Notes — One Page</h1>
+                <pre class="code-block bg-blue-900 border border-blue-800 text-blue-50 shadow-md">┌──────────────────────────────────────────────────────────────────────┐
+│              DATABASE REPLICATION CHEAT SHEET                        │
+├──────────────────────────────────────────────────────────────────────┤
+│  WHY:                                                                │
+│  Reliability (survive failure) + Fault Tolerance + Scalability       │
+├──────────────────────────────────────────────────────────────────────┤
+│  MASTER-STANDBY (preferred):                                         │
+│  • One primary accepts ALL writes (INSERT/UPDATE/DELETE/DDL)         │
+│  • Standbys receive WAL, apply changes, are READ-ONLY               │
+│  • Client reads can go to primary (fresh) OR standbys (may lag)      │
+│  • No conflicts possible. Simple. Reliable.                          │
+│  • Scales reads horizontally. Does NOT scale writes.                 │
+├──────────────────────────────────────────────────────────────────────┤
+│  MULTI-MASTER (avoid if possible):                                   │
+│  • Multiple nodes accept writes simultaneously                       │
+│  • Write conflicts are unavoidable → need conflict resolution        │
+│  • Extremely complex. Use only when single-master write throughput    │
+│    is genuinely exhausted AND geographic write locality is required. │
+├──────────────────────────────────────────────────────────────────────┤
+│  SYNCHRONOUS REPLICATION:                                            │
+│  • Client waits for standby ACK before COMMIT returns               │
+│  • Zero data loss (RPO=0). Strong consistency. Slower writes.        │
+│  • Use for: banking, healthcare, any zero-data-loss requirement      │
+│  • Config: synchronous_standby_names = 'FIRST 1 (standby1)'         │
+│                                                                      │
+│  ASYNCHRONOUS REPLICATION:                                           │
+│  • COMMIT returns to client immediately. WAL sent in background.     │
+│  • Potential data loss. Eventual consistency. Fast writes.           │
+│  • Use for: social media, analytics, CDN, most web apps             │
+│  • Default in PostgreSQL (synchronous_standby_names = '')            │
+├──────────────────────────────────────────────────────────────────────┤
+│  HOW IT WORKS (PostgreSQL):                                          │
+│  WAL (Write-Ahead Log) = byte-level change records                  │
+│  Primary → WAL stream → Standby → replay WAL → identical data files │
+│  standby.signal file = tells PG to run as standby (read-only)       │
+│  pg_stat_replication = monitor lag, sync state, connected standbys   │
+├──────────────────────────────────────────────────────────────────────┤
+│  PROS:  Read scalability, fault tolerance, geo-distribution          │
+│  CONS:  Eventual consistency (async), slower writes (sync),          │
+│         complex failover, replication ≠ backup                      │
+├──────────────────────────────────────────────────────────────────────┤
+│  JAVA ROUTING PATTERN:                                               │
+│  Writes → primary JdbcTemplate always                                │
+│  Reads  → replica JdbcTemplate (round-robin)                         │
+│  Read-your-own-write → primary after any write                       │
+│  SELECT pg_is_in_recovery() → false=primary, true=standby           │
+├──────────────────────────────────────────────────────────────────────┤
+│  PRODUCTION MUST-HAVES:                                              │
+│  ✅ Dedicated replication user (not postgres superuser)              │
+│  ✅ Monitor replication lag (pg_stat_replication.replay_lag)         │
+│  ✅ Automated failover (Patroni / RDS Multi-AZ)                      │
+│  ✅ Fence old primary after failover (prevent split-brain)           │
+│  ✅ Separate PITR backups (replication ≠ backup)                     │
+│  ✅ wal_keep_size large enough to survive standby reconnection       │
+└──────────────────────────────────────────────────────────────────────┘</pre>
+            </section>
+
+            <footer class="mt-16 pt-8 border-t border-gray-200 text-center text-gray-500 text-sm pb-16">
+                End of Notes — Database Replication
+            </footer>
+        </div>
+    </main>
+
+</body>
+</html>
