@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Engineering Mastery Notes: Multi-Leader Replication (Active-Active)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            color: #111827;
+        }
+        pre {
+            font-family: 'Fira Code', monospace;
+        }
+        .prose h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin-top: 3rem;
+            margin-bottom: 1.5rem;
+            color: #1e3a8a;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        .prose h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: #1f2937;
+        }
+        .prose h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: #374151;
+        }
+        .prose h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: #4b5563;
+        }
+        .prose p {
+            margin-bottom: 1rem;
+            line-height: 1.75;
+            color: #4b5563;
+        }
+        .prose ul, .prose ol {
+            padding-left: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #4b5563;
+        }
+        .prose ul { list-style-type: disc; }
+        .prose ol { list-style-type: decimal; }
+        .prose li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        .prose strong {
+            color: #111827;
+            font-weight: 600;
+        }
+        .prose blockquote {
+            border-left: 4px solid #3b82f6;
+            background-color: #eff6ff;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            font-style: normal;
+            color: #1e40af;
+            border-radius: 0 0.5rem 0.5rem 0;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        .prose table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+            background-color: white;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .prose th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #374151;
+        }
+        .prose td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #4b5563;
+            vertical-align: top;
+        }
+        .prose tr:last-child td {
+            border-bottom: none;
+        }
+        .code-block {
+            background-color: #1f2937;
+            color: #e5e7eb;
+            padding: 1.25rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            white-space: pre;
+        }
+        .inline-code {
+            background-color: #f3f4f6;
+            color: #ef4444;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.875rem;
+        }
+        .nav-link {
+            transition: all 0.2s ease;
+        }
+        .nav-link:hover {
+            color: #2563eb;
+            background-color: #eff6ff;
+            padding-left: 0.5rem;
+        }
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body class="antialiased flex flex-col md:flex-row h-screen overflow-hidden">
+
+    <!-- Sidebar / Table of Contents -->
+    <aside class="w-full md:w-72 bg-white border-r border-gray-200 h-1/4 md:h-full overflow-y-auto flex-shrink-0 z-10 shadow-sm">
+        <div class="p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Contents</h2>
+            
+            <nav class="space-y-1 text-sm font-medium text-gray-600">
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Theory & Architecture</p>
+                <a href="#sec-1" class="block py-1.5 nav-link rounded-md">1. Big Picture</a>
+                <a href="#sec-2" class="block py-1.5 nav-link rounded-md">2. Core Concepts</a>
+                <a href="#sec-3" class="block py-1.5 nav-link rounded-md">3. Trade-offs (Multi-Region)</a>
+                <a href="#sec-4" class="block py-1.5 nav-link rounded-md">4. Topologies</a>
+                <a href="#sec-5" class="block py-1.5 nav-link rounded-md">5. The Causality Anomaly</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Prep & System Design</p>
+                <a href="#sec-6" class="block py-1.5 nav-link rounded-md">6. Practical Perspective</a>
+                <a href="#sec-7" class="block py-1.5 nav-link rounded-md">7. Conflict Resolution</a>
+                <a href="#sec-8" class="block py-1.5 nav-link rounded-md">8. Interview Questions</a>
+                <a href="#sec-9" class="block py-1.5 nav-link rounded-md">9. Common Mistakes</a>
+                <a href="#sec-10" class="block py-1.5 nav-link rounded-md">10. Local-First Architecture</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Review</p>
+                <a href="#sec-11" class="block py-1.5 nav-link rounded-md">11. Visual Mental Models</a>
+                <a href="#sec-12" class="block py-1.5 nav-link rounded-md">12. Failure Analysis Section</a>
+                <a href="#sec-13" class="block py-1.5 nav-link rounded-md">13. Lecture Summary</a>
+                <a href="#sec-14" class="block py-1.5 nav-link rounded-md">14. Revision Notes</a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 h-3/4 md:h-full overflow-y-auto bg-gray-50 p-6 md:p-12 lg:p-16">
+        <div class="max-w-4xl mx-auto prose">
+            
+            <header class="mb-12 text-center md:text-left">
+                <p class="text-blue-600 font-semibold tracking-wide uppercase text-sm mb-2">Target: Senior Backend Engineers, Distributed Systems Engineers, System Design Candidates</p>
+                <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 mt-0 border-none pb-0">Multi-Leader Replication (Active-Active)</h1>
+                <p class="text-xl text-gray-500 mt-4">📖 Engineering Mastery Notes (Source: DDIA Chapter 6 Extract)</p>
+            </header>
+
+            <!-- SECTION 1 -->
+            <section id="sec-1">
+                <h2>1. Big Picture</h2>
+                
+                <h3>The Limitation of Single-Leader</h3>
+                <p>Single-Leader replication has a fatal flaw: <strong>It has a single point of write failure and a strict geographic bottleneck.</strong> If your leader is in <span class="inline-code">us-east-1</span> (Virginia) and a user in Mumbai wants to write to your database, they must suffer ~200ms of network latency (Round Trip Time - RTT) crossing the Pacific and Atlantic oceans. If the submarine cables are severed, they cannot write at all.</p>
+
+                <h3>Why Multi-Leader (Active-Active) Exists</h3>
+                <p>Multi-Leader (or Bidirectional / Active-Active) replication promotes multiple nodes to accept writes simultaneously. Each leader acts as a follower to the other leaders, creating a mesh of data synchronization.</p>
+                <p>It solves two massive engineering challenges:</p>
+                <ol>
+                    <li><strong>Global Write Latency (Geo-Distribution):</strong> Users write to the region physically closest to them, masking inter-region latency.</li>
+                    <li><strong>Offline-First / Disconnected Operation:</strong> The "network partition" is intentional (e.g., you edit a Google Doc on an airplane; your laptop is the "Leader").</li>
+                </ol>
+
+                <h3>Where Multi-Leader is Used in Production</h3>
+                <ul>
+                    <li><strong>Global SaaS (Figma, Notion, Google Docs):</strong> Real-time collaborative editing uses sync engines where every user's browser is technically a "Leader."</li>
+                    <li><strong>Uber / Lyft:</strong> Active-Active multi-region architectures ensure that if AWS <span class="inline-code">us-east-1</span> goes down, rides in New York aren't dropped; traffic shifts to <span class="inline-code">us-west-2</span> and those leaders accept writes.</li>
+                    <li><strong>Mobile Apps (Calendars, Note-taking):</strong> Local-first software where your phone's local SQLite/Realm DB is a leader syncing with cloud leaders.</li>
+                </ul>
+                <p><strong>The SRE Reality Check:</strong> Multi-leader is notorious for causing data corruption (conflicts). Top engineering teams view it as <em>dangerous territory</em>. You only use it when the business absolutely mandates global write availability or offline capabilities.</p>
+            </section>
+
+            <!-- SECTION 2 -->
+            <section id="sec-2">
+                <h2>2. Core Concepts</h2>
+                <ul>
+                    <li><strong>Multi-Leader (Active-Active):</strong> More than one node accepts writes.</li>
+                    <li><strong>Synchronous vs. Asynchronous Multi-Leader:</strong> Synchronous multi-leader is practically useless (it acts exactly like Single-Leader, blocking if any network link breaks). Production multi-leader is <strong>always asynchronous</strong>.</li>
+                    <li><strong>Geo-Distribution:</strong> Deploying databases across physical geographic regions to survive total regional outages and reduce latency.</li>
+                    <li><strong>Replication Topology:</strong> The communication path defining how writes flow between multiple leaders.</li>
+                    <li><strong>Sync Engine:</strong> A software library (like Automerge, Yjs, PouchDB) that manages the asynchronous, multi-leader replication between client devices (laptops/phones) and the server.</li>
+                    <li><strong>Local-First Software:</strong> Applications designed to work entirely locally first, with network sync moved to a background process.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 3 -->
+            <section id="sec-3">
+                <h2>3. Deep Dive: Architectural Trade-offs of Multi-Region</h2>
+                <p>If you deploy a multi-region Active-Active cluster, here is what changes:</p>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th>Single-Leader</th>
+                            <th>Multi-Leader</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Write Performance</strong></td>
+                            <td><strong>Poor.</strong> Cross-globe writes take 100-300ms.</td>
+                            <td><strong>Excellent.</strong> Writes are local (&lt;10ms). Inter-region sync is hidden from the user.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Regional Outage Tolerance</strong></td>
+                            <td><strong>Medium.</strong> Requires a failover to a new region, blocking writes during transition.</td>
+                            <td><strong>High.</strong> Survives seamlessly. Healthy regions continue independently. Offline region catches up later.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Network Partition Tolerance</strong></td>
+                            <td><strong>Poor.</strong> If connection to the leader breaks, writes fail.</td>
+                            <td><strong>High.</strong> Regions operate in isolated bubbles until the link is restored.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Data Consistency</strong></td>
+                            <td><strong>Strong.</strong> Easy to enforce constraints (e.g., "Username must be unique").</td>
+                            <td><strong>Weak / Nightmare.</strong> Massive risk of conflicting writes and invariant violations.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- SECTION 4 -->
+            <section id="sec-4">
+                <h2>4. Distributed Systems Perspective: Topologies</h2>
+                <p>How do leaders actually pass messages to each other?</p>
+
+                <h3>A. Circular Topology</h3>
+                <ul>
+                    <li><strong>Mechanism:</strong> L1 &rarr; L2 &rarr; L3 &rarr; L1.</li>
+                    <li><strong>Risk:</strong> <strong>High.</strong> A single node failure (L2) breaks the entire replication chain.</li>
+                    <li><strong>Loop Prevention:</strong> Each write is tagged with the IDs of nodes it has passed through to prevent infinite loops.</li>
+                </ul>
+
+                <h3>B. Star (Tree) Topology</h3>
+                <ul>
+                    <li><strong>Mechanism:</strong> A root node forwards to all sub-nodes.</li>
+                    <li><strong>Risk:</strong> <strong>High.</strong> The root node is a Single Point of Failure (SPOF) for replication routing.</li>
+                </ul>
+
+                <h3>C. All-to-All Topology (The Production Standard)</h3>
+                <ul>
+                    <li><strong>Mechanism:</strong> Every leader connects directly to every other leader.</li>
+                    <li><strong>Risk:</strong> <strong>Causality Violations.</strong> Because network paths have different latencies, messages can "overtake" each other.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 5 -->
+            <section id="sec-5">
+                <h2>5. The Causality Anomaly (Out-of-Order Writes)</h2>
+                <p>The biggest failure mode in an All-to-All topology is <strong>Causality Violation</strong>.</p>
+
+                <p><strong>Scenario:</strong></p>
+                <ol>
+                    <li>Client A inserts a row on Leader 1. (Event A)</li>
+                    <li>Client B sees the row, and updates it on Leader 3. (Event B)</li>
+                    <li>Leader 2 receives the replication streams from L1 and L3.</li>
+                    <li>Due to network congestion, L2 receives the UPDATE (Event B) <em>before</em> it receives the INSERT (Event A).</li>
+                </ol>
+
+                <p><strong>What happens?</strong> Leader 2 throws an error ("Cannot update row that does not exist") or drops the write. The databases diverge silently.<br>
+                <strong>The Fix:</strong> You cannot use physical timestamps (NTP clock skew makes them unreliable). You must use <strong>Version Vectors</strong> (logical clocks) to explicitly order dependencies.</p>
+            </section>
+
+            <!-- SECTION 6 -->
+            <section id="sec-6">
+                <h2>6. Practical Backend Engineering Perspective</h2>
+
+                <h3>When to absolutely avoid Multi-Leader</h3>
+                <ul>
+                    <li><strong>Financial Ledgers / Banking:</strong> You cannot allow Leader A and Leader B to simultaneously withdraw $100 from an account that only has $100.</li>
+                    <li><strong>Unique Constraints:</strong> If two users register the username <span class="inline-code">@bob</span> at the exact same millisecond on Leader US and Leader EU, both writes succeed locally. You now have a corrupted global state.</li>
+                </ul>
+
+                <h3>Dangerous Pitfalls (The SRE Minefield)</h3>
+                <ul>
+                    <li><strong>Auto-Incrementing IDs:</strong> If L1 and L2 both generate <span class="inline-code">ID=5</span>, they will collide upon syncing. <em>Fix:</em> Use UUIDs/ULIDs, or configure offsets (e.g., L1 generates odds, L2 generates evens).</li>
+                    <li><strong>Triggers:</strong> If a replicated write fires a local DB trigger, and that trigger generates <em>another</em> write, you risk a cascade of infinite replication loops.</li>
+                    <li><strong>Foreign Key Constraints:</strong> Out-of-order causality (Insert vs Update/Delete) will violently break FK constraints on replicas.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 7 -->
+            <section id="sec-7">
+                <h2>7. Beyond the Lecture: Conflict Resolution & Collaboration (Extra Mile)</h2>
+                <p><em>This section addresses the elephant in the room regarding Sync Engines/Google Docs.</em></p>
+
+                <p>How do Google Docs or Figma actually resolve concurrent edits without destroying the file?</p>
+                <ol>
+                    <li><strong>Operational Transformation (OT):</strong> Used by Google Docs. The server mathematically transforms incoming concurrent operations based on their index positions. (Complex and relies on a central server).</li>
+                    <li><strong>CRDTs (Conflict-Free Replicated Data Types):</strong> Used by Figma, Automerge, Yjs. Mathematical data structures where concurrent operations are <em>commutative</em> (order doesn't matter). If User A adds "X" and User B adds "Y", a CRDT guarantees both nodes converge to the exact same final state without a central server.</li>
+                </ol>
+            </section>
+
+            <!-- SECTION 8 -->
+            <section id="sec-8">
+                <h2>8. Important Interview Questions</h2>
+
+                <h3>Basic</h3>
+                <p><strong>Q: What is the main advantage of Multi-Leader replication over Single-Leader?</strong><br>
+                A: Drastically reduced write latency for geo-distributed users, and the ability to continue accepting writes even during regional network partitions or offline scenarios.</p>
+
+                <h3>Intermediate</h3>
+                <p><strong>Q: You decide to use a multi-leader architecture for a global app. You notice that occasionally, updates to rows are failing on some leaders because the row "doesn't exist yet." What is happening?</strong><br>
+                A: This is a causality violation in an all-to-all topology. The network link carrying the <span class="inline-code">UPDATE</span> was faster than the link carrying the initial <span class="inline-code">INSERT</span>. The replica received the events out of order.</p>
+
+                <h3>Advanced</h3>
+                <p><strong>Q: How do you handle primary key generation in a Multi-Leader database?</strong><br>
+                A: Never use standard auto-incrementing integers. They will collide when leaders sync. Use UUIDs (v4 or v7), ULIDs, or configure the database sequence generators to use distinct offsets and increments (e.g., Region A uses keys ending in 1, Region B uses keys ending in 2).</p>
+            </section>
+
+            <!-- SECTION 9 -->
+            <section id="sec-9">
+                <h2>9. Common Mistakes</h2>
+                <ul>
+                    <li><strong>Beginner Mistake:</strong> Assuming Multi-Leader is just "Single Leader but better." It is a fundamentally different paradigm that abandons strong consistency.</li>
+                    <li><strong>Backend Engineer Mistake:</strong> Using physical timestamps (<span class="inline-code">created_at</span>) to figure out which concurrent write should "win" during a conflict. <em>NTP Clocks drift.</em> Server A's clock might be 5ms ahead of Server B's. You will incorrectly overwrite valid data.</li>
+                    <li><strong>System Design Mistake:</strong> Suggesting Multi-Leader for an e-commerce checkout or inventory system in an interview. (Inventory strictly requires single-leader or consensus to prevent double-spending).</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 10 -->
+            <section id="sec-10">
+                <h2>10. Sync Engines & Local-First Architecture</h2>
+                <p><strong>The Paradigm Shift:</strong> Instead of treating the browser/mobile app as a "dumb client" that makes REST API calls to a DB, treat the client as a <strong>full database replica (Leader)</strong>.</p>
+                <ul>
+                    <li><strong>Architecture:</strong> UI &harr; Local DB (Sync Engine) &harr; Background Thread &harr; Cloud Servers.</li>
+                    <li><strong>Pros:</strong>
+                        <ul>
+                            <li>Zero UI latency (renders in &lt;16ms).</li>
+                            <li>True offline capability.</li>
+                            <li>Declarative programming (no need to write complex retry-logic or error handling for HTTP 500s; the sync engine handles the network transparently).</li>
+                        </ul>
+                    </li>
+                    <li><strong>Cons:</strong>
+                        <ul>
+                            <li>Cannot be used for massive datasets (you can't sync the whole Amazon catalog to an iPhone).</li>
+                            <li>Heavy battery usage if background syncing is aggressive.</li>
+                        </ul>
+                    </li>
+                </ul>
+            </section>
+
+            <!-- SECTION 11 -->
+            <section id="sec-11">
+                <h2>11. Visual Mental Models (ASCII)</h2>
+
+                <h3>The Causality Anomaly (Out of Order Writes)</h3>
+                <pre class="code-block">[CLIENT A] ---(1. INSERT Row 5)---&gt; [LEADER 1]
+                                       |      \
+                                       |       \ (Slow Network Link)
+                                       v        \
+[CLIENT B] ---(2. UPDATE Row 5)---&gt; [LEADER 3]   \
+                                       |          \
+                                (Fast Network)     v
+                                       |        [LEADER 2]  &lt;-- 💥 CRASH!
+                                       v        Receives UPDATE before INSERT.</pre>
+
+                <h3>Multi-Leader Geo-Routing Topology</h3>
+                <pre class="code-block">      (User US)                         (User EU)
+          |                                 |
+ [ Route53 Geo-DNS ]               [ Route53 Geo-DNS ]
+          v                                 v
+   +--------------+                  +--------------+
+   |  us-east-1   |                  | eu-central-1 |
+   |  [LEADER A]  | &lt;--(Async Sync)--&gt; [LEADER B]   |
+   |      |       |                  |      |       |
+   | [Follower A] |                  | [Follower B] |
+   +--------------+                  +--------------+</pre>
+            </section>
+
+            <!-- SECTION 12 -->
+            <section id="sec-12">
+                <h2>12. Failure Analysis Section</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Failure Mode</th>
+                            <th>Impact</th>
+                            <th>Recovery / System Architecture Defense</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Inter-Region Partition</strong></td>
+                            <td>Trans-atlantic cable severed. US and EU cannot talk.</td>
+                            <td>Both regions accept writes safely. Sync engines queue changes locally. Automatically merges upon reconnection.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>All-to-All Causality Drop</strong></td>
+                            <td>Update arrives before Insert.</td>
+                            <td>System must use <strong>Version Vectors</strong> to buffer the Update in memory until the requisite Insert arrives.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Circular Link Failure</strong></td>
+                            <td>Node 2 in a Ring topology crashes.</td>
+                            <td>Replication halts globally. Use <strong>All-to-All</strong> topologies to provide redundant routing paths.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Concurrent Edit (Conflict)</strong></td>
+                            <td>Two users modify the exact same text locally while offline.</td>
+                            <td>System relies on <strong>CRDTs</strong>, <strong>Operational Transformation</strong>, or prompts the user to resolve the merge manually (like Git).</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- SECTION 13 -->
+            <section id="sec-13">
+                <h2>13. Lecture Summary</h2>
+                <ul>
+                    <li><strong>Key Takeaway 1:</strong> Multi-Leader is the ultimate solution for High Availability and low-latency Geo-distribution, but it completely breaks ACID constraints across the global system.</li>
+                    <li><strong>Key Takeaway 2:</strong> Topology matters. All-to-all is fault-tolerant but suffers from out-of-order network anomalies. Circular/Star topologies enforce order but are fragile.</li>
+                    <li><strong>Key Takeaway 3:</strong> The future of frontend web-apps is moving toward <strong>Local-First Software</strong>, which is fundamentally an extreme version of Multi-Leader replication using Sync Engines and CRDTs to manage conflicts.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 14 -->
+            <section id="sec-14">
+                <h2>14. Revision Notes (2-Minute Review Sheet)</h2>
+                <div class="code-block bg-blue-900 border border-blue-800 text-blue-50 shadow-md">
+                    <ul class="mb-0">
+                        <li><strong>Why use Multi-Leader?</strong> Multi-region active-active deployments (low latency), offline-first apps (Google Docs).</li>
+                        <li><strong>The Golden Rule:</strong> It is always Asynchronous. Sync defeats the purpose.</li>
+                        <li><strong>Topologies:</strong> Circular (fragile), Star (fragile), All-to-all (robust, but causes out-of-order writes).</li>
+                        <li><strong>Dangerous Features:</strong> Auto-increment IDs (will collide), Triggers (loops), Unique Constraints (cannot enforce globally).</li>
+                        <li><strong>Local-First/Sync Engines:</strong> Treat the mobile app as a Leader node. UI updates instantly. Sync happens in the background. Uses CRDTs to merge changes.</li>
+                        <li><strong>Causality Anomaly:</strong> <span class="inline-code">UPDATE</span> arrives before <span class="inline-code">INSERT</span>. Fix using Version Vectors (logical clocks), not timestamps.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <footer class="mt-16 pt-8 border-t border-gray-200 text-center text-gray-500 text-sm pb-16">
+                End of Notes — Engineering Mastery Notes: Multi-Leader Replication (Active-Active)
+            </footer>
+        </div>
+    </main>
+
+</body>
+</html>
