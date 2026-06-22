@@ -1,0 +1,530 @@
+Here is the complete, fully responsive, and beautifully styled HTML UI page for
+your Leaderless Replication (Dynamo-Style) engineering notes.
+
+I have strictly adhered to the professional documentation design standard from
+the previous parts. It uses Tailwind CSS, features a sticky navigation sidebar,
+elegant typography, properly formatted tables, syntax-styled code blocks (with
+HTML characters safely escaped), and preserves every ASCII diagram flawlessly.
+
+Save the code below as an .html file (e.g., leaderless-replication.html) and
+open it in any modern web browser.
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Engineering Mastery Notes: Leaderless Replication</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            color: #111827;
+        }
+        pre {
+            font-family: 'Fira Code', monospace;
+        }
+        .prose h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin-top: 3rem;
+            margin-bottom: 1.5rem;
+            color: #1e3a8a;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        .prose h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: #1f2937;
+        }
+        .prose h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: #374151;
+        }
+        .prose h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: #4b5563;
+        }
+        .prose p {
+            margin-bottom: 1rem;
+            line-height: 1.75;
+            color: #4b5563;
+        }
+        .prose ul, .prose ol {
+            padding-left: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #4b5563;
+        }
+        .prose ul { list-style-type: disc; }
+        .prose ol { list-style-type: decimal; }
+        .prose li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        .prose strong {
+            color: #111827;
+            font-weight: 600;
+        }
+        .prose blockquote {
+            border-left: 4px solid #3b82f6;
+            background-color: #eff6ff;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            font-style: normal;
+            color: #1e40af;
+            border-radius: 0 0.5rem 0.5rem 0;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        .prose table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+            background-color: white;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .prose th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #374151;
+        }
+        .prose td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #4b5563;
+            vertical-align: top;
+        }
+        .prose tr:last-child td {
+            border-bottom: none;
+        }
+        .code-block {
+            background-color: #1f2937;
+            color: #e5e7eb;
+            padding: 1.25rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            white-space: pre;
+        }
+        .inline-code {
+            background-color: #f3f4f6;
+            color: #ef4444;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.875rem;
+        }
+        .nav-link {
+            transition: all 0.2s ease;
+        }
+        .nav-link:hover {
+            color: #2563eb;
+            background-color: #eff6ff;
+            padding-left: 0.5rem;
+        }
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body class="antialiased flex flex-col md:flex-row h-screen overflow-hidden">
+
+    <!-- Sidebar / Table of Contents -->
+    <aside class="w-full md:w-72 bg-white border-r border-gray-200 h-1/4 md:h-full overflow-y-auto flex-shrink-0 z-10 shadow-sm">
+        <div class="p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Contents</h2>
+            
+            <nav class="space-y-1 text-sm font-medium text-gray-600">
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Theory & Architecture</p>
+                <a href="#sec-1" class="block py-1.5 nav-link rounded-md">1. Big Picture</a>
+                <a href="#sec-2" class="block py-1.5 nav-link rounded-md">2. Core Concepts</a>
+                <a href="#sec-3" class="block py-1.5 nav-link rounded-md">3. Deep Dive: Internals</a>
+                <a href="#sec-4" class="block py-1.5 nav-link rounded-md">4. Happens-Before Relation</a>
+                <a href="#sec-5" class="block py-1.5 nav-link rounded-md">5. Quorum Mathematics</a>
+                <a href="#sec-6" class="block py-1.5 nav-link rounded-md">6. CAP & Consistency</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Prep & System Design</p>
+                <a href="#sec-7" class="block py-1.5 nav-link rounded-md">7. Practical Perspective</a>
+                <a href="#sec-8" class="block py-1.5 nav-link rounded-md">8. Interview Questions</a>
+                <a href="#sec-9" class="block py-1.5 nav-link rounded-md">9. Common Mistakes</a>
+                <a href="#sec-10" class="block py-1.5 nav-link rounded-md">10. Performance Notes</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Advanced Topics</p>
+                <a href="#sec-11" class="block py-1.5 nav-link rounded-md">11. Capturing Causality</a>
+                <a href="#sec-12" class="block py-1.5 nav-link rounded-md">12. Beyond the Lecture</a>
+                <a href="#sec-13" class="block py-1.5 nav-link rounded-md">13. Practical Code Example</a>
+                <a href="#sec-14" class="block py-1.5 nav-link rounded-md">14. System Design</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Review</p>
+                <a href="#sec-15" class="block py-1.5 nav-link rounded-md">15. Visual Mental Models</a>
+                <a href="#sec-16" class="block py-1.5 nav-link rounded-md">16. Failure Analysis</a>
+                <a href="#sec-17" class="block py-1.5 nav-link rounded-md">17. Lecture Summary</a>
+                <a href="#sec-18" class="block py-1.5 nav-link rounded-md">18. Revision Notes</a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 h-3/4 md:h-full overflow-y-auto bg-gray-50 p-6 md:p-12 lg:p-16">
+        <div class="max-w-4xl mx-auto prose">
+            
+            <header class="mb-12 text-center md:text-left">
+                <p class="text-blue-600 font-semibold tracking-wide uppercase text-sm mb-2">Target: Senior Backend / Distributed Systems Engineers</p>
+                <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 mt-0 border-none pb-0">Leaderless Replication (Dynamo-Style)</h1>
+                <p class="text-xl text-gray-500 mt-4">📖 Engineering Mastery Notes (Source: DDIA Chapter 6 Extract)</p>
+            </header>
+
+            <!-- SECTION 1 -->
+            <section id="sec-1">
+                <h2>1. Big Picture</h2>
+                
+                <h3>Why Leaderless Replication Exists</h3>
+                <p>In 2007, Amazon faced a crisis: during the holiday shopping season, minor database node failures or network hiccups were causing the "Add to Cart" functionality to fail. In a single-leader database, if the leader is dead, writes stop entirely until a failover completes. Amazon realized that <strong>rejecting a customer's write means losing money.</strong></p>
+                <p>They published the <em>Dynamo Paper</em>, introducing a paradigm shift: <strong>Abandon the Leader.</strong> If <em>any</em> node in the cluster is alive, it should accept writes.</p>
+
+                <h3>Problems Leaderless Replication Solves</h3>
+                <ol>
+                    <li><strong>Zero Downtime for Writes:</strong> There is no "failover" pause. If a node burns down, the client seamlessly writes to the surviving nodes.</li>
+                    <li><strong>Gray Failures &amp; Tail Latency:</strong> If a node isn't dead but is "limping" (e.g., slow disk, GC pause), a leader-based system chokes. A leaderless system masks this via <strong>Request Hedging</strong> (taking the fastest responses from a pool of replicas).</li>
+                    <li><strong>Multi-Active Geo-Distribution:</strong> Inherently supports accepting writes anywhere in the world simultaneously.</li>
+                </ol>
+
+                <h3>Where it is Used in Production</h3>
+                <ul>
+                    <li><strong>Cassandra / ScyllaDB:</strong> The industry standards for massive, high-write throughput (used by Netflix, Uber, Apple).</li>
+                    <li><strong>Riak:</strong> Heavily used in telecommunications and shopping carts.</li>
+                    <li><strong>Amazon Dynamo (Original):</strong> The internal system that inspired the architecture. <em>(Note: AWS DynamoDB today uses a different, single-leader Paxos architecture)</em>.</li>
+                </ul>
+
+                <p><strong>Why Backend Engineers Must Care:</strong><br>
+                Leaderless systems are High Availability (HA) monsters. But they push the complexity of consistency and conflict resolution directly onto <em>you</em>, the backend engineer. If you don't understand quorums and version vectors, your application will serve resurrected deleted data, drop user updates, and fail silently under concurrent load.</p>
+            </section>
+
+            <!-- SECTION 2 -->
+            <section id="sec-2">
+                <h2>2. Core Concepts</h2>
+                <ul>
+                    <li><strong>Coordinator Node:</strong> A replica (or a separate proxy) that receives the client's request and fans it out to the other replicas holding the data partition.</li>
+                    <li><strong>Quorum:</strong> The minimum number of votes (acknowledgments) required to consider a read or write successful.</li>
+                    <li><strong><span class="inline-code">N</span> (Replication Factor):</strong> Total number of replicas storing a specific piece of data.</li>
+                    <li><strong><span class="inline-code">W</span> (Write Quorum):</strong> Number of nodes that must acknowledge a write.</li>
+                    <li><strong><span class="inline-code">R</span> (Read Quorum):</strong> Number of nodes that must respond to a read.</li>
+                    <li><strong>Read Repair:</strong> A mechanism where a client reading a stale value from a node actively writes the newer value back to that node to fix it.</li>
+                    <li><strong>Hinted Handoff:</strong> If Node A is dead, Node B accepts its writes temporarily ("hints") and pushes them to Node A when it boots back up.</li>
+                    <li><strong>Anti-Entropy:</strong> A background daemon that constantly scans all replicas, compares data (usually via Merkle Trees), and syncs missing pieces.</li>
+                    <li><strong>Happens-Before Relation:</strong> The mathematical definition of causality. Event A happened before Event B if B knew about A, depended on A, or built upon A.</li>
+                    <li><strong>Version Vector:</strong> A collection of version numbers from all replicas (e.g., <span class="inline-code">[Node1: v2, Node2: v1]</span>) used to track causality and detect concurrent writes.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 3 -->
+            <section id="sec-3">
+                <h2>3. Deep Dive: Internal Workings of Leaderless Systems</h2>
+
+                <h3>The Write Path (No Failovers)</h3>
+                <ol>
+                    <li>Client sends a write to any node (the Coordinator).</li>
+                    <li>Coordinator hashes the partition key to determine which <span class="inline-code">N</span> nodes own this data.</li>
+                    <li>Coordinator sends the write to all <span class="inline-code">N</span> nodes <strong>in parallel</strong>.</li>
+                    <li>It waits for <span class="inline-code">W</span> nodes to reply "OK".</li>
+                    <li>If <span class="inline-code">W</span> is met, it returns <span class="inline-code">200 OK</span> to the client. <em>It completely ignores if the remaining N - W nodes crashed or timed out.</em></li>
+                </ol>
+
+                <h3>The Read Path &amp; Conflict Resolution</h3>
+                <ol>
+                    <li>Client asks the Coordinator for a key.</li>
+                    <li>Coordinator requests the key from all <span class="inline-code">N</span> nodes in parallel.</li>
+                    <li>It waits for <span class="inline-code">R</span> responses.</li>
+                    <li>Because some nodes might have missed previous writes, the Coordinator might receive different versions (e.g., <span class="inline-code">Version 6</span> from Node 3, <span class="inline-code">Version 7</span> from Nodes 1 &amp; 2).</li>
+                    <li>The Coordinator uses version numbers/timestamps to pick the freshest data and returns it to the client.</li>
+                    <li><strong>Read Repair:</strong> The Coordinator asynchronously sends <span class="inline-code">Version 7</span> to Node 3 to fix its stale state.</li>
+                </ol>
+
+                <h3>Catch-Up Mechanisms</h3>
+                <p>How does a node that was offline for an hour get its missing data?</p>
+                <ol>
+                    <li><strong>Read Repair (Reactive):</strong> Fixed only when a client happens to read the data. Great for hot data, useless for cold data.</li>
+                    <li><strong>Hinted Handoff (Proactive Short-term):</strong> Neighboring nodes store a "hint" file for the dead node. When it wakes up, neighbors stream the hints. (Fails if the dead node is gone for days, as neighbors will delete hints to save disk space).</li>
+                    <li><strong>Anti-Entropy (Proactive Long-term):</strong> A background process that synchronizes replicas. It uses cryptography (Merkle Trees) to compare datasets efficiently across the network without sending the actual data.</li>
+                </ol>
+            </section>
+
+            <!-- SECTION 4 -->
+            <section id="sec-4">
+                <h2>4. Distributed Systems Perspective: The "Happens-Before" Relation</h2>
+
+                <h3>Relativity and Concurrency</h3>
+                <p>In distributed systems, <strong>time does not matter</strong>. Because of NTP clock skew, comparing physical timestamps is dangerous. Instead, we use logical causality: The <strong>Happens-Before</strong> relationship.</p>
+
+                <ul>
+                    <li><strong>Scenario 1:</strong> Client A inserts X. Client B reads X, then increments it to X+1. B <em>happened-before</em> A. B's write safely overwrites A's.</li>
+                    <li><strong>Scenario 2:</strong> Client A and Client B both update X to different values. Neither read the other's update. They are <strong>concurrent</strong>.</li>
+                    <li><strong>The Rule:</strong> Two events are concurrent if <em>neither</em> happened before the other. They do not need to overlap in physical milliseconds. If the network is split, they could happen hours apart and still be mathematically "concurrent."</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 5 -->
+            <section id="sec-5">
+                <h2>5. Replication Models: Quorum Mathematics</h2>
+                <p>The entire safety of a leaderless system rests on the formula:</p>
+                <blockquote class="text-2xl text-center font-bold font-mono">W + R > N</blockquote>
+                <p>If the sum of your write quorum and read quorum is strictly greater than your replication factor, your read and write sets <strong>must overlap by at least one node</strong>. The read will mathematically guarantee seeing the latest write.</p>
+
+                <p><strong>Common Configurations:</strong></p>
+                <ul>
+                    <li><strong>N=3, W=2, R=2:</strong> The industry standard. Tolerates 1 node failure. Fast reads, fast writes.</li>
+                    <li><strong>N=5, W=3, R=3:</strong> High durability. Tolerates 2 node failures.</li>
+                    <li><strong>N=3, W=3, R=1:</strong> Optimized for heavy reads. Extremely fast reads, but if 1 node dies, the database becomes strictly Read-Only (Availability is compromised).</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 6 -->
+            <section id="sec-6">
+                <h2>6. CAP and Consistency Tradeoffs: The Illusion of Strong Consistency</h2>
+                <p><strong>Crucial Engineering Insight:</strong> Even if <span class="inline-code">W + R &gt; N</span>, Dynamo-style databases <strong>DO NOT</strong> guarantee Strong Consistency (Linearizability) in edge cases.</p>
+
+                <p>Why <span class="inline-code">W + R &gt; N</span> reads can still be stale:</p>
+                <ol>
+                    <li><strong>Partial Write Failures:</strong> A write hits 1 node and fails on the other 2. W=2 is not met. The DB returns an error to the client. <em>However, the write on the 1 node is NOT rolled back.</em> A subsequent read might accidentally hit that 1 node and return the "failed" data.</li>
+                    <li><strong>Clock Skew (LWW):</strong> If Cassandra uses Last-Write-Wins timestamps to resolve conflicts, a node with a broken, fast clock will permanently overwrite newer data.</li>
+                    <li><strong>Node Restoration:</strong> Node A crashes and loses disk data. It is restored from a 3-day-old backup. The number of nodes holding the newest write quietly drops below W, silently breaking the quorum overlap.</li>
+                </ol>
+            </section>
+
+            <!-- SECTION 7 -->
+            <section id="sec-7">
+                <h2>7. Practical Backend Engineering Perspective</h2>
+                <p>How top companies utilize these properties:</p>
+                <ul>
+                    <li><strong>Netflix (Cassandra):</strong> Netflix stores user viewing history in Cassandra. They use a sloppy quorum (Consistency Level <span class="inline-code">ANY</span>) for writes. If a region goes down, they just want the telemetry written <em>somewhere</em>. If a user watches a movie, it is critical the data isn't dropped, even if it takes 5 minutes to appear on their profile.</li>
+                    <li><strong>Multi-Region Routing:</strong> In ScyllaDB/Cassandra, you don't do blind cross-region writes. A client hits a Coordinator in <span class="inline-code">us-east</span>. That coordinator writes to local nodes, and sends <em>one</em> packet to a coordinator in <span class="inline-code">eu-west</span>, which then fans out locally. This saves massive cross-atlantic bandwidth.</li>
+                    <li><strong>Hedging:</strong> When an API must respond in &lt;50ms, Backend Engineers send the read query to 3 Cassandra nodes simultaneously. The first one to reply is used. The other two are ignored. This eliminates tail latency caused by JVM Garbage Collection pauses on individual DB nodes.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 8 -->
+            <section id="sec-8">
+                <h2>8. Important Interview Questions</h2>
+
+                <h3>Basic</h3>
+                <p><strong>Q: Explain the quorum formula W + R &gt; N.</strong><br>
+                A: It ensures that the number of nodes required to acknowledge a write (W) and the number required to serve a read (R) overlap by at least one node out of the total replicas (N). This mathematically guarantees the read will consult at least one node holding the freshest data.</p>
+
+                <h3>Intermediate</h3>
+                <p><strong>Q: A leaderless database has a node go offline for 5 minutes, then it reboots. How does it get the writes it missed?</strong><br>
+                A: Through three mechanisms: <strong>Hinted Handoff</strong> (neighbor nodes stored the writes temporarily and push them to the rebooted node), <strong>Read Repair</strong> (when a client reads a stale value from the node, it pushes the updated value back), and <strong>Anti-Entropy</strong> (a background daemon comparing Merkle trees to sync missing data).</p>
+
+                <h3>Advanced</h3>
+                <p><strong>Q: Does W + R &gt; N guarantee strict linearizability (strong consistency)? Why or why not?</strong><br>
+                A: No, it only guarantees eventual consistency with a high probability of reading the latest write. Linearizability can be broken by partial write failures (data is not rolled back on success &lt; W), physical clock skew if using LWW, and concurrent interleaved read/write operations.</p>
+            </section>
+
+            <!-- SECTION 9 -->
+            <section id="sec-9">
+                <h2>9. Common Mistakes</h2>
+                <ul>
+                    <li><strong>Beginner Mistake:</strong> Assuming W=2 means "wait for 2 specific nodes." It actually means "wait for the <em>fastest</em> 2 out of N nodes."</li>
+                    <li><strong>Backend Engineer Mistake:</strong> Using Cassandra as a relational database. Cassandra has no ACID transactions and no cross-partition joins. If you try to model a banking ledger in Cassandra without application-level distributed locks, you will destroy your financial data due to concurrent writes.</li>
+                    <li><strong>Production SRE Mistake:</strong> Disabling Anti-Entropy repairs to save CPU. Over time, "deleted" data (tombstones) will expire inconsistently across nodes, causing deleted items to resurrect permanently (the "Zombie Data" problem).</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 10 -->
+            <section id="sec-10">
+                <h2>10. Performance &amp; Scalability Notes</h2>
+                <ul>
+                    <li><strong>Write Amplification:</strong> A single client write of 1MB results in N network hops of 1MB, plus hinted handoffs, plus anti-entropy checks. Leaderless systems demand massive internal network bandwidth.</li>
+                    <li><strong>Sloppy Quorums:</strong> If a major network partition happens, you can configure the DB to accept writes on <em>any</em> node in the entire cluster (even nodes that don't own the partition). This guarantees 100% Write Availability, but destroys Read Consistency until the partition heals.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 11 -->
+            <section id="sec-11">
+                <h2>11. Distributed Systems Internals: Capturing Causality</h2>
+                <p>To safely merge concurrent data without a leader, the database must track causality using <strong>Version Vectors</strong>.</p>
+
+                <h3>The Shopping Cart Walkthrough (Crucial Mental Model)</h3>
+                <ul>
+                    <li><em>Goal:</em> Two clients adding to a cart concurrently without losing data.</li>
+                    <li><em>Mechanism:</em> The client <em>must</em> read before it writes, and pass the version number back.</li>
+                </ul>
+
+                <ol>
+                    <li><strong>C1 Adds Milk:</strong> Server assigns <span class="inline-code">v1</span>. Returns <span class="inline-code">[Milk], v1</span>.</li>
+                    <li><strong>C2 Adds Eggs (Concurrent):</strong> C2 doesn't know about Milk. Sends <span class="inline-code">Eggs</span>. Server sees a conflict. Assigns <span class="inline-code">v2</span>. State is Siblings: <span class="inline-code">[Milk]</span> and <span class="inline-code">[Eggs]</span>. Returns both to C2.</li>
+                    <li><strong>C1 Adds Flour:</strong> C1 bases its write on <span class="inline-code">v1</span>. Sends <span class="inline-code">[Milk, Flour], v1</span>. Server knows <span class="inline-code">v1</span> is overwritten, but <span class="inline-code">Eggs (v2)</span> is concurrent. State is now <span class="inline-code">[Milk, Flour] v3</span> and <span class="inline-code">[Eggs] v2</span>.</li>
+                    <li><strong>C2 Adds Ham:</strong> C2 previously saw both Milk and Eggs. It merges them: <span class="inline-code">[Milk, Eggs, Ham]</span>. It passes back the version indicating it merged them. The server safely overwrites the old states.</li>
+                </ol>
+
+                <p><strong>Version Vectors (Multi-Node):</strong><br>
+                Instead of a single <span class="inline-code">v1</span>, a Version Vector looks like <span class="inline-code">[ReplicaA: 2, ReplicaB: 1]</span>. If Node C receives a write with <span class="inline-code">[ReplicaA: 2, ReplicaB: 2]</span>, it can mathematically prove this new write "happened after" the old state, and safely overwrite it.</p>
+            </section>
+
+            <!-- SECTION 12 -->
+            <section id="sec-12">
+                <h2>12. Beyond the Lecture (Extra Mile Insights)</h2>
+                <ul>
+                    <li><strong>Consistency Levels (Cassandra):</strong>
+                        <ul>
+                            <li><span class="inline-code">ONE</span>: Fast, highly available, stale reads likely.</li>
+                            <li><span class="inline-code">QUORUM</span>: The standard W+R&gt;N.</li>
+                            <li><span class="inline-code">LOCAL_QUORUM</span>: Quorum achieved <em>only</em> within the local datacenter, ignoring cross-region latency. (The SRE gold standard for multi-region).</li>
+                            <li><span class="inline-code">EACH_QUORUM</span>: Strict quorum in <em>every</em> region. (Very slow).</li>
+                        </ul>
+                    </li>
+                    <li><strong>Merkle Trees:</strong> Anti-entropy uses Merkle trees (hash trees). Instead of sending 1TB of data over the network to see if two nodes match, they send a 32-byte hash of the root tree. If it matches, the 1TB is identical. If it differs, they traverse the tree to find the exact 1MB chunk that differs.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 13 -->
+            <section id="sec-13">
+                <h2>13. Practical Code / Database Examples</h2>
+                <p><strong>Routing and Consistency in Java (Cassandra Datastax Driver):</strong></p>
+                <pre class="code-block"><code>// A Senior Engineer's configuration for high-availability writes
+SimpleStatement writeStatement = SimpleStatement.builder("INSERT INTO users (id, name) VALUES (?, ?)")
+    .addPositionalValues(userId, name)
+    // Accept write if a majority of nodes in the LOCAL datacenter ack it.
+    // This protects against AWS regional outages (us-east to eu-west severed).
+    .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)
+    .build();
+
+session.execute(writeStatement);
+
+// Read-Repair in action (Implicit in driver):
+// When we query with QUORUM, if the driver detects 1 node is stale, 
+// the Cassandra Coordinator automatically triggers a Read Repair in the background.
+SimpleStatement readStatement = SimpleStatement.builder("SELECT * FROM users WHERE id = ?")
+    .addPositionalValues(userId)
+    .setConsistencyLevel(DefaultConsistencyLevel.LOCAL_QUORUM)
+    .build();</code></pre>
+            </section>
+
+            <!-- SECTION 14 -->
+            <section id="sec-14">
+                <h2>14. System Design Connections</h2>
+                <ul>
+                    <li><strong>High-Volume Telemetry Systems:</strong> Designing an Uber metrics ingestion service? Use Leaderless Replication. You care about handling 10 million writes per second with zero downtime. You do not care if a read is 2 seconds stale.</li>
+                    <li><strong>Microservices Resilience:</strong> If your microservice depends on a leader-based DB, a DB failover causes a 30-second spike in HTTP 500s. With a leaderless DB, the microservice experiences zero downtime, masking the infrastructure failure from the end-user completely.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 15 -->
+            <section id="sec-15">
+                <h2>15. Visual Mental Models (ASCII)</h2>
+
+                <h3>Quorum Overlap (N=3, W=2, R=2)</h3>
+                <pre class="code-block">      [Write Set]
+      /         \
+  [Node 1]    [Node 2]    [Node 3]
+       \          /          /
+        \        /          /
+         [Read Set]--------/
+
+Because W=2 and R=2, the Write Set and Read Set MUST overlap at Node 2.
+Node 2 will return the freshest data to the Read request.</pre>
+
+                <h3>The "Happens-Before" Causality Graph (Shopping Cart)</h3>
+                <pre class="code-block">               (Start: Empty)
+                 /        \
+    [v1: Milk] (C1)      [v2: Eggs] (C2)
+           |                |
+[v3: Milk, Flour] (C1)      |
+            \               |
+             \-[v4: Milk, Flour, Eggs, Ham] (C2 Merges)
+                            |
+               [v5: Milk, Flour, Eggs, Ham, Bacon] (C1 Merges)</pre>
+            </section>
+
+            <!-- SECTION 16 -->
+            <section id="sec-16">
+                <h2>16. Failure Analysis Section</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Failure Mode</th>
+                            <th>Internal System Action</th>
+                            <th>Consequence &amp; SRE Resolution</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>1 Replica Crashes (N=3, W=2)</strong></td>
+                            <td>Coordinator writes to 2 surviving replicas.</td>
+                            <td><strong>No impact.</strong> Writes succeed. Hinted handoff queues data for the dead node.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>2 Replicas Crash (N=3, W=2)</strong></td>
+                            <td>Coordinator hits 1 replica. Quorum fails.</td>
+                            <td><strong>Write Downtime.</strong> App receives HTTP 500. Must wait for node recovery.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Network Partition (Split Brain)</strong></td>
+                            <td>Nodes cannot talk to each other.</td>
+                            <td><strong>Stale Reads / Siblings.</strong> Nodes accept concurrent writes. App must resolve siblings via CRDTs upon healing.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Fast Clock Skew (LWW on)</strong></td>
+                            <td>Node A's clock is 5 mins fast.</td>
+                            <td><strong>Permanent Data Loss.</strong> Node A's old writes overwrite Node B's genuinely new writes.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- SECTION 17 -->
+            <section id="sec-17">
+                <h2>17. Lecture Summary</h2>
+                <ul>
+                    <li><strong>Key Takeaway 1:</strong> Leaderless architectures (Dynamo-style) trade Strong Consistency for extreme Write Availability and low tail latency. There is no such thing as "Failover" downtime.</li>
+                    <li><strong>Key Takeaway 2:</strong> To ensure you don't read stale data, you must tune Quorums using W + R &gt; N. However, edge cases (partial failures, clock skew) mean this is still fundamentally an Eventually Consistent system.</li>
+                    <li><strong>Key Takeaway 3:</strong> Concurrent writes will happen. You cannot use physical time to sort them. You must use Logical Clocks (Version Vectors) to track causality and let the application deterministically merge Siblings (or use CRDTs).</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 18 -->
+            <section id="sec-18">
+                <h2>18. Revision Notes (2-Minute Review Sheet)</h2>
+                <div class="code-block bg-blue-900 border border-blue-800 text-blue-50 shadow-md">
+                    <ul class="mb-0">
+                        <li><strong>Architecture:</strong> No Leader. Any node accepts writes. Clients/Coordinators write in parallel.</li>
+                        <li><strong>Quorums:</strong> N (Replicas), W (Write Acks), R (Read Acks). Overlap formula: W + R &gt; N.</li>
+                        <li><strong>Catch-Up:</strong> 
+                            <ol class="mt-2 mb-2">
+                                <li><em>Read Repair:</em> Fixes stale data instantly on read.</li>
+                                <li><em>Hinted Handoff:</em> Neighbors hold data for temporarily dead nodes.</li>
+                                <li><em>Anti-Entropy:</em> Background Merkle Tree sync for deep recovery.</li>
+                            </ol>
+                        </li>
+                        <li><strong>Concurrency:</strong> Two events are concurrent if <em>neither happened before the other</em>.</li>
+                        <li><strong>Version Vectors:</strong> Logical clocks <span class="inline-code">[N1:v2, N2:v1]</span> used to track causality, identify siblings, and safely merge concurrent offline writes.</li>
+                        <li><strong>Tradeoffs:</strong> High availability, handles gray failures beautifully via Hedging. Downside: Complex conflict resolution, write amplification, eventual consistency edge cases.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <footer class="mt-16 pt-8 border-t border-gray-200 text-center text-gray-500 text-sm pb-16">
+                End of Notes — Engineering Mastery Notes: Leaderless Replication (Dynamo-Style)
+            </footer>
+        </div>
+    </main>
+
+</body>
+</html>
