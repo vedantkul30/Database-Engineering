@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Engineering Mastery Notes: Dealing with Conflicting Writes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            color: #111827;
+        }
+        pre {
+            font-family: 'Fira Code', monospace;
+        }
+        .prose h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin-top: 3rem;
+            margin-bottom: 1.5rem;
+            color: #1e3a8a;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        .prose h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: #1f2937;
+        }
+        .prose h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: #374151;
+        }
+        .prose h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: #4b5563;
+        }
+        .prose p {
+            margin-bottom: 1rem;
+            line-height: 1.75;
+            color: #4b5563;
+        }
+        .prose ul, .prose ol {
+            padding-left: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #4b5563;
+        }
+        .prose ul { list-style-type: disc; }
+        .prose ol { list-style-type: decimal; }
+        .prose li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        .prose strong {
+            color: #111827;
+            font-weight: 600;
+        }
+        .prose blockquote {
+            border-left: 4px solid #3b82f6;
+            background-color: #eff6ff;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            font-style: normal;
+            color: #1e40af;
+            border-radius: 0 0.5rem 0.5rem 0;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        .prose table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+            background-color: white;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .prose th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #374151;
+        }
+        .prose td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #4b5563;
+            vertical-align: top;
+        }
+        .prose tr:last-child td {
+            border-bottom: none;
+        }
+        .code-block {
+            background-color: #1f2937;
+            color: #e5e7eb;
+            padding: 1.25rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            white-space: pre;
+        }
+        .inline-code {
+            background-color: #f3f4f6;
+            color: #ef4444;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.875rem;
+        }
+        .nav-link {
+            transition: all 0.2s ease;
+        }
+        .nav-link:hover {
+            color: #2563eb;
+            background-color: #eff6ff;
+            padding-left: 0.5rem;
+        }
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body class="antialiased flex flex-col md:flex-row h-screen overflow-hidden">
+
+    <!-- Sidebar / Table of Contents -->
+    <aside class="w-full md:w-72 bg-white border-r border-gray-200 h-1/4 md:h-full overflow-y-auto flex-shrink-0 z-10 shadow-sm">
+        <div class="p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Contents</h2>
+            
+            <nav class="space-y-1 text-sm font-medium text-gray-600">
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Concepts & Strategy</p>
+                <a href="#sec-1" class="block py-1.5 nav-link rounded-md">1. Big Picture</a>
+                <a href="#sec-2" class="block py-1.5 nav-link rounded-md">2. Core Concepts</a>
+                <a href="#sec-3" class="block py-1.5 nav-link rounded-md">3. Resolution Strategies</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Deep Dives</p>
+                <a href="#sec-4" class="block py-1.5 nav-link rounded-md">4. The Amazon Cart Anomaly</a>
+                <a href="#sec-5" class="block py-1.5 nav-link rounded-md">5. CRDTs vs. OT</a>
+                <a href="#sec-6" class="block py-1.5 nav-link rounded-md">6. Practical Perspective</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Prep & Implementation</p>
+                <a href="#sec-7" class="block py-1.5 nav-link rounded-md">7. Interview Questions</a>
+                <a href="#sec-8" class="block py-1.5 nav-link rounded-md">8. Common Mistakes</a>
+                <a href="#sec-9" class="block py-1.5 nav-link rounded-md">9. Java Code Example</a>
+                <a href="#sec-10" class="block py-1.5 nav-link rounded-md">10. System Design Connections</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Review</p>
+                <a href="#sec-11" class="block py-1.5 nav-link rounded-md">11. Visual Mental Models</a>
+                <a href="#sec-12" class="block py-1.5 nav-link rounded-md">12. Failure Analysis Section</a>
+                <a href="#sec-13" class="block py-1.5 nav-link rounded-md">13. Lecture Summary</a>
+                <a href="#sec-14" class="block py-1.5 nav-link rounded-md">14. Revision Notes</a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 h-3/4 md:h-full overflow-y-auto bg-gray-50 p-6 md:p-12 lg:p-16">
+        <div class="max-w-4xl mx-auto prose">
+            
+            <header class="mb-12 text-center md:text-left">
+                <p class="text-blue-600 font-semibold tracking-wide uppercase text-sm mb-2">Target: Senior Backend Engineers, Distributed Systems Engineers, System Design Candidates</p>
+                <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 mt-0 border-none pb-0">Dealing with Conflicting Writes</h1>
+                <p class="text-xl text-gray-500 mt-4">📖 Engineering Mastery Notes (Source: DDIA Chapter 6 Extract)</p>
+            </header>
+
+            <!-- SECTION 1 -->
+            <section id="sec-1">
+                <h2>1. Big Picture</h2>
+                
+                <h3>The Inevitability of Conflicts</h3>
+                <p>If you adopt a Multi-Leader or Leaderless replication architecture, you have inherently traded strong consistency for high availability and low latency. The price you pay for this trade-off is <strong>Write Conflicts</strong>. When two nodes accept writes for the same piece of data independently—without coordinating with each other first—those writes will eventually collide during the asynchronous replication process.</p>
+
+                <h3>The True Definition of "Concurrent"</h3>
+                <p>In distributed systems, "concurrent" does not mean two events happened at the exact same physical millisecond. Physical time is largely irrelevant. <strong>Two writes are concurrent if neither was aware of the other when the write occurred.</strong> If User A and User B both update a wiki page, and neither had seen the other's update prior to saving, those writes are concurrent—even if they were submitted hours apart (e.g., while offline on an airplane).</p>
+
+                <h3>Why Backend Engineers Must Care</h3>
+                <p>If you handle write conflicts poorly, your system will suffer from silent data corruption, resurrected deleted data, or completely broken application invariants (like double-booked hotel rooms or negative bank balances).</p>
+            </section>
+
+            <!-- SECTION 2 -->
+            <section id="sec-2">
+                <h2>2. Core Concepts</h2>
+                <ul>
+                    <li><strong>Conflict:</strong> When two concurrent operations mutate the same state in ways that cannot be trivially merged.</li>
+                    <li><strong>Concurrent Writes:</strong> Writes that occur independently, where neither operation "happened-before" the other.</li>
+                    <li><strong>Conflict Avoidance:</strong> Architecting the routing layer so that concurrent writes to the same record are mathematically impossible.</li>
+                    <li><strong>Last Write Wins (LWW):</strong> A crude resolution strategy that picks the write with the highest timestamp and forcefully deletes the others.</li>
+                    <li><strong>Siblings:</strong> Storing all conflicting versions of a record in the database simultaneously and pushing the responsibility of merging them to the application or user.</li>
+                    <li><strong>Strong Eventual Consistency:</strong> A guarantee that all replicas that have received the same set of updates will eventually converge to the exact same state, regardless of the order in which the updates arrived.</li>
+                    <li><strong>CRDT (Conflict-Free Replicated Data Type):</strong> Mathematical data structures that handle merges automatically without a central server.</li>
+                    <li><strong>OT (Operational Transformation):</strong> An algorithm that mathematically transforms the index/position of operations to merge them safely (used heavily in real-time text editing).</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 3 -->
+            <section id="sec-3">
+                <h2>3. Deep Dive: Conflict Resolution Strategies</h2>
+
+                <p>How do we fix the collision when Leader 1 says the title is "B" and Leader 2 says the title is "C"?</p>
+
+                <h3>A. Conflict Avoidance (The SRE Favorite)</h3>
+                <ul>
+                    <li><strong>Internal Working:</strong> Instead of solving the conflict, you prevent it. You partition your data such that <em>all</em> writes for a specific record are always routed to the <em>same</em> leader.</li>
+                    <li><strong>Example:</strong> User 123's profile updates are exclusively routed to the <span class="inline-code">us-east</span> leader.</li>
+                    <li><strong>The Flaw:</strong> It breaks down during a failover. If <span class="inline-code">us-east</span> goes down and you reroute User 123 to <span class="inline-code">eu-west</span>, a delayed write from the old leader might suddenly appear, creating the exact conflict you tried to avoid.</li>
+                </ul>
+
+                <h3>B. Last Write Wins (LWW) - Discarding Writes</h3>
+                <ul>
+                    <li><strong>Internal Working:</strong> Every write is tagged with a physical timestamp. The database compares timestamps: <span class="inline-code">If (Write_A.time > Write_B.time) { keep(A); drop(B); }</span></li>
+                    <li><strong>The Flaw:</strong> Physical clocks drift (NTP Clock Skew). "Last Write" actually means "the write from the machine whose clock happened to be furthest ahead."</li>
+                    <li><strong>The Cost:</strong> <strong>Silent Data Loss.</strong> It is acceptable only for highly immutable data or caches.</li>
+                </ul>
+
+                <h3>C. Manual Resolution (Siblings)</h3>
+                <ul>
+                    <li><strong>Internal Working:</strong> The database detects the conflict and saves both values. When the client reads the record, the database returns a list: <span class="inline-code">["Title B", "Title C"]</span>.</li>
+                    <li><strong>The Flaw:</strong> The application developer must write complex merge logic, or the user is forced to click "Resolve Conflict" (like a Git merge conflict).</li>
+                </ul>
+
+                <h3>D. Automatic Resolution</h3>
+                <ul>
+                    <li><strong>Internal Working:</strong> Algorithms (like CRDTs or OTs) that track the exact intent of the operations (Insertions/Deletions/Increments) rather than the final state, ensuring that state naturally converges to a mathematically identical state on all nodes.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 4 -->
+            <section id="sec-4">
+                <h2>4. Distributed Systems Perspective: The Amazon Shopping Cart Anomaly</h2>
+
+                <p>When you ask the application to manually merge siblings, naïve merge logic causes catastrophic bugs.</p>
+
+                <p><strong>The Scenario:</strong><br>
+                Amazon originally used a Multi-Leader architecture for shopping carts. To merge concurrent carts, their application logic took the <strong>Set Union</strong> of the items.</p>
+                <ul>
+                    <li>State 0: Cart contains <span class="inline-code">[Soap, Book, DVD]</span>.</li>
+                    <li>Device A: User removes <span class="inline-code">Book</span>. Cart A is now <span class="inline-code">[Soap, DVD]</span>.</li>
+                    <li>Device B (Concurrent): User removes <span class="inline-code">DVD</span>. Cart B is now <span class="inline-code">[Soap, Book]</span>.</li>
+                    <li><strong>The Merge:</strong> The system merges the siblings by combining all items present in either list. <span class="inline-code">[Soap, DVD] U [Soap, Book]</span> = <span class="inline-code">[Soap, Book, DVD]</span>.</li>
+                    <li><strong>The Bug:</strong> Both deleted items <strong>reappeared</strong> in the customer's cart!</li>
+                </ul>
+
+                <p><strong>The Distributed Systems Fix:</strong> You cannot just track the <em>current state</em>. You must track the <em>operations</em> (Tombstones). A proper algorithm tracks that <span class="inline-code">Book</span> and <span class="inline-code">DVD</span> were explicitly deleted, resolving the cart to <span class="inline-code">[Soap]</span>.</p>
+            </section>
+
+            <!-- SECTION 5 -->
+            <section id="sec-5">
+                <h2>5. System Internals: CRDTs vs. Operational Transformation (OT)</h2>
+
+                <p>If two users concurrently edit the string "ice":</p>
+                <ul>
+                    <li>User 1 prepends <span class="inline-code">n</span> &rarr; "nice"</li>
+                    <li>User 2 appends <span class="inline-code">!</span> &rarr; "ice!"</li>
+                </ul>
+                <p>How does the system correctly arrive at "nice!"?</p>
+
+                <h3>Operational Transformation (OT)</h3>
+                <ul>
+                    <li><em>Used in:</em> Google Docs.</li>
+                    <li><em>Mechanism:</em> Relies on index positions.
+                        <ul>
+                            <li>Op 1: Insert <span class="inline-code">n</span> at Index <span class="inline-code">0</span>.</li>
+                            <li>Op 2: Insert <span class="inline-code">!</span> at Index <span class="inline-code">3</span>.</li>
+                        </ul>
+                    </li>
+                    <li><em>The Problem:</em> If Op 1 applies first, the string is <span class="inline-code">nice</span>. If we blindly apply Op 2 (Insert <span class="inline-code">!</span> at Index <span class="inline-code">3</span>), we get <span class="inline-code">nic!e</span> (Wrong!).</li>
+                    <li><em>The Transformation:</em> The OT server detects that Op 1 shifted the string by 1 character. It mathematically transforms Op 2 to: Insert <span class="inline-code">!</span> at Index <span class="inline-code">4</span>. Result: <span class="inline-code">nice!</span>.</li>
+                </ul>
+
+                <h3>Conflict-Free Replicated Data Types (CRDTs)</h3>
+                <ul>
+                    <li><em>Used in:</em> Riak, Redis Enterprise, Cosmos DB, Figma, Automerge.</li>
+                    <li><em>Mechanism:</em> Abandons indexes entirely. Every character gets a globally unique, immutable ID (e.g., <span class="inline-code">i</span> = 1A, <span class="inline-code">c</span> = 2A, <span class="inline-code">e</span> = 3A).</li>
+                    <li><em>The Operation:</em> Insert <span class="inline-code">n</span> before <span class="inline-code">1A</span>. Insert <span class="inline-code">!</span> after <span class="inline-code">3A</span>.</li>
+                    <li><em>The Merge:</em> Because operations reference immutable IDs instead of shifting array indexes, they can be applied in <em>any order</em> across any number of replicas, and they will perfectly converge without needing a centralized transformation server.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 6 -->
+            <section id="sec-6">
+                <h2>6. Practical Backend Engineering Perspective</h2>
+                <ul>
+                    <li><strong>Riak &amp; Cassandra (LWW vs Siblings):</strong> Cassandra defaults to strict Last Write Wins (based on microsecond timestamps). You will lose data if you aren't careful. Riak allows you to configure <span class="inline-code">allow_mult=true</span>, which returns Siblings to your app to resolve manually.</li>
+                    <li><strong>Counters (Likes/Views):</strong> Never use <span class="inline-code">UPDATE table SET likes = 5</span>. If two nodes do this concurrently, you lose a like. Use a <strong>CRDT PN-Counter</strong> (Positive-Negative Counter), or log the operations: <span class="inline-code">UPDATE table SET likes = likes + 1</span>. The database will easily merge mathematical increments.</li>
+                    <li><strong>Meeting Room Booking (Multi-Row Conflicts):</strong> The hardest conflict to detect. If User A books Room 1 at 10 AM, and User B books Room 1 at 10 AM on different leaders. Neither modifies the same row (they are inserting <em>new</em> booking rows). But they violate a global constraint ("No overlapping bookings"). Multi-Leader databases <strong>cannot</strong> natively prevent this. You must use a Single-Leader for inventory/booking systems.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 7 -->
+            <section id="sec-7">
+                <h2>7. Important Interview Questions</h2>
+
+                <h3>Basic</h3>
+                <p><strong>Q: What is the difference between Conflict Avoidance and Conflict Resolution?</strong><br>
+                A: Conflict avoidance routes all writes for a specific record to a single leader to prevent concurrent writes. Conflict resolution accepts that concurrent writes will happen and uses strategies like LWW, Siblings, or CRDTs to merge them after the fact.</p>
+
+                <h3>Intermediate</h3>
+                <p><strong>Q: Explain why "Last Write Wins" (LWW) is dangerous in distributed databases.</strong><br>
+                A: LWW relies on physical server clocks (timestamps) to determine which write "wins." Because of NTP clock skew, a server with a fast clock will overwrite data from a server with an accurate clock, leading to permanent, silent data loss.</p>
+
+                <h3>Advanced</h3>
+                <p><strong>Q: How did Amazon's original Dynamo shopping cart resurrect deleted items, and how would you fix it?</strong><br>
+                A: It resurrected items because the merge logic took the set-union of two concurrent cart states (Siblings). If Cart A deleted X, and Cart B deleted Y, the union restored both X and Y. To fix it, you must use a CRDT (like an Observed-Remove Set or OR-Set) that explicitly stores "Tombstones" for deleted items so the merge algorithm knows to keep them deleted.</p>
+            </section>
+
+            <!-- SECTION 8 -->
+            <section id="sec-8">
+                <h2>8. Common Mistakes</h2>
+                <ul>
+                    <li><strong>Beginner Mistake:</strong> Assuming physical timestamps (<span class="inline-code">updated_at</span>) are a reliable way to sort and merge distributed events.</li>
+                    <li><strong>Backend Engineer Mistake:</strong> Writing manual merge logic that only looks at the <em>current payload</em> without understanding the <em>delta/operations</em> that resulted in that payload.</li>
+                    <li><strong>System Design Mistake:</strong> Recommending a Multi-Leader or Leaderless architecture for an application with strict global constraints (e.g., username uniqueness, bank account balances, meeting room bookings). These require strong consistency (Single-Leader or Consensus).</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 9 -->
+            <section id="sec-9">
+                <h2>9. Practical Code / Database Examples</h2>
+                <p><strong>Handling Siblings in Application Logic (Java/Spring):</strong></p>
+                <pre class="code-block"><code>// When fetching data from a database that returns Siblings (e.g., Riak/CouchDB)
+public UserProfile resolveProfileConflicts(List&lt;UserProfile&gt; siblings) {
+    if (siblings.size() == 1) return siblings.get(0);
+    
+    // BAD MERGE (Data Loss):
+    // return siblings.get(siblings.size() - 1); 
+    
+    // GOOD MERGE (Deterministic Application-Level Resolution):
+    UserProfile merged = new UserProfile();
+    for (UserProfile sibling : siblings) {
+        // Example logic: For lists, use a union. For strings, take the longest.
+        merged.getTags().addAll(sibling.getTags()); 
+        
+        if (sibling.getBio() != null && sibling.getBio().length() > merged.getBio().length()) {
+            merged.setBio(sibling.getBio());
+        }
+    }
+    
+    // Important: Write the resolved version back to the DB immediately!
+    db.saveResolvedState(merged); 
+    return merged;
+}</code></pre>
+            </section>
+
+            <!-- SECTION 10 -->
+            <section id="sec-10">
+                <h2>10. System Design Connections</h2>
+                <ul>
+                    <li><strong>Event Sourcing:</strong> CRDTs and Operational Transformation share a philosophical core with Event Sourcing. If you store <em>facts/operations</em> ("User clicked Like", "User removed item") instead of <em>state</em> ("Likes = 5", "Cart = [Soap]"), you can resolve almost any conflict deterministically.</li>
+                    <li><strong>Microservices:</strong> If you have active-active microservices across regions, any shared state must use automatic conflict resolution. Relying on synchronous cross-region calls will destroy your SLAs.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 11 -->
+            <section id="sec-11">
+                <h2>11. Visual Mental Models (ASCII)</h2>
+
+                <h3>The Amazon Cart Anomaly (Set Union Failure)</h3>
+                <pre class="code-block">State 0: [Book, DVD]
+
+       /---> (Device A: Deletes Book) ---> [DVD]
+      /                                        \
+(Start)                                    (MERGE SET UNION)
+      \                                        /
+       \---> (Device B: Deletes DVD ) ---> [Book]
+
+Result of `[DVD] U [Book]` = [Book, DVD] 💥 (Deleted items returned!)</pre>
+
+                <h3>CRDT String Merge vs OT</h3>
+                <pre class="code-block">Initial State:  [1A: 'i', 2A: 'c', 3A: 'e']
+
+Node 1 Ops: Insert 'n' BEFORE 1A
+Node 2 Ops: Insert '!' AFTER 3A
+
+Merge Execution (CRDT):
+- Nodes exchange operations.
+- Because operations reference absolute IDs, no index shifting is needed.
+- Result converges perfectly: [New1: 'n', 1A: 'i', 2A: 'c', 3A: 'e', New2: '!']</pre>
+            </section>
+
+            <!-- SECTION 12 -->
+            <section id="sec-12">
+                <h2>12. Failure Analysis Section</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Failure Mode</th>
+                            <th>Root Cause</th>
+                            <th>Impact</th>
+                            <th>Architecture Fix</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Silent Data Loss</strong></td>
+                            <td>Using LWW with NTP drift.</td>
+                            <td>User writes are permanently lost.</td>
+                            <td>Use logical clocks (Version Vectors) or CRDTs.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Deleted Items Reappear</strong></td>
+                            <td>Naïve Set-Union sibling merge.</td>
+                            <td>Application state corruption.</td>
+                            <td>Track Deletes via Tombstones (OR-Set CRDT).</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Broken Unique Constraint</strong></td>
+                            <td>Multi-leader routing for user registrations.</td>
+                            <td>Two users claim the same <span class="inline-code">@username</span>.</td>
+                            <td><strong>Conflict Avoidance</strong>: Force all registrations to a Single Primary Leader.</td>
+                        </tr>
+                        <tr>
+                            <td><strong>OT Index Corruption</strong></td>
+                            <td>Concurrent text edits without a central OT server.</td>
+                            <td>Gibberish text (<span class="inline-code">nic!e</span>).</td>
+                            <td>Use CRDTs for decentralized peer-to-peer sync, or centralize the OT server.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- SECTION 13 -->
+            <section id="sec-13">
+                <h2>13. Lecture Summary</h2>
+                <ul>
+                    <li><strong>Key Takeaway 1:</strong> In Multi-Leader systems, write conflicts are not an edge case; they are a fundamental reality of the architecture.</li>
+                    <li><strong>Key Takeaway 2:</strong> "Last Write Wins" (LWW) is actually "Highest Timestamp Wins," which guarantees data loss due to clock skew. Use it only when data loss is acceptable.</li>
+                    <li><strong>Key Takeaway 3:</strong> Automatic resolution (CRDTs / OT) is the modern gold standard for building collaborative software (Figma, Google Docs) and distributed state synchronization.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 14 -->
+            <section id="sec-14">
+                <h2>14. Revision Notes (2-Minute Review Sheet)</h2>
+                <div class="code-block bg-blue-900 border border-blue-800 text-blue-50 shadow-md">
+                    <ul class="mb-0">
+                        <li><strong>Concurrent Writes:</strong> Neither write knew about the other. Time is irrelevant.</li>
+                        <li><strong>Conflict Avoidance:</strong> Route same-record writes to a single leader. Fails if routing changes.</li>
+                        <li><strong>LWW (Last Write Wins):</strong> Relies on timestamps. Dangerous. Destroys data.</li>
+                        <li><strong>Siblings:</strong> DB stores all conflicting versions. App must resolve them.</li>
+                        <li><strong>Amazon Cart Bug:</strong> Set-union of siblings resurrects deleted items. Fix requires tombstones.</li>
+                        <li><strong>OT (Operational Transformation):</strong> Transforms array indexes. Used by Google Docs. Requires a central server to dictate order.</li>
+                        <li><strong>CRDT (Conflict-Free Replicated Data Types):</strong> Math structures using unique IDs instead of indexes. Automatically converges state. Decentralized.</li>
+                        <li><strong>Constraint Violations:</strong> Multi-leader cannot enforce global uniqueness (e.g., double-booked rooms). Use Single-Leader for invariants.</li>
+                    </ul>
+                </div>
+            </section>
+
+            <footer class="mt-16 pt-8 border-t border-gray-200 text-center text-gray-500 text-sm pb-16">
+                End of Notes — Engineering Mastery Notes: Dealing with Conflicting Writes
+            </footer>
+        </div>
+    </main>
+
+</body>
+</html>
