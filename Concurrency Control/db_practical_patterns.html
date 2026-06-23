@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Practical Patterns — Production Engineering Notes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            color: #111827;
+        }
+        pre {
+            font-family: 'Fira Code', monospace;
+        }
+        .prose h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin-top: 3rem;
+            margin-bottom: 1.5rem;
+            color: #1e3a8a;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        .prose h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: #1f2937;
+        }
+        .prose h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: #374151;
+        }
+        .prose h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: #4b5563;
+        }
+        .prose p {
+            margin-bottom: 1rem;
+            line-height: 1.75;
+            color: #4b5563;
+        }
+        .prose ul, .prose ol {
+            padding-left: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #4b5563;
+        }
+        .prose ul { list-style-type: disc; }
+        .prose ol { list-style-type: decimal; }
+        .prose li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        .prose strong {
+            color: #111827;
+            font-weight: 600;
+        }
+        .prose blockquote {
+            border-left: 4px solid #3b82f6;
+            background-color: #eff6ff;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            font-style: normal;
+            color: #1e40af;
+            border-radius: 0 0.5rem 0.5rem 0;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        .prose table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+            background-color: white;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .prose th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #374151;
+        }
+        .prose td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #4b5563;
+            vertical-align: top;
+        }
+        .prose tr:last-child td {
+            border-bottom: none;
+        }
+        .code-block {
+            background-color: #1f2937;
+            color: #e5e7eb;
+            padding: 1.25rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            white-space: pre;
+        }
+        .inline-code {
+            background-color: #f3f4f6;
+            color: #ef4444;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.875rem;
+        }
+        .nav-link {
+            transition: all 0.2s ease;
+        }
+        .nav-link:hover {
+            color: #2563eb;
+            background-color: #eff6ff;
+            padding-left: 0.5rem;
+        }
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body class="antialiased flex flex-col md:flex-row h-screen overflow-hidden">
+
+    <!-- Sidebar / Table of Contents -->
+    <aside class="w-full md:w-72 bg-white border-r border-gray-200 h-1/4 md:h-full overflow-y-auto flex-shrink-0 z-10 shadow-sm">
+        <div class="p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Contents</h2>
+            
+            <nav class="space-y-1 text-sm font-medium text-gray-600">
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Overview</p>
+                <a href="#sec-1" class="block py-1.5 nav-link rounded-md">1. Big Picture</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">The Patterns</p>
+                <a href="#sec-2" class="block py-1.5 nav-link rounded-md">2. Double Booking</a>
+                <a href="#sec-3" class="block py-1.5 nav-link rounded-md">3. Cursor Pagination</a>
+                <a href="#sec-4" class="block py-1.5 nav-link rounded-md">4. Connection Pooling</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Implementation & Prep</p>
+                <a href="#sec-5" class="block py-1.5 nav-link rounded-md">5. Complete System API</a>
+                <a href="#sec-6" class="block py-1.5 nav-link rounded-md">6. Interview Questions</a>
+                <a href="#sec-7" class="block py-1.5 nav-link rounded-md">7. Common Mistakes</a>
+                <a href="#sec-8" class="block py-1.5 nav-link rounded-md">8. Performance Reference</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Review</p>
+                <a href="#sec-9" class="block py-1.5 nav-link rounded-md">9. Revision Notes</a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 h-3/4 md:h-full overflow-y-auto bg-gray-50 p-6 md:p-12 lg:p-16">
+        <div class="max-w-4xl mx-auto prose">
+            
+            <header class="mb-12 text-center md:text-left">
+                <p class="text-blue-600 font-semibold tracking-wide uppercase text-sm mb-2">Interview & System Design Ready</p>
+                <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 mt-0 border-none pb-0">Database Practical Patterns</h1>
+                <p class="text-xl text-gray-500 mt-4">Double Booking Prevention | Cursor Pagination | Connection Pooling</p>
+            </header>
+
+            <!-- SECTION 1 -->
+            <section id="sec-1">
+                <h1>1. Big Picture</h1>
+                
+                <h2>Why These Patterns Exist</h2>
+                <p>These three patterns appear in nearly every production backend system:</p>
+
+                <table>
+                    <thead>
+                        <tr><th>Pattern</th><th>Problem Solved</th><th>Where It Appears</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Double Booking Prevention</td><td>Race conditions on shared resources under concurrent load</td><td>Ticketing, cinema, Airbnb, airline, hospital scheduling</td></tr>
+                        <tr><td>Cursor-Based Pagination</td><td>Offset pagination is O(n) and gets slower with each page</td><td>Any API with paginated lists: news feed, search results, order history</td></tr>
+                        <tr><td>Connection Pooling</td><td>TCP connection setup/teardown is expensive per request</td><td>Every backend application connecting to any database</td></tr>
+                    </tbody>
+                </table>
+
+                <p>All three share a common theme: <strong>naive implementations work in development but collapse under production load</strong>. Understanding the failure mode is as important as knowing the fix.</p>
+            </section>
+
+            <!-- SECTION 2 -->
+            <section id="sec-2">
+                <h1>2. Pattern 1 — Double Booking Prevention</h1>
+
+                <h2>2.1 — The Problem: Race Condition / Double Booking</h2>
+                <p>A race condition occurs when two concurrent transactions both read a resource as "available" and both proceed to book it — because neither was aware of the other's in-progress reservation.</p>
+
+                <pre class="code-block">Timeline (without locking):
+
+T=0ms:  User A requests seat 15
+T=0ms:  User B requests seat 15 (concurrent)
+
+T=1ms:  Transaction A: SELECT * FROM seats WHERE id=15 AND is_booked=0
+         → Returns: seat available ✅
+T=1ms:  Transaction B: SELECT * FROM seats WHERE id=15 AND is_booked=0
+         → Returns: seat available ✅  (reads same uncommitted state)
+
+T=2ms:  Transaction A: UPDATE seats SET is_booked=1, name='Ali' WHERE id=15
+         → 1 row updated ✅
+T=3ms:  Transaction A: COMMIT
+
+T=4ms:  Transaction B: UPDATE seats SET is_booked=1, name='Edmund' WHERE id=15
+         → 1 row updated ✅  ← OVERWRITES Transaction A!
+T=5ms:  Transaction B: COMMIT
+
+Result: Seat belongs to Edmund. Ali paid but lost the seat. ❌</pre>
+
+                <p>This is called <strong>"last write wins"</strong> — whichever transaction commits last owns the row, regardless of who checked availability first.</p>
+
+                <h2>2.2 — The Naive (Broken) Fix</h2>
+                <p>Most systems implement an availability check before the update:</p>
+
+                <pre class="code-block"><code>// BROKEN — Race condition still exists between SELECT and UPDATE
+@Transactional
+public BookingResult bookSeat(long seatId, String userName, JdbcTemplate jdbc) {
+    // Step 1: Check if seat is available
+    List&lt;Map&lt;String, Object&gt;&gt; rows = jdbc.queryForList(
+        "SELECT * FROM seats WHERE id = ? AND is_booked = 0",
+        seatId
+    );
+
+    // Step 2: If available, book it
+    if (!rows.isEmpty()) {
+        jdbc.update(
+            "UPDATE seats SET is_booked = 1, name = ? WHERE id = ?",
+            userName, seatId
+        );
+        return BookingResult.SUCCESS;
+    }
+    return BookingResult.ALREADY_BOOKED;
+
+    // PROBLEM: Another transaction can slip between Step 1 and Step 2.
+    // Both transactions pass the check. Both execute the UPDATE. Double booking.
+}</code></pre>
+
+                <p><strong>Why the check is not enough:</strong> MVCC means each transaction reads its own consistent snapshot. At the moment Transaction B executes the SELECT, Transaction A's UPDATE hasn't committed yet — so B's snapshot still shows the seat as available. Both transactions pass the availability check.</p>
+
+                <h2>2.3 — Solution 1: SELECT FOR UPDATE (Explicit Pessimistic Locking)</h2>
+                <p>Acquire an <strong>exclusive row lock during the SELECT</strong>, before checking availability. This serializes access to the row.</p>
+
+                <pre class="code-block"><code>@Transactional
+public BookingResult bookSeat(long seatId, String userName, JdbcTemplate jdbc) {
+    // Phase 1 of 2PL: Acquire exclusive lock via FOR UPDATE
+    // Any concurrent transaction attempting FOR UPDATE on the same row BLOCKS here
+    List&lt;Map&lt;String, Object&gt;&gt; rows = jdbc.queryForList(
+        "SELECT * FROM seats WHERE id = ? FOR UPDATE",
+        // ↑ Exclusive row lock acquired immediately
+        // Any other SELECT FOR UPDATE / UPDATE / DELETE on this row will BLOCK
+        seatId
+    );
+
+    if (rows.isEmpty()) {
+        return BookingResult.NOT_FOUND;
+    }
+
+    boolean isBooked = (Boolean) rows.get(0).get("is_booked");
+
+    if (isBooked) {
+        // Seat taken — no update needed
+        // Phase 2 of 2PL: ROLLBACK releases the exclusive lock
+        return BookingResult.ALREADY_BOOKED;
+    }
+
+    // Safe to book — no concurrent transaction can be here simultaneously
+    jdbc.update(
+        "UPDATE seats SET is_booked = true, name = ? WHERE id = ?",
+        userName, seatId
+    );
+
+    // Phase 2 of 2PL: COMMIT releases the exclusive lock
+    // Concurrent transactions waiting on this row are now unblocked
+    return BookingResult.SUCCESS;
+}</code></pre>
+
+                <p><strong>What happens under concurrency:</strong></p>
+                <pre class="code-block">Timeline (with SELECT FOR UPDATE):
+
+T=0ms:  Transaction A: SELECT * FROM seats WHERE id=15 FOR UPDATE
+         → Acquires exclusive lock on row 15 ✅
+
+T=0ms:  Transaction B: SELECT * FROM seats WHERE id=15 FOR UPDATE
+         → BLOCKED: row 15 is exclusively locked by Transaction A
+
+T=1ms:  Transaction A: seat is available → UPDATE seats SET is_booked=1, name='Ali'
+T=2ms:  Transaction A: COMMIT → exclusive lock RELEASED
+
+T=2ms:  Transaction B: UNBLOCKED → reads CURRENT committed state
+         → Sees: is_booked=1, name='Ali' (already taken)
+         → Returns ALREADY_BOOKED
+
+Result: Seat correctly belongs to Ali. Edmund gets "already booked" error. ✅</pre>
+
+                <h3>SQL Version</h3>
+                <pre class="code-block"><code>-- Transaction 1 (User A - Ali):
+BEGIN;
+SELECT * FROM seats WHERE id = 15 FOR UPDATE;
+-- Exclusive lock acquired on row 15
+
+UPDATE seats SET is_booked = TRUE, name = 'Ali' WHERE id = 15;
+COMMIT;
+-- Lock released
+
+-- Transaction 2 (User B - Edmund) - concurrent:
+BEGIN;
+SELECT * FROM seats WHERE id = 15 FOR UPDATE;
+-- BLOCKED until Transaction 1 commits
+
+-- After Transaction 1 commits:
+-- Unblocked. Reads current state: is_booked=TRUE, name='Ali'
+-- Application returns "seat already booked"
+ROLLBACK;</code></pre>
+
+                <h2>2.4 — Solution 2: Conditional UPDATE (Implicit Locking)</h2>
+                <p>Skip the SELECT. Directly UPDATE with the availability condition in the WHERE clause. Check <span class="inline-code">rows_affected</span> to determine if the booking succeeded.</p>
+
+                <pre class="code-block"><code>@Transactional
+public BookingResult bookSeat(long seatId, String userName, JdbcTemplate jdbc) {
+    // Attempt to book ONLY if seat is currently unbooked
+    // The WHERE clause is atomic with the UPDATE — no race window
+    int rowsUpdated = jdbc.update(
+        "UPDATE seats SET is_booked = TRUE, name = ? WHERE id = ? AND is_booked = FALSE",
+        userName, seatId
+    );
+
+    if (rowsUpdated == 1) {
+        return BookingResult.SUCCESS;   // We got the seat
+    } else {
+        return BookingResult.ALREADY_BOOKED;  // Someone else got it first
+    }
+}</code></pre>
+
+                <p><strong>Why this works in PostgreSQL:</strong></p>
+                <pre class="code-block">Transaction A executes:
+  UPDATE seats SET is_booked=TRUE, name='Ali' WHERE id=15 AND is_booked=FALSE
+
+  Internally:
+  1. Index scan on id=15 → finds tuple
+  2. Postgres checks: is this row locked? No → proceed
+  3. Postgres detects WHERE is_booked=FALSE → true (row is unbooked)
+  4. Acquires implicit exclusive lock on the row
+  5. Writes new version: is_booked=TRUE, name='Ali'
+  6. Returns: 1 row updated
+
+Transaction B executes (concurrent):
+  UPDATE seats SET is_booked=TRUE, name='Edmund' WHERE id=15 AND is_booked=FALSE
+
+  Internally:
+  1. Index scan on id=15 → finds tuple
+  2. Postgres checks: is this row locked? YES (Transaction A holds it)
+  3. Transaction B BLOCKS until Transaction A commits
+
+  After Transaction A commits:
+  4. Transaction B re-evaluates the WHERE clause against committed data
+     (READ COMMITTED isolation: re-reads current committed values)
+  5. is_booked is now TRUE → WHERE clause fails
+  6. Returns: 0 rows updated → ALREADY_BOOKED</pre>
+
+                <p><strong>The critical nuance:</strong> PostgreSQL, under READ COMMITTED, <strong>re-evaluates the WHERE clause</strong> against the latest committed data after being unblocked. This is PostgreSQL-specific behavior. Other databases may behave differently.</p>
+
+                <h3>Why Solution 2 Works but Solution 1 is Preferable</h3>
+                <table>
+                    <thead>
+                        <tr><th>Aspect</th><th>SELECT FOR UPDATE</th><th>Conditional UPDATE</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Explicit control</td><td>✅ Full control over what happens between read and write</td><td>❌ Limited — just one update</td></tr>
+                        <tr><td>Multi-step operations</td><td>✅ Can do many things before committing</td><td>❌ Tied to single UPDATE</td></tr>
+                        <tr><td>Portability</td><td>✅ Behavior is explicit and clear</td><td>❌ Depends on database's re-evaluation behavior</td></tr>
+                        <tr><td>Implicit reliance</td><td>❌ None</td><td>❌ Relies on READ COMMITTED + heap re-read</td></tr>
+                        <tr><td>Performance</td><td>Slightly more overhead (explicit lock management)</td><td>Slightly less overhead (implicit lock)</td></tr>
+                        <tr><td>Preferred for</td><td>Multi-step booking flows, complex logic</td><td>Simple atomic check-and-set</td></tr>
+                    </tbody>
+                </table>
+
+                <h2>2.5 — Optimistic vs Pessimistic Locking</h2>
+                <pre class="code-block">PESSIMISTIC LOCKING (SELECT FOR UPDATE):
+  "Something WILL conflict. I'll lock preemptively."
+  Lock → Check → Update → Commit/Rollback → Unlock
+  Good for: HIGH contention (many users competing for same resource)
+  Bad for: Low contention (locking overhead wasted if rarely contested)
+
+OPTIMISTIC LOCKING (version counter):
+  "Conflicts are RARE. I'll try without locking and detect conflicts at write time."
+  Read + version → Process → Update WHERE version=read_version → Check rows_affected
+  Good for: LOW contention
+  Bad for: High contention (many retries, wasted work, user frustration)
+
+For cinema/concert booking: HIGH contention → PESSIMISTIC (SELECT FOR UPDATE)
+For editing a rarely-touched config record: LOW contention → OPTIMISTIC</pre>
+
+                <pre class="code-block"><code>// Optimistic locking with version column
+@Transactional
+public BookingResult bookSeatOptimistic(long seatId, String userName, JdbcTemplate jdbc) {
+    // Read without locking
+    Map&lt;String, Object&gt; seat = jdbc.queryForMap(
+        "SELECT id, is_booked, version FROM seats WHERE id = ?", seatId
+    );
+
+    if ((Boolean) seat.get("is_booked")) {
+        return BookingResult.ALREADY_BOOKED;
+    }
+
+    int version = (Integer) seat.get("version");
+
+    // Update ONLY if version hasn't changed since we read
+    int updated = jdbc.update(
+        "UPDATE seats SET is_booked=TRUE, name=?, version=version+1 WHERE id=? AND version=?",
+        userName, seatId, version
+    );
+
+    if (updated == 0) {
+        // Someone else changed the row between our read and write
+        // Must RETRY — application responsibility
+        throw new OptimisticLockException("Retry required");
+    }
+    return BookingResult.SUCCESS;
+}</code></pre>
+            </section>
+
+            <!-- SECTION 3 -->
+            <section id="sec-3">
+                <h1>3. Pattern 2 — Cursor-Based Pagination (Keyset Pagination)</h1>
+
+                <h2>3.1 — The Problem with OFFSET</h2>
+                <p><span class="inline-code">OFFSET N</span> instructs the database to fetch and then discard the first N rows. As N grows, the database does increasingly more work for no benefit.</p>
+
+                <pre class="code-block">Query: SELECT title FROM news ORDER BY id DESC OFFSET 100000 LIMIT 10
+
+What PostgreSQL actually does:
+  1. Scan the index backward
+  2. Fetch 100,010 rows (100,000 to discard + 10 to return)
+  3. Discard the first 100,000 rows
+  4. Return the 10 remaining rows
+
+Work done: O(OFFSET + LIMIT) = O(100,010)
+Work useful: O(LIMIT)         = O(10)
+Efficiency: 0.01%</pre>
+
+                <p><strong>Performance degradation:</strong></p>
+                <pre class="code-block">OFFSET 0:       Fetch 10 rows.      ~0.2ms
+OFFSET 1,000:   Fetch 1,010 rows.   ~1ms
+OFFSET 100,000: Fetch 100,010 rows. ~79ms
+OFFSET 1,000,000: Fetch 1,000,010.  ~620ms (first run: ~6 seconds!)
+
+Pattern: latency grows linearly with offset value.
+Page 1 is fast. Page 10,000 is painfully slow.</pre>
+
+                <p><strong>The duplicate record problem:</strong></p>
+                <pre class="code-block">User reads page 10 (offset 90, limit 10) → gets rows 91-100
+Meanwhile: new record inserted at position 91
+User reads page 11 (offset 100, limit 10) → gets rows 101-110
+BUT: old row 100 is now at position 101 → returned again!
+
+Result: User sees duplicate records across pages.</pre>
+
+                <h2>3.2 — Solution: Cursor-Based (Keyset) Pagination</h2>
+                <p>Instead of skipping N rows, use the last-seen ID as a "cursor" to tell the database exactly where to start. The database can jump directly to that position via the index.</p>
+
+                <pre class="code-block">Query: SELECT id, title FROM news WHERE id < :last_seen_id ORDER BY id DESC LIMIT 10
+
+What PostgreSQL actually does:
+  1. Use the id index to jump directly to last_seen_id position
+  2. Scan backward from that position
+  3. Return the first 10 rows found
+
+Work done: O(LIMIT) = O(10)
+Work useful: O(LIMIT) = O(10)
+Efficiency: 100%</pre>
+
+                <p><strong>Performance:</strong></p>
+                <pre class="code-block">Any page, any depth:  Fetch exactly 10 rows.  ~0.05ms (index-only)
+No degradation with page depth.
+Page 1 and page 10,000 take the same time. ✅</pre>
+
+                <h3>Java Implementation</h3>
+                <pre class="code-block"><code>/**
+ * Cursor-based pagination for news articles.
+ * Returns 10 articles older than the given cursor ID.
+ *
+ * API contract:
+ *   GET /news               → first page (no cursor)
+ *   GET /news?cursor=12345  → next page after ID 12345
+ */
+@GetMapping("/news")
+public NewsPage getNews(
+        @RequestParam(required = false) Long cursor,
+        JdbcTemplate jdbc) {
+
+    List&lt;Map&lt;String, Object&gt;&gt; rows;
+
+    if (cursor == null) {
+        // First page: no cursor → get the most recent 10 articles
+        rows = jdbc.queryForList(
+            "SELECT id, title FROM news ORDER BY id DESC LIMIT 10"
+        );
+    } else {
+        // Subsequent pages: only return articles older than the cursor
+        // WHERE id < cursor uses the index to jump directly to cursor position
+        rows = jdbc.queryForList(
+            "SELECT id, title FROM news WHERE id < ? ORDER BY id DESC LIMIT 10",
+            cursor
+        );
+    }
+
+    // Extract the last ID from results — this becomes the cursor for the next page
+    Long nextCursor = null;
+    if (!rows.isEmpty()) {
+        nextCursor = (Long) rows.get(rows.size() - 1).get("id");
+    }
+
+    return new NewsPage(rows, nextCursor);
+}
+
+public record NewsPage(List&lt;Map&lt;String, Object&gt;&gt; articles, Long nextCursor) {}
+
+// Client usage:
+// Page 1: GET /news              → returns articles with ids: [200, 199, 198, ..., 191]
+//                                   nextCursor = 191
+// Page 2: GET /news?cursor=191   → returns articles with ids: [190, 189, ..., 181]
+//                                   nextCursor = 181
+// Page N: GET /news?cursor=181   → continues backward in time</code></pre>
+
+                <h3>SQL Examples</h3>
+                <pre class="code-block"><code>-- OFFSET approach (bad):
+SELECT id, title FROM news
+ORDER BY id DESC
+OFFSET 100000 LIMIT 10;
+-- Fetches 100,010 rows, discards 100,000. Slow.
+
+-- Keyset approach (good) — first page:
+SELECT id, title FROM news
+ORDER BY id DESC
+LIMIT 10;
+-- Fetches exactly 10 rows. Fast.
+
+-- Keyset approach — subsequent pages:
+SELECT id, title FROM news
+WHERE id < 199991    -- cursor from previous page's last item
+ORDER BY ID DESC
+LIMIT 10;
+-- Fetches exactly 10 rows regardless of page depth. Fast.
+
+-- Verify with EXPLAIN ANALYZE:
+EXPLAIN ANALYZE
+SELECT id, title FROM news
+WHERE id < 50000
+ORDER BY id DESC
+LIMIT 10;
+
+-- Expected output:
+-- Index Scan Backward using news_pkey on news
+-- Index Cond: (id < 50000)
+-- Rows Removed by Filter: 0
+-- Actual rows: 10    ← Only 10 rows processed, regardless of cursor value
+-- Execution time: 0.05ms</code></pre>
+
+                <h2>3.3 — Keyset Limitations and When to Use OFFSET</h2>
+                
+                <h3>Limitations of Keyset Pagination</h3>
+                <table>
+                    <thead>
+                        <tr><th>Limitation</th><th>Explanation</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>No random page access</td><td>Cannot jump to "page 500" — must traverse pages sequentially</td></tr>
+                        <tr><td>Single sort column</td><td>Works best with a single unique indexed column (ID, timestamp)</td></tr>
+                        <tr><td>Complex multi-column cursors</td><td>Sorting by (date, id) requires a compound cursor</td></tr>
+                        <tr><td>No total page count</td><td>Cannot say "Page 3 of 47" — only "next/previous"</td></tr>
+                        <tr><td>Cursor invalidation</td><td>If the cursor row is deleted, the cursor still works (skips the gap)</td></tr>
+                    </tbody>
+                </table>
+
+                <h3>When OFFSET Is Acceptable</h3>
+                <pre class="code-block">✅ Use OFFSET when:
+  - Total dataset is small (< 10,000 rows)
+  - Users rarely navigate beyond page 3-5
+  - Random page access is required ("jump to page 200")
+  - Admin interfaces where performance is secondary
+
+✅ Use Keyset/Cursor when:
+  - Infinite scroll (Twitter, Instagram, news feeds)
+  - Large datasets where deep pagination is common
+  - High-traffic APIs where p99 latency matters
+  - Any list where pages are navigated sequentially</pre>
+
+                <h3>Multi-Column Cursor (Advanced)</h3>
+                <pre class="code-block"><code>-- Sort by date DESC, then id DESC (tie-breaker)
+-- Cursor needs both: (last_date, last_id)
+
+SELECT id, title, published_at
+FROM news
+WHERE (published_at, id) < (:last_date, :last_id)
+-- ← Row-value comparison: works as a compound cursor
+ORDER BY published_at DESC, id DESC
+LIMIT 10;</code></pre>
+
+                <pre class="code-block"><code>// Java multi-column cursor
+public List&lt;Map&lt;String, Object&gt;&gt; getNewsPage(
+        Timestamp lastDate, Long lastId, JdbcTemplate jdbc) {
+    if (lastDate == null) {
+        // First page
+        return jdbc.queryForList(
+            "SELECT id, title, published_at FROM news ORDER BY published_at DESC, id DESC LIMIT 10"
+        );
+    }
+    // Subsequent pages using row-value comparison
+    return jdbc.queryForList(
+        "SELECT id, title, published_at FROM news " +
+        "WHERE (published_at, id) < (?, ?) " +
+        "ORDER BY published_at DESC, id DESC LIMIT 10",
+        lastDate, lastId
+    );
+}</code></pre>
+            </section>
+
+            <!-- SECTION 4 -->
+            <section id="sec-4">
+                <h1>4. Pattern 3 — Connection Pooling</h1>
+
+                <h2>4.1 — The Problem: Per-Request Connection Creation</h2>
+                <p>The naive approach: open a database connection per request, execute query, close connection.</p>
+
+                <pre class="code-block">Without pooling:
+GET /users → open TCP connection → 3-way handshake → TLS negotiation →
+             PostgreSQL auth → SSL → execute query → get results →
+             close connection → 4-way teardown
+
+Cost breakdown (local DB):
+  TCP 3-way handshake:     ~0.1ms
+  PostgreSQL auth:         ~5-10ms  ← expensive
+  SSL negotiation:         ~2-5ms
+  Query execution:         ~1-2ms
+  Connection teardown:     ~0.5ms
+  ──────────────────────────────
+  Total overhead:          ~9-17ms per request
+
+vs query execution alone: ~1-2ms (5-17× faster without connection overhead)
+
+For remote DB (cloud, different datacenter):
+  Network RTT alone:       20-100ms per round trip
+  Multiple round trips needed for auth: 60-300ms overhead per request!</pre>
+
+                <p><strong>The per-connection problem in PostgreSQL:</strong></p>
+                <pre class="code-block">PostgreSQL spawns a NEW PROCESS per connection.
+  Each process: ~5-10MB RAM
+  100 connections: ~500MB-1GB RAM just for connection management
+  PostgreSQL default max_connections = 100
+
+When max_connections is reached:
+  → New connection attempt: FATAL: sorry, too many clients already
+  → Application crashes or returns 500 to users</pre>
+
+                <h2>4.2 — Solution: Connection Pooling</h2>
+                <p>Pre-create N database connections at application startup. Reuse them for every request. Return connections to the pool after each query.</p>
+
+                <pre class="code-block">With pooling (pool size = 10):
+
+App startup: establish 10 persistent TCP connections to PostgreSQL
+             (one-time cost: ~90ms total for all 10)
+
+GET /users  → borrow connection from pool (0ms) → execute query (1ms) → return to pool
+GET /orders → borrow connection from pool (0ms) → execute query (2ms) → return to pool
+GET /profile→ borrow connection from pool (0ms) → execute query (1ms) → return to pool
+
+Connection overhead per request: ~0ms (already established)
+Query execution time: ~1-2ms (same as before)
+
+Performance improvement:
+  Without pool (local):  ~10-18ms per request
+  With pool (local):      ~1-2ms per request  → 5-10× faster
+  
+  Without pool (remote): ~60-300ms per request
+  With pool (remote):     ~2-5ms per request  → 30-100× faster</pre>
+
+                <h2>4.3 — Java Implementation (HikariCP)</h2>
+                <p>HikariCP is the standard connection pool library for Java Spring Boot applications.</p>
+
+                <pre class="code-block"><code>import com.zaxxer.hikari.HikariConfig;
+import com.zaxxer.hikari.HikariDataSource;
+import org.springframework.jdbc.core.JdbcTemplate;
+
+/**
+ * Connection pool configuration using HikariCP.
+ *
+ * HikariCP is:
+ *   - Default connection pool in Spring Boot
+ *   - Fastest Java connection pool available
+ *   - Benchmark leader across all major connection pools
+ */
+@Configuration
+public class DatabaseConfig {
+
+    /**
+     * Configure HikariCP connection pool.
+     * Equivalent to Node.js: new Pool({ max: 20, idleTimeoutMillis: 30000 })
+     */
+    @Bean
+    public HikariDataSource dataSource() {
+        HikariConfig config = new HikariConfig();
+
+        // JDBC connection URL
+        config.setJdbcUrl("jdbc:postgresql://localhost:5432/postgres");
+        config.setUsername("postgres");
+        config.setPassword("postgres");
+
+        // ─── Pool Size Configuration ─────────────────────────────────────────
+
+        // Maximum number of connections in the pool.
+        // Rule of thumb: (2 × CPU cores) + effective_spindle_count
+        // For a 4-core machine with SSD: 8-10 connections
+        // Counterintuitive: more connections ≠ better performance (context switching)
+        config.setMaximumPoolSize(20);
+
+        // Minimum idle connections maintained in the pool.
+        // Set equal to maximumPoolSize for fixed pool size (no scale-up/down overhead)
+        config.setMinimumIdle(5);
+
+        // ─── Timeout Configuration ────────────────────────────────────────────
+
+        // Max time (ms) a request waits for a connection from the pool.
+        // If all 20 connections are busy and a 21st request comes in,
+        // it waits up to this long before throwing SQLException.
+        // Node.js equivalent: connectionTimeoutMillis
+        config.setConnectionTimeout(30_000);  // 30 seconds
+
+        // Max time (ms) a connection can sit idle in the pool before being closed.
+        // Prevents holding idle connections open indefinitely.
+        // Node.js equivalent: idleTimeoutMillis
+        config.setIdleTimeout(600_000);  // 10 minutes
+
+        // Max lifetime (ms) of a connection regardless of idle/active state.
+        // Prevents stale connections from accumulating.
+        // Should be less than database's connection_timeout setting.
+        config.setMaxLifetime(1_800_000);  // 30 minutes
+
+        // ─── Health Check ─────────────────────────────────────────────────────
+
+        // Query used to validate a connection is still alive before use.
+        // PostgreSQL supports the lightweight "SELECT 1" or connection validation.
+        config.setConnectionTestQuery("SELECT 1");
+
+        // Pool name — appears in monitoring/metrics
+        config.setPoolName("MainPool");
+
+        return new HikariDataSource(config);
+    }
+
+    @Bean
+    public JdbcTemplate jdbcTemplate(HikariDataSource dataSource) {
+        return new JdbcTemplate(dataSource);
+    }
+}</code></pre>
+
+                <h3>Using the Pool for Queries</h3>
+                <pre class="code-block"><code>@Service
+public class EmployeeService {
+
+    private final JdbcTemplate jdbcTemplate;
+
+    public EmployeeService(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+        // JdbcTemplate uses HikariCP automatically via the configured DataSource
+    }
+
+    /**
+     * Stateless query — pool handles connection selection automatically.
+     * No explicit connect/disconnect needed.
+     *
+     * Node.js equivalent:
+     *   pool.query("SELECT * FROM employees")
+     */
+    public List&lt;Map&lt;String, Object&gt;&gt; getAllEmployees() {
+        // HikariCP:
+        // 1. Borrows an available connection from the pool
+        // 2. Executes the query
+        // 3. Returns the connection to the pool automatically
+        // Connection borrow/return: ~microseconds
+        return jdbcTemplate.queryForList("SELECT id, name, salary FROM employees");
+    }
+
+    /**
+     * For transactions, explicitly borrow a dedicated connection.
+     * @Transactional ensures the same connection is used throughout.
+     *
+     * Node.js equivalent:
+     *   const client = await pool.connect();
+     *   await client.query('BEGIN');
+     *   await client.query(...);
+     *   await client.query('COMMIT');
+     *   client.release();
+     */
+    @Transactional
+    public void transferSalary(long fromId, long toId, BigDecimal amount) {
+        // Spring's @Transactional borrows ONE connection from the pool
+        // and uses it for all queries in this method.
+        // The connection is returned to the pool after the method completes.
+
+        jdbcTemplate.update(
+            "UPDATE employees SET salary = salary - ? WHERE id = ?",
+            amount, fromId
+        );
+        jdbcTemplate.update(
+            "UPDATE employees SET salary = salary + ? WHERE id = ?",
+            amount, toId
+        );
+        // COMMIT happens automatically at method exit
+        // Connection returned to pool
+    }
+}</code></pre>
+
+                <h3>Pool Configuration Rules of Thumb</h3>
+                <pre class="code-block">Pool Size Formula (PostgreSQL's recommendation):
+  pool_size = (core_count × 2) + effective_spindle_count
+
+  4-core CPU, SSD (spindle_count ≈ 1): pool_size = 9
+  8-core CPU, SSD:                      pool_size = 17
+  8-core CPU, HDD (spindle_count = 4):  pool_size = 20
+
+Why NOT huge pools?
+  100 connections → PostgreSQL spawns 100 processes → ~500MB-1GB RAM overhead
+  Context switching between 100 processes is SLOWER than 10 processes taking turns
+  HikariCP benchmark: optimal pool size is usually 10-20, not 100+
+
+Common mistake: Setting max pool size = max PostgreSQL connections
+  PostgreSQL default: max_connections = 100
+  If you have 10 app servers × 20 pool size = 200 connections → EXCEEDS LIMIT
+  Solution: Use PgBouncer as a connection pooler BETWEEN app servers and PostgreSQL</pre>
+
+                <h3>Monitoring Pool Health</h3>
+                <pre class="code-block"><code>@Component
+public class PoolHealthMonitor {
+
+    private final HikariDataSource dataSource;
+
+    @Scheduled(fixedRate = 60_000)  // Every minute
+    public void logPoolStats() {
+        HikariPoolMXBean pool = dataSource.getHikariPoolMXBean();
+
+        log.info("Connection Pool Stats: " +
+            "active={}, idle={}, waiting={}, total={}",
+            pool.getActiveConnections(),   // Currently executing queries
+            pool.getIdleConnections(),     // Available for use
+            pool.getThreadsAwaitingConnection(),  // Requests waiting for a connection
+            pool.getTotalConnections()     // Total in pool (active + idle)
+        );
+
+        // Alert if requests are waiting for connections — pool may be undersized
+        if (pool.getThreadsAwaitingConnection() > 5) {
+            log.warn("Pool pressure: {} threads waiting for connection. " +
+                     "Consider increasing pool size.", pool.getThreadsAwaitingConnection());
+        }
+    }
+}</code></pre>
+
+                <h3>PgBouncer: Connection Pooler Between App and PostgreSQL</h3>
+                <p>For high-scale systems where multiple application servers need more connections than PostgreSQL can handle:</p>
+                <pre class="code-block">Without PgBouncer:
+  10 app servers × 20 pool size = 200 connections to PostgreSQL
+  PostgreSQL max_connections = 100 → EXCEEDS LIMIT, connections rejected
+
+With PgBouncer (transaction mode):
+  10 app servers → PgBouncer pool (200 virtual connections)
+  PgBouncer → PostgreSQL (20 real connections)
+  PostgreSQL sees only 20 connections → well within limits
+  App servers see 200 connections → no waiting
+
+Architecture:
+  App Server 1 ─┐
+  App Server 2 ─┤
+  App Server 3 ─┼──→ PgBouncer (200 virtual) ──→ PostgreSQL (20 real)
+  App Server 4 ─┤
+  App Server 5 ─┘</pre>
+            </section>
+
+            <!-- SECTION 5 -->
+            <section id="sec-5">
+                <h1>5. Complete System: Booking API with All Three Patterns</h1>
+                <pre class="code-block"><code>/**
+ * Complete booking system demonstrating all three patterns:
+ * 1. Double booking prevention (SELECT FOR UPDATE)
+ * 2. Cursor-based pagination for seat listing
+ * 3. Connection pooling (HikariCP via Spring Boot)
+ */
+@RestController
+@RequestMapping("/seats")
+public class SeatBookingController {
+
+    private final JdbcTemplate jdbcTemplate;
+
+    // ── PATTERN 3: Connection Pooling ──────────────────────────────────────
+    // JdbcTemplate uses HikariCP pool automatically.
+    // No explicit connect/disconnect anywhere in this class.
+    public SeatBookingController(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    // ── PATTERN 2: Cursor Pagination ──────────────────────────────────────
+    /**
+     * GET /seats?cursor=50&limit=10
+     * Returns available seats starting after the cursor seat ID.
+     *
+     * No OFFSET — uses keyset pagination for O(1) performance at any depth.
+     */
+    @GetMapping
+    public Map&lt;String, Object&gt; listSeats(
+            @RequestParam(required = false) Long cursor,
+            @RequestParam(defaultValue = "10") int limit) {
+
+        List&lt;Map&lt;String, Object&gt;&gt; seats;
+
+        if (cursor == null) {
+            seats = jdbcTemplate.queryForList(
+                "SELECT id, row_name, seat_number, is_booked, name " +
+                "FROM seats WHERE is_booked = FALSE ORDER BY id ASC LIMIT ?",
+                limit
+            );
+        } else {
+            seats = jdbcTemplate.queryForList(
+                "SELECT id, row_name, seat_number, is_booked, name " +
+                "FROM seats WHERE id > ? AND is_booked = FALSE ORDER BY id ASC LIMIT ?",
+                cursor, limit
+            );
+        }
+
+        Long nextCursor = seats.isEmpty() ? null
+            : (Long) seats.get(seats.size() - 1).get("id");
+
+        return Map.of("seats", seats, "nextCursor", nextCursor);
+    }
+
+    // ── PATTERN 1: Double Booking Prevention ──────────────────────────────
+    /**
+     * PUT /seats/{seatId}/book
+     * Books a seat for a user. Prevents double booking via SELECT FOR UPDATE.
+     */
+    @PutMapping("/{seatId}/book")
+    @Transactional
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; bookSeat(
+            @PathVariable long seatId,
+            @RequestBody Map&lt;String, String&gt; body) {
+
+        String userName = body.get("name");
+
+        // Acquire exclusive row lock BEFORE checking availability
+        List&lt;Map&lt;String, Object&gt;&gt; rows = jdbcTemplate.queryForList(
+            "SELECT id, is_booked, name FROM seats WHERE id = ? FOR UPDATE",
+            seatId
+        );
+
+        if (rows.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        if ((Boolean) rows.get(0).get("is_booked")) {
+            return ResponseEntity.badRequest()
+                .body(Map.of("error", "Seat already booked by " + rows.get(0).get("name")));
+        }
+
+        jdbcTemplate.update(
+            "UPDATE seats SET is_booked = TRUE, name = ? WHERE id = ?",
+            userName, seatId
+        );
+
+        return ResponseEntity.ok(Map.of(
+            "message", "Seat " + seatId + " booked successfully for " + userName
+        ));
+    }
+}</code></pre>
+            </section>
+
+            <!-- SECTION 6 -->
+            <section id="sec-6">
+                <h1>6. Important Interview Questions</h1>
+
+                <h2>Basic</h2>
+                <p><strong>Q: What is a race condition in a booking system?</strong><br>
+                A: A race condition occurs when two concurrent requests both read a shared resource as "available" simultaneously and both proceed to book it. Because each transaction operates on its own MVCC snapshot, both see the same "unbooked" state. Both execute the update — the last commit wins, causing double booking. One user pays but loses the seat.</p>
+
+                <p><strong>Q: What does <span class="inline-code">SELECT FOR UPDATE</span> do?</strong><br>
+                A: It acquires an exclusive row-level lock on the selected rows as part of the SELECT itself. Any concurrent transaction attempting to SELECT FOR UPDATE, UPDATE, or DELETE the same rows is blocked until the locking transaction commits or rolls back. This serializes access to the row, preventing race conditions between concurrent writers.</p>
+
+                <p><strong>Q: Why is OFFSET pagination slow for large pages?</strong><br>
+                A: <span class="inline-code">OFFSET N LIMIT M</span> requires the database to fetch N+M rows, discard the first N, and return M. The database does O(N+M) work but returns only M rows. For large N (deep pages), this is extremely wasteful — e.g., OFFSET 1,000,000 fetches 1,000,010 rows to return 10. Performance degrades linearly with page depth.</p>
+
+                <p><strong>Q: What is connection pooling and why is it needed?</strong><br>
+                A: Connection pooling pre-creates a fixed set of database connections at startup and reuses them for every request. Without pooling, each request creates a new TCP connection (3-way handshake, TLS, PostgreSQL auth) and closes it after the query — 10-300ms overhead per request. With pooling, borrowing a connection from the pool takes microseconds. Pooling also limits the total number of connections to PostgreSQL, preventing connection exhaustion.</p>
+
+                <p><strong>Q: What is keyset/cursor-based pagination?</strong><br>
+                A: Instead of skipping N rows (OFFSET), cursor-based pagination uses the last-seen record's unique identifier (cursor) as a WHERE clause filter: <span class="inline-code">WHERE id &lt; :cursor ORDER BY id DESC LIMIT 10</span>. The database uses the index to jump directly to the cursor position and fetches exactly 10 rows — O(1) regardless of page depth.</p>
+
+                <h2>Intermediate</h2>
+                <p><strong>Q: Why does <span class="inline-code">SELECT FOR UPDATE</span> prevent double booking but a plain <span class="inline-code">SELECT</span> followed by <span class="inline-code">UPDATE</span> does not?</strong><br>
+                A: Under MVCC, a plain SELECT reads from a consistent snapshot — it doesn't prevent another transaction from reading the same snapshot and also seeing the resource as available. Both transactions pass the availability check and both execute the UPDATE, causing double booking. <span class="inline-code">SELECT FOR UPDATE</span> acquires an exclusive lock at SELECT time, blocking any concurrent transaction from accessing the same row until the first transaction commits or rolls back. When the second transaction unblocks, it re-reads the current committed state (seat is now taken) and correctly rejects.</p>
+
+                <p><strong>Q: Explain the "conditional UPDATE" approach to double booking prevention. Why is it database-specific?</strong><br>
+                A: <span class="inline-code">UPDATE seats SET is_booked=TRUE WHERE id=? AND is_booked=FALSE</span> — check <span class="inline-code">rows_updated</span> to determine outcome. When two concurrent transactions execute this: the first gets the implicit exclusive lock; the second blocks. When the second is unblocked after the first commits, PostgreSQL (under READ COMMITTED) <strong>re-evaluates the WHERE clause</strong> against current committed data, finding is_booked=TRUE → 0 rows updated → booking rejected. This works in PostgreSQL because of its specific READ COMMITTED behavior of re-checking WHERE on unblock. MySQL and SQL Server handle this differently and may not re-evaluate the WHERE clause in the same way. The explicit <span class="inline-code">SELECT FOR UPDATE</span> approach is more portable and gives the developer explicit control.</p>
+
+                <p><strong>Q: What are the limitations of cursor-based pagination?</strong><br>
+                A: (1) No random page access — cannot jump to "page 500" without traversing all previous pages. (2) No total page count — cannot display "Page 3 of 47." (3) Multi-column sort requires a compound cursor with row-value comparison, which is more complex to implement. (4) Works best with a unique indexed column; non-unique columns require careful handling to avoid missing records.</p>
+
+                <p><strong>Q: What happens when all connections in a pool are busy and a new request arrives?</strong><br>
+                A: The request waits for up to <span class="inline-code">connectionTimeout</span> milliseconds. During this wait, it's queued. If a connection becomes available before the timeout, the request proceeds. If the timeout expires, a <span class="inline-code">SQLException</span> is thrown — the request fails. This is monitored via <span class="inline-code">pool.getThreadsAwaitingConnection()</span>. Persistent queuing indicates the pool is undersized for the current load and should be increased (if PostgreSQL can handle more connections) or a connection pooler like PgBouncer should be added.</p>
+
+                <h2>Advanced</h2>
+                <p><strong>Q: Design a system for booking 50,000 concert seats released simultaneously to 500,000 concurrent users. Explain the full database concurrency strategy.</strong><br>
+                A:<br>
+                - <strong>Connection layer</strong>: PgBouncer in front of PostgreSQL. App servers have HikariCP pools (20 connections each). PgBouncer limits total connections to PostgreSQL to ~200 regardless of app server count.<br>
+                - <strong>Lock strategy</strong>: <span class="inline-code">SELECT FOR UPDATE</span> on individual seat rows. Lock granularity is row-level — 50,000 seats means 50,000 independent locks; only users competing for the SAME seat block each other.<br>
+                - <strong>Queue management</strong>: Users not in contention for the same seat proceed in parallel (no cross-seat blocking). Set <span class="inline-code">lock_timeout = '5s'</span> so users aren't stuck indefinitely.<br>
+                - <strong>Retry</strong>: Application retries on timeout (limited retries with backoff).<br>
+                - <strong>Seat listing</strong>: Cursor-based pagination for displaying available seats — no OFFSET at this scale.<br>
+                - <strong>Caching</strong>: Pre-warm a Redis set of available seat IDs; do a quick <span class="inline-code">SISMEMBER</span> check before hitting the DB. Invalidate on booking. Reduces DB hits by 80%+ for the "is this seat available?" check.<br>
+                - <strong>Partition</strong>: Seats table partitioned by venue/event so lock contention is isolated per partition.</p>
+
+                <p><strong>Q: What is the optimal HikariCP pool size and why is bigger not always better?</strong><br>
+                A: The formula is <span class="inline-code">(core_count × 2) + effective_spindle_count</span>. For an 8-core machine with SSD: ~17 connections. The reason bigger pools hurt: PostgreSQL spawns a new OS process per connection (~5-10MB RAM each). With 200 connections, PostgreSQL spends significant CPU on process scheduling and context switching between processes. A smaller number of connections each processing queries sequentially outperforms a large number of connections thrashing the OS scheduler. Furthermore, database I/O (disk seeks, page reads) is the bottleneck, not CPU — more connections don't make the disk faster.</p>
+            </section>
+
+            <!-- SECTION 7 -->
+            <section id="sec-7">
+                <h1>7. Common Mistakes</h1>
+
+                <h2>Double Booking</h2>
+                <ul>
+                    <li><strong>Checking availability without locking</strong>: <span class="inline-code">SELECT then UPDATE</span> without <span class="inline-code">FOR UPDATE</span> — classic race condition</li>
+                    <li><strong>Not handling the lock-wait timeout</strong>: Indefinite blocking on <span class="inline-code">FOR UPDATE</span> destroys UX; always set <span class="inline-code">lock_timeout</span></li>
+                    <li><strong>Using optimistic locking for high-contention resources</strong>: At peak concert ticket release, every transaction conflicts → constant retries → thundering herd</li>
+                </ul>
+
+                <h2>Pagination</h2>
+                <ul>
+                    <li><strong>Using OFFSET for infinite scroll</strong>: Page depth increases as users scroll → query gets slower → page 50 loads in 5 seconds</li>
+                    <li><strong>Not indexing the cursor column</strong>: <span class="inline-code">WHERE id &lt; :cursor</span> without an index on <span class="inline-code">id</span> becomes a full table scan — as slow as OFFSET</li>
+                    <li><strong>Returning total page count with keyset pagination</strong>: Cannot know total pages without a <span class="inline-code">COUNT(*)</span> query — which itself may be expensive; accept that keyset pagination is "next/previous" only</li>
+                </ul>
+
+                <h2>Connection Pooling</h2>
+                <ul>
+                    <li><strong>Opening/closing connections per request</strong>: The antipattern — 10-300ms overhead per request; crushes performance at scale</li>
+                    <li><strong>Setting pool size = PostgreSQL max_connections</strong>: 10 app servers × 100 pool size = 1,000 connections >> PostgreSQL's max_connections = 100 → connection errors under load</li>
+                    <li><strong>Not monitoring pool wait time</strong>: <span class="inline-code">threadsAwaitingConnection &gt; 0</span> for sustained periods = pool is a bottleneck; silent until requests start failing with timeout errors</li>
+                    <li><strong>Using pool connections for long-running batch jobs</strong>: One connection held for minutes blocks other requests; use a separate pool or direct connection for batch operations</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 8 -->
+            <section id="sec-8">
+                <h1>8. Performance Quick Reference</h1>
+
+                <h2>Double Booking</h2>
+                <pre class="code-block">No locking:          Race condition possible. Wrong result.
+SELECT FOR UPDATE:   Correct. Lock overhead: ~0.1ms (row-level).
+Conditional UPDATE:  Correct (PostgreSQL). Slightly less overhead.
+Table-level LOCK:    Correct but severe: all 50,000 seats serialized.
+                     Only 1 booking at a time across ALL seats. ❌
+
+For 50,000 seats: SELECT FOR UPDATE is ideal — each seat is an independent lock.</pre>
+
+                <h2>Pagination</h2>
+                <pre class="code-block">OFFSET pagination:
+  Page 1 (offset=0):         0.2ms
+  Page 100 (offset=1000):    1ms
+  Page 10000 (offset=100k):  79ms
+  Page 100000 (offset=1M):   620ms-6s
+  Grows: O(offset)
+
+Keyset pagination:
+  Any page:                  0.05ms
+  Constant: O(limit)
+  100,000× faster at page 100,000</pre>
+
+                <h2>Connection Pooling</h2>
+                <pre class="code-block">Per-request connections (local DB):    10-18ms overhead
+Per-request connections (remote DB):   60-300ms overhead
+With HikariCP pool (any):             ~0ms overhead
+                                       
+1000 requests, local DB:
+  Without pool: 1000 × 15ms = 15 seconds of connection overhead
+  With pool:    1000 × 0ms  = 0 seconds of connection overhead
+  + Query time: 1000 × 2ms  = 2 seconds
+  Total with pool: ~2 seconds vs ~17 seconds without</pre>
+            </section>
+
+            <!-- SECTION 9 -->
+            <section id="sec-9">
+                <h1>9. Revision Notes — One Page</h1>
+                <pre class="code-block bg-blue-900 border border-blue-800 text-blue-50 shadow-md">┌──────────────────────────────────────────────────────────────────────┐
+│           PRACTICAL DATABASE PATTERNS CHEAT SHEET                    │
+├──────────────────────────────────────────────────────────────────────┤
+│  DOUBLE BOOKING PREVENTION:                                          │
+│                                                                      │
+│  Problem: Two txns read "available" simultaneously → both book       │
+│           MVCC snapshots don't protect against write-write conflict  │
+│                                                                      │
+│  Fix 1 — SELECT FOR UPDATE (preferred):                              │
+│    BEGIN;                                                            │
+│    SELECT * FROM seats WHERE id=14 FOR UPDATE; ← exclusive lock     │
+│    -- Check availability. No other txn can be here simultaneously.  │
+│    UPDATE seats SET booked=TRUE WHERE id=14;                         │
+│    COMMIT; ← releases lock                                           │
+│                                                                      │
+│  Fix 2 — Conditional UPDATE (PostgreSQL-specific):                   │
+│    UPDATE seats SET booked=TRUE WHERE id=14 AND is_booked=FALSE;     │
+│    Check rows_updated: 1=success, 0=already booked                  │
+│    Works because PG re-evaluates WHERE after unblock (READ COMMITTED)│
+│                                                                      │
+│  Pessimistic (FOR UPDATE): For HIGH contention (concerts, flights)   │
+│  Optimistic (version col): For LOW contention (config edits)         │
+├──────────────────────────────────────────────────────────────────────┤
+│  CURSOR PAGINATION:                                                  │
+│                                                                      │
+│  Problem: OFFSET N → fetch N+LIMIT rows, discard N. O(N) work.      │
+│           Page 10,000 = 100,000 rows fetched for 10 returned.        │
+│           Also: duplicate records on concurrent inserts.             │
+│                                                                      │
+│  Fix — Keyset/Cursor:                                                │
+│    First page: SELECT id, title FROM news ORDER BY id DESC LIMIT 10 │
+│    Next pages: WHERE id < :last_seen_id ORDER BY id DESC LIMIT 10   │
+│    → Exactly LIMIT rows fetched regardless of page depth. O(1).     │
+│    → Return last row's id as nextCursor to client.                  │
+│                                                                      │
+│  Limitation: No random page jump. No total page count.              │
+│  Use when: Infinite scroll, large datasets, sequential navigation.   │
+├──────────────────────────────────────────────────────────────────────┤
+│  CONNECTION POOLING:                                                 │
+│                                                                      │
+│  Problem: TCP connect = 10-300ms overhead per request               │
+│           PostgreSQL spawns process per connection (~5-10MB RAM)     │
+│           max_connections=100 → exceeded by concurrent app servers   │
+│                                                                      │
+│  Fix — HikariCP Pool:                                                │
+│    Pre-create N connections at startup.                              │
+│    Reuse them: borrow → query → return. No connect/disconnect.       │
+│    Overhead: ~microseconds per borrow.                               │
+│                                                                      │
+│  Pool size formula: (CPU cores × 2) + spindle_count                 │
+│  4-core + SSD → ~9. 8-core + SSD → ~17.                             │
+│  Bigger ≠ better: process context switching hurts above threshold.   │
+│                                                                      │
+│  At scale: PgBouncer between app servers and PostgreSQL.             │
+│    App → PgBouncer (200 virtual) → PostgreSQL (20 real)             │
+│                                                                      │
+│  Monitor: pool.getThreadsAwaitingConnection() > 0 = pool pressure   │
+└──────────────────────────────────────────────────────────────────────┘</pre>
+            </section>
+
+            <footer class="mt-16 pt-8 border-t border-gray-200 text-center text-gray-500 text-sm pb-16">
+                End of Notes — Database Practical Patterns
+            </footer>
+        </div>
+    </main>
+
+</body>
+</html>
