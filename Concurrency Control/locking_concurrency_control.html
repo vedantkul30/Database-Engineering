@@ -1,0 +1,1184 @@
+Here is the complete, fully responsive, and beautifully styled HTML UI page for
+your Locking & Concurrency Control engineering notes.
+
+I have followed the same professional documentation layout (Tailwind CSS, sticky
+sidebar, elegant typography, formatted tables, syntax-styled code blocks, and
+carefully preserved ASCII diagrams) as the previous parts.
+
+Save the code below as an .html file (e.g., locking-concurrency-control.html)
+and open it in any modern web browser.
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Locking & Concurrency Control — Production Engineering Notes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            color: #111827;
+        }
+        pre {
+            font-family: 'Fira Code', monospace;
+        }
+        .prose h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin-top: 3rem;
+            margin-bottom: 1.5rem;
+            color: #1e3a8a;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        .prose h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: #1f2937;
+        }
+        .prose h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: #374151;
+        }
+        .prose h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: #4b5563;
+        }
+        .prose p {
+            margin-bottom: 1rem;
+            line-height: 1.75;
+            color: #4b5563;
+        }
+        .prose ul, .prose ol {
+            padding-left: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #4b5563;
+        }
+        .prose ul { list-style-type: disc; }
+        .prose ol { list-style-type: decimal; }
+        .prose li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        .prose strong {
+            color: #111827;
+            font-weight: 600;
+        }
+        .prose blockquote {
+            border-left: 4px solid #3b82f6;
+            background-color: #eff6ff;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            font-style: normal;
+            color: #1e40af;
+            border-radius: 0 0.5rem 0.5rem 0;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        .prose table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+            background-color: white;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .prose th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #374151;
+        }
+        .prose td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #4b5563;
+            vertical-align: top;
+        }
+        .prose tr:last-child td {
+            border-bottom: none;
+        }
+        .code-block {
+            background-color: #1f2937;
+            color: #e5e7eb;
+            padding: 1.25rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            white-space: pre;
+        }
+        .inline-code {
+            background-color: #f3f4f6;
+            color: #ef4444;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.875rem;
+        }
+        .nav-link {
+            transition: all 0.2s ease;
+        }
+        .nav-link:hover {
+            color: #2563eb;
+            background-color: #eff6ff;
+            padding-left: 0.5rem;
+        }
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body class="antialiased flex flex-col md:flex-row h-screen overflow-hidden">
+
+    <!-- Sidebar / Table of Contents -->
+    <aside class="w-full md:w-72 bg-white border-r border-gray-200 h-1/4 md:h-full overflow-y-auto flex-shrink-0 z-10 shadow-sm">
+        <div class="p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Contents</h2>
+            
+            <nav class="space-y-1 text-sm font-medium text-gray-600">
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Concepts & Theory</p>
+                <a href="#sec-1" class="block py-1.5 nav-link rounded-md">1. Big Picture</a>
+                <a href="#sec-2" class="block py-1.5 nav-link rounded-md">2. Core Concepts</a>
+                <a href="#sec-3" class="block py-1.5 nav-link rounded-md">3. Deep Dive — Internals</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Practical Application</p>
+                <a href="#sec-4" class="block py-1.5 nav-link rounded-md">4. The Example (Banking)</a>
+                <a href="#sec-5" class="block py-1.5 nav-link rounded-md">5. Java Implementation</a>
+                <a href="#sec-6" class="block py-1.5 nav-link rounded-md">6. Practical SQL Examples</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Prep & System Design</p>
+                <a href="#sec-7" class="block py-1.5 nav-link rounded-md">7. Interview Questions</a>
+                <a href="#sec-8" class="block py-1.5 nav-link rounded-md">8. Common Mistakes</a>
+                <a href="#sec-9" class="block py-1.5 nav-link rounded-md">9. Perf & Scalability Notes</a>
+                <a href="#sec-10" class="block py-1.5 nav-link rounded-md">10. System Design Connections</a>
+                
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Review</p>
+                <a href="#sec-11" class="block py-1.5 nav-link rounded-md">11. Visual Mental Models</a>
+                <a href="#sec-12" class="block py-1.5 nav-link rounded-md">12. Revision Cheat Sheet</a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 h-3/4 md:h-full overflow-y-auto bg-gray-50 p-6 md:p-12 lg:p-16">
+        <div class="max-w-4xl mx-auto prose">
+            
+            <header class="mb-12 text-center md:text-left">
+                <p class="text-blue-600 font-semibold tracking-wide uppercase text-sm mb-2">Interview & System Design Ready</p>
+                <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 mt-0 border-none pb-0">Locking & Concurrency Control</h1>
+                <p class="text-xl text-gray-500 mt-4">Production Engineering Notes</p>
+            </header>
+
+            <!-- SECTION 1 -->
+            <section id="sec-1">
+                <h1>1. Big Picture</h1>
+                
+                <h2>Why Locking Exists</h2>
+                <p>Databases are concurrent systems. Thousands of clients read and write simultaneously. Without coordination, concurrent access to the same data leads to:</p>
+                <ul>
+                    <li><strong>Lost updates</strong>: Two transactions read a value, both compute a new value, one overwrites the other's change</li>
+                    <li><strong>Dirty reads</strong>: A transaction reads data written by another transaction that hasn't committed yet</li>
+                    <li><strong>Non-repeatable reads</strong>: A transaction reads a value twice; another transaction changes it between the reads</li>
+                    <li><strong>Phantom reads</strong>: A transaction re-runs a range query and gets different rows because another transaction inserted/deleted rows</li>
+                    <li><strong>Double booking</strong>: Two users book the same resource simultaneously</li>
+                </ul>
+                <p>Locking is the mechanism databases use to <strong>serialize access to shared data</strong>, ensuring that concurrent transactions produce results equivalent to some serial (sequential) execution.</p>
+
+                <h2>Where Locking Matters in Production</h2>
+                <table>
+                    <thead>
+                        <tr><th>System</th><th>Locking Concern</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Banking</td><td>Balance updates must be atomic; no dirty reads of account balance</td></tr>
+                        <tr><td>E-commerce</td><td>Inventory must not oversell; two buyers can't buy the last item</td></tr>
+                        <tr><td>Cinema/Airline booking</td><td>Same seat can't be booked by two users simultaneously</td></tr>
+                        <tr><td>Configuration systems</td><td>Config readers must not see partial updates</td></tr>
+                        <tr><td>Ticketing (Ticketmaster)</td><td>Seat allocation under extreme concurrent load</td></tr>
+                        <tr><td>Trading systems</td><td>Order execution must not double-fill at same price</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- SECTION 2 -->
+            <section id="sec-2">
+                <h1>2. Core Concepts</h1>
+
+                <h2>2.1 — Shared Lock (Read Lock / S-Lock)</h2>
+                <p>A shared lock is acquired when a transaction wants to <strong>read a value</strong> and needs to guarantee that <strong>nobody modifies it</strong> for the duration of that read.</p>
+                
+                <p><strong>Properties:</strong></p>
+                <ul>
+                    <li>Multiple transactions can hold shared locks on the same resource simultaneously</li>
+                    <li>A transaction holding a shared lock is saying: <em>"I am reading this. Don't let anyone write to it."</em></li>
+                    <li>Blocks exclusive locks — prevents writers from modifying the resource</li>
+                    <li>Does NOT block other readers — multiple shared locks coexist</li>
+                </ul>
+
+                <pre class="code-block">Resource: account_balance (row for user Bob)
+
+Transaction A: Shared Lock ──────────────────────────────→ Released
+Transaction B: Shared Lock ──────────────────────────────→ Released
+Transaction C: Exclusive Lock attempt ──── BLOCKED ────→ (waits for A and B to release)
+
+Both A and B can read simultaneously.
+C cannot write until BOTH A and B release their shared locks.</pre>
+
+                <p><strong>When to use:</strong></p>
+                <pre class="code-block">-- Explicitly acquire shared lock in PostgreSQL:
+SELECT * FROM accounts WHERE id = 42 FOR SHARE;
+
+-- This ensures nobody can UPDATE/DELETE this row
+-- while your transaction is reading it.</pre>
+
+                <h2>2.2 — Exclusive Lock (Write Lock / X-Lock)</h2>
+                <p>An exclusive lock is acquired when a transaction wants to <strong>write (INSERT, UPDATE, DELETE)</strong> a value and needs to guarantee that <strong>nobody reads or writes it</strong> simultaneously.</p>
+                
+                <p><strong>Properties:</strong></p>
+                <ul>
+                    <li>Only ONE transaction can hold an exclusive lock on a resource at a time</li>
+                    <li>A transaction holding an exclusive lock is saying: <em>"I am modifying this. Don't let anyone read or write it."</em></li>
+                    <li>Blocks all other shared locks AND exclusive locks</li>
+                    <li>No other transaction can read or write the resource until the exclusive lock is released</li>
+                </ul>
+
+                <pre class="code-block">Resource: account_balance (row for user Bob)
+
+Transaction A: Exclusive Lock ──────────────────────────→ Released
+Transaction B: Shared Lock attempt ──── BLOCKED ───────→ (waits)
+Transaction C: Exclusive Lock attempt ── BLOCKED ───────→ (waits)
+
+Only A can access the resource.
+Nobody else can even read it.</pre>
+
+                <p><strong>When to use:</strong></p>
+                <pre class="code-block">-- Explicitly acquire exclusive lock in PostgreSQL:
+SELECT * FROM seats WHERE id = 14 FOR UPDATE;
+
+-- This row is now exclusively locked.
+-- Any other SELECT FOR UPDATE or UPDATE/DELETE on this row blocks.
+-- The lock is released when this transaction commits or rolls back.</pre>
+
+                <h2>2.3 — Lock Compatibility Matrix</h2>
+                <pre class="code-block">                    Requested Lock
+                  │ Shared  │ Exclusive │
+Held Lock ────────┼─────────┼───────────┤
+None              │    ✅   │    ✅     │  Both succeed
+Shared            │    ✅   │    ❌     │  Exclusive blocked by existing shared
+Exclusive         │    ❌   │    ❌     │  Both blocked by existing exclusive</pre>
+                
+                <p><strong>Rules:</strong></p>
+                <ol>
+                    <li>Multiple shared locks on same resource → all succeed</li>
+                    <li>Any exclusive lock on a resource → all others (shared or exclusive) blocked</li>
+                    <li>To get exclusive → zero existing locks (shared or exclusive) must exist</li>
+                    <li>To get shared → zero exclusive locks must exist</li>
+                </ol>
+
+                <hr class="my-8 border-gray-200">
+
+                <h2>2.4 — Deadlock</h2>
+                <p>A deadlock occurs when two or more transactions are each waiting for the other to release a lock, creating a circular dependency where none can proceed.</p>
+
+                <h3>How Deadlock Happens</h3>
+                <pre class="code-block">Transaction A holds:  Lock on row 20
+Transaction B holds:  Lock on row 21
+
+Transaction A wants:  Lock on row 21  → BLOCKED (B holds it)
+Transaction B wants:  Lock on row 20  → BLOCKED (A holds it)
+
+Neither can proceed. Circular wait. DEADLOCK.
+
+Timeline:
+T1: A inserts row 20 → A acquires exclusive lock on row 20
+T2: B inserts row 21 → B acquires exclusive lock on row 21
+T3: A tries to insert row 21 → BLOCKED (B holds row 21)
+T4: B tries to insert row 20 → BLOCKED (A holds row 20)
+    → DEADLOCK DETECTED
+    → PostgreSQL rolls back the transaction that ENTERED DEADLOCK LAST (B)
+    → A is unblocked and continues</pre>
+
+                <h3>Deadlock Detection in PostgreSQL</h3>
+                <p>PostgreSQL uses a background lock monitor that periodically checks for circular dependencies in the lock graph. When detected:</p>
+                <ul>
+                    <li>The transaction that "entered the deadlock last" (caused the cycle to close) is chosen as the <strong>victim</strong></li>
+                    <li>The victim's transaction is automatically <strong>rolled back</strong></li>
+                    <li>The victim receives: <span class="inline-code">ERROR: deadlock detected</span></li>
+                    <li>The other transaction is <strong>unblocked</strong> and continues</li>
+                </ul>
+
+                <pre class="code-block">-- Demo: Two terminals, same PostgreSQL instance
+
+-- Terminal 1:
+BEGIN;
+INSERT INTO test VALUES (20);  -- Acquires exclusive lock on row 20
+
+-- Terminal 2:
+BEGIN;
+INSERT INTO test VALUES (21);  -- Acquires exclusive lock on row 21
+
+-- Terminal 1:
+INSERT INTO test VALUES (21);  -- BLOCKED: Terminal 2 holds row 21
+                                -- (waiting...)
+
+-- Terminal 2:
+INSERT INTO test VALUES (20);  -- BLOCKED: Terminal 1 holds row 20
+                                -- PostgreSQL detects deadlock cycle
+                                -- ERROR: deadlock detected
+                                -- Terminal 2's transaction is ROLLED BACK
+                                -- Terminal 1 is UNBLOCKED</pre>
+
+                <h3>Three Possible Outcomes After Blocking</h3>
+                <pre class="code-block">Scenario 1 — Other transaction COMMITS:
+  Transaction A blocked waiting for row 20.
+  Transaction B commits, releasing lock on row 20.
+  Transaction A unblocks → tries to INSERT 20 → FAILS with DUPLICATE KEY
+  (because B already committed the value)
+
+Scenario 2 — Other transaction ROLLS BACK:
+  Transaction A blocked waiting for row 20.
+  Transaction B rolls back, releasing lock on row 20.
+  Transaction A unblocks → INSERT 20 → SUCCEEDS
+  (row 20 was never committed, so it's free to insert)
+
+Scenario 3 — DEADLOCK:
+  Both transactions waiting for each other.
+  Database detects cycle → rolls back one transaction.</pre>
+
+                <hr class="my-8 border-gray-200">
+
+                <h2>2.5 — Two-Phase Locking (2PL)</h2>
+                <p>Two-Phase Locking is a <strong>concurrency control protocol</strong> that determines when locks can be acquired and released to guarantee <strong>serializability</strong> — the strongest isolation level.</p>
+
+                <h3>The Two Phases</h3>
+                <pre class="code-block">Phase 1: GROWING (Lock Acquisition Phase)
+  Transaction can ACQUIRE locks.
+  Transaction CANNOT release any lock.
+  ─────────────────────────────────────────→ Lock Point (max locks held)
+
+Phase 2: SHRINKING (Lock Release Phase)
+  Transaction can RELEASE locks.
+  Transaction CANNOT acquire any new locks.
+
+Once you release even ONE lock, you cannot acquire any more.</pre>
+
+                <pre class="code-block">Timeline visualization:
+
+Phase 1 (Growing):    ACQUIRE A  ACQUIRE B  ACQUIRE C
+                      ─────────────────────────────────┐ Lock Point
+Phase 2 (Shrinking):                                   └──RELEASE A  RELEASE B  RELEASE C</pre>
+
+                <h3>Why 2PL Prevents Double Booking</h3>
+                <p>The double booking problem occurs when two transactions read a seat as "available" and both book it:</p>
+                <pre class="code-block">WITHOUT 2PL (the problem):
+
+T1: SELECT seat 14 → available  ┐
+T2: SELECT seat 14 → available  ┘ Both see available simultaneously
+
+T1: UPDATE seat 14 SET booked=1, name='Hussein'
+T2: UPDATE seat 14 SET booked=1, name='Edmund'  ← BLOCKED (T1 holds exclusive lock)
+
+T1: COMMIT → seat belongs to Hussein
+T2: UNBLOCKED → COMMIT → seat now belongs to Edmund ← OVERWRITE!
+
+Result: Seat booked to Edmund, Hussein paid but lost the seat.</pre>
+
+                <pre class="code-block">WITH 2PL (SELECT FOR UPDATE):
+
+T1: SELECT * FROM seats WHERE id=14 FOR UPDATE  → Acquires EXCLUSIVE lock
+T2: SELECT * FROM seats WHERE id=14 FOR UPDATE  → BLOCKED (T1 holds exclusive lock)
+
+T1: UPDATE seats SET booked=1, name='Hussein' WHERE id=14
+T1: COMMIT → releases exclusive lock (Phase 2 begins)
+
+T2: UNBLOCKED → reads seat 14 → sees booked=1, name='Hussein'
+T2: Application logic: "Seat already booked" → rejects booking
+T2: ROLLBACK
+
+Result: Seat correctly belongs to Hussein. No double booking.</pre>
+
+                <h3>Strict 2PL (Most Common in Practice)</h3>
+                <p>In Strict 2PL, all <strong>exclusive locks</strong> are held until <strong>transaction end</strong> (COMMIT or ROLLBACK). This is the most common variant implemented in production databases including PostgreSQL.</p>
+                <pre class="code-block">Strict 2PL rule:
+  - Exclusive locks released ONLY at transaction end (commit/rollback)
+  - Shared locks may be released earlier (in some implementations)
+  - Prevents cascading aborts (dirty reads from uncommitted data)</pre>
+            </section>
+
+            <!-- SECTION 3 -->
+            <section id="sec-3">
+                <h1>3. Deep Dive — Internal Workings</h1>
+
+                <h2>3.1 — Lock Granularity</h2>
+                <p>Databases support locking at multiple levels. Coarser granularity = less overhead but more contention. Finer granularity = more overhead but less contention.</p>
+                <pre class="code-block">Database lock levels (coarsest to finest):
+
+DATABASE     → lock the entire database (rare, maintenance operations)
+TABLESPACE   → lock an entire tablespace
+TABLE        → lock an entire table (DDL operations, LOCK TABLE)
+PAGE         → lock a disk page (~8KB, multiple rows)
+ROW (TUPLE)  → lock a single row (most common in OLTP)
+COLUMN       → not natively supported in most RDBMS (application-level)
+VALUE        → predicate lock (used for phantom read prevention)</pre>
+
+                <p><strong>PostgreSQL row-level locking modes:</strong></p>
+                <table>
+                    <thead>
+                        <tr><th>Lock Mode</th><th>SQL</th><th>Conflicts With</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><span class="inline-code">FOR KEY SHARE</span></td><td>Weakest. Allows other FKS, FS, and FNK.</td><td>FOR UPDATE, FOR NO KEY UPDATE</td></tr>
+                        <tr><td><span class="inline-code">FOR SHARE</span></td><td>Shared read lock.</td><td>FOR NO KEY UPDATE, FOR UPDATE</td></tr>
+                        <tr><td><span class="inline-code">FOR NO KEY UPDATE</span></td><td>Update that doesn't affect PK/FK.</td><td>FOR SHARE, FOR UPDATE, FNKU</td></tr>
+                        <tr><td><span class="inline-code">FOR UPDATE</span></td><td>Exclusive lock. Strongest row lock.</td><td>All other row locks</td></tr>
+                    </tbody>
+                </table>
+
+                <h2>3.2 — Lock Implementation in PostgreSQL</h2>
+                <pre class="code-block">PostgreSQL lock manager data structures (in shared memory):
+
+┌──────────────────────────────────────────────────────────────────┐
+│  Lock Table (hash table in shared memory)                        │
+│  Key: (relation_id, block_num, tuple_offset, transaction_id)     │
+│                                                                  │
+│  Each entry:                                                     │
+│   ┌────────────────────────────────────────────────────────────┐ │
+│   │  Resource identifier                                       │ │
+│   │  Granted locks list: [(txn_A, SHARE), (txn_B, SHARE)]     │ │
+│   │  Waiting locks list: [(txn_C, EXCLUSIVE)]                 │ │
+│   └────────────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────────────┘
+
+Deadlock detection:
+  Background process checks lock table periodically.
+  Builds a "wait-for graph": A waits for B, B waits for A → cycle → deadlock.
+  Selects victim (transaction that closed the cycle).
+  Sends SIGINT to victim process → transaction rolls back.</pre>
+
+                <h2>3.3 — MVCC and Locking (PostgreSQL)</h2>
+                <p>PostgreSQL uses MVCC (Multi-Version Concurrency Control) for read-write concurrency. Under MVCC:</p>
+                <ul>
+                    <li><strong>Readers do not block writers</strong></li>
+                    <li><strong>Writers do not block readers</strong></li>
+                    <li>Each transaction sees a consistent snapshot of the database at a point in time</li>
+                    <li>Locking (FOR UPDATE, FOR SHARE) is still needed for <strong>write-write</strong> concurrency</li>
+                </ul>
+
+                <pre class="code-block">Without explicit locking (MVCC alone):
+
+T1: BEGIN; reads row A (balance=1000) via snapshot
+T2: BEGIN; reads row A (balance=1000) via snapshot
+T1: UPDATE balance = balance - 200 → writes new version (balance=800)
+T1: COMMIT
+T2: UPDATE balance = balance - 300 → writes new version based on T2's SNAPSHOT (balance=700)
+    ← T2 read balance=1000, computed 1000-300=700, wrote 700
+    ← T1's deduction of 200 is LOST
+T2: COMMIT
+Final: balance=700 (should be 500)
+
+This is the "Lost Update" problem — MVCC alone doesn't prevent it.
+SELECT FOR UPDATE is needed to prevent lost updates.</pre>
+
+                <pre class="code-block">With SELECT FOR UPDATE (2PL + MVCC):
+
+T1: BEGIN; SELECT * FROM accounts WHERE id=1 FOR UPDATE → exclusive lock
+T2: BEGIN; SELECT * FROM accounts WHERE id=1 FOR UPDATE → BLOCKED
+
+T1: balance=1000. UPDATE SET balance=800. COMMIT → releases lock.
+T2: UNBLOCKED → reads CURRENT value (800). UPDATE SET balance=500. COMMIT.
+
+Final: balance=500 ✅ Correct.</pre>
+            </section>
+
+            <!-- SECTION 4 -->
+            <section id="sec-4">
+                <h1>4. The Example — Banking Scenario (Alice, Bob, Charlie)</h1>
+
+                <h2>Timeline Walkthrough</h2>
+                <pre class="code-block">Resource: account_balance
+
+Time ──────────────────────────────────────────────────────────────────→
+
+ALICE: T1 (deposit $200)
+  BEGIN
+  UPDATE account SET balance = balance + 200 WHERE user='alice'
+  → Acquires EXCLUSIVE lock on Alice's balance row
+  COMMIT → releases exclusive lock
+  
+ALICE: T2 (long reporting job)
+  BEGIN
+  SELECT balance FROM account WHERE user='alice'  [shared lock acquired]
+  SELECT ... (long running reads)
+  → Holds SHARED lock on Alice's balance row
+  
+BOB: T3 (reporting job)
+  BEGIN
+  SELECT balance FROM account WHERE user='bob'  [shared lock acquired]
+  → Holds SHARED lock on Bob's balance row
+
+CHARLIE: T4 (transfer $300 to Bob)
+  BEGIN
+  UPDATE account SET balance = balance + 300 WHERE user='bob'
+  → Attempts EXCLUSIVE lock on Bob's balance row
+  → BLOCKED: Bob's T3 holds a SHARED lock
+  → Charlie WAITS
+
+BOB T3: completes, COMMIT → releases shared lock on Bob's row
+CHARLIE T4: UNBLOCKED
+  → Acquires EXCLUSIVE lock on Bob's row
+  UPDATE account SET balance = balance + 300 WHERE user='bob'
+  COMMIT → releases exclusive lock
+
+Result: Bob gets his $300. No data inconsistency.</pre>
+
+                <h2>Real-World Analogy</h2>
+                <pre class="code-block">Bank of America "Service Unavailable at 2 AM":
+
+Reason: Nightly batch jobs run at midnight.
+These jobs acquire shared locks on millions of account rows for reporting.
+While those shared locks are held, nobody can acquire exclusive locks.
+Therefore: no deposits, no withdrawals, no transfers.
+The website grays out transaction options during this window.
+
+This is NOT a bug — it's the correct behavior of locking.
+Eventual consistency vs strong consistency trade-off in action.</pre>
+            </section>
+
+            <!-- SECTION 5 -->
+            <section id="sec-5">
+                <h1>5. Practical Java Implementation</h1>
+
+                <h2>5.1 — Shared Lock (SELECT FOR SHARE)</h2>
+                <pre class="code-block">/**
+ * Acquire a SHARED lock on an account row for a read operation.
+ * Use when: you need the value to remain stable during a multi-step read process.
+ * Effect: Prevents anyone from updating this row while you hold the lock.
+ *         Multiple shared locks can coexist.
+ *         Released when transaction ends.
+ */
+@Transactional(isolation = Isolation.READ_COMMITTED)
+public BigDecimal getAccountBalanceStable(long accountId, JdbcTemplate jdbc) {
+    // FOR SHARE = acquire shared lock on this row
+    // Nobody can UPDATE/DELETE this row until our transaction ends
+    Map&lt;String, Object&gt; result = jdbc.queryForMap(
+        "SELECT balance FROM accounts WHERE id = ? FOR SHARE",
+        accountId
+    );
+    // Safe to do complex calculations here — balance won't change
+    return (BigDecimal) result.get("balance");
+}</pre>
+
+                <h2>5.2 — Exclusive Lock via SELECT FOR UPDATE (2PL)</h2>
+                <pre class="code-block">/**
+ * Two-Phase Locking implementation for seat booking.
+ * Prevents double booking by acquiring exclusive lock BEFORE checking availability.
+ *
+ * Phase 1 (GROWING): Acquire lock via SELECT FOR UPDATE
+ * Phase 2 (SHRINKING): Release lock via COMMIT or ROLLBACK
+ *
+ * The critical insight: acquire the lock BEFORE checking the condition.
+ * Reading without locking first allows two transactions to both see "available"
+ * and both proceed to book.
+ */
+@Transactional
+public BookingResult bookSeat(long seatId, String userName, JdbcTemplate jdbc) {
+    // Phase 1: ACQUIRE EXCLUSIVE LOCK (growing phase)
+    // FOR UPDATE = exclusive row lock
+    // This will BLOCK if another transaction already has a lock on this row
+    List&lt;Map&lt;String, Object&gt;&gt; rows = jdbc.queryForList(
+        "SELECT id, is_booked, name FROM seats WHERE id = ? FOR UPDATE",
+        seatId
+    );
+
+    if (rows.isEmpty()) {
+        return BookingResult.NOT_FOUND;
+    }
+
+    Map&lt;String, Object&gt; seat = rows.get(0);
+    boolean isBooked = (Boolean) seat.get("is_booked");
+
+    if (isBooked) {
+        // Seat is already taken — return failure
+        // Phase 2 begins: ROLLBACK releases the exclusive lock
+        // TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+        return BookingResult.ALREADY_BOOKED;
+    }
+
+    // Seat is available — book it
+    jdbc.update(
+        "UPDATE seats SET is_booked = true, name = ? WHERE id = ?",
+        userName, seatId
+    );
+
+    // Phase 2: COMMIT releases the exclusive lock (shrinking phase)
+    // The @Transactional annotation triggers commit here
+    return BookingResult.SUCCESS;
+}
+
+public enum BookingResult {
+    SUCCESS, ALREADY_BOOKED, NOT_FOUND
+}</pre>
+
+                <h2>5.3 — Deadlock Prevention Pattern</h2>
+                <pre class="code-block">/**
+ * Deadlock prevention: always acquire locks in a consistent order.
+ *
+ * Deadlock scenario (wrong):
+ *   T1: lock account 100, then lock account 200
+ *   T2: lock account 200, then lock account 100
+ *   → Circular wait → DEADLOCK
+ *
+ * Prevention: always lock in ascending ID order.
+ *   T1: lock account 100, then lock account 200
+ *   T2: lock account 100 (blocks), then lock account 200
+ *   → No circular wait → No deadlock
+ */
+@Transactional
+public void transferFunds(long fromAccountId, long toAccountId,
+                          BigDecimal amount, JdbcTemplate jdbc) {
+
+    // CRITICAL: Always lock in ascending ID order to prevent deadlock
+    long firstLock  = Math.min(fromAccountId, toAccountId);
+    long secondLock = Math.max(fromAccountId, toAccountId);
+
+    // Acquire locks in consistent order
+    jdbc.queryForList(
+        "SELECT id, balance FROM accounts WHERE id IN (?, ?) ORDER BY id FOR UPDATE",
+        firstLock, secondLock
+    );
+
+    // Now safely perform the transfer
+    // Deduct from source
+    int updated = jdbc.update(
+        "UPDATE accounts SET balance = balance - ? WHERE id = ? AND balance >= ?",
+        amount, fromAccountId, amount
+    );
+
+    if (updated == 0) {
+        throw new InsufficientFundsException("Insufficient balance in account " + fromAccountId);
+    }
+
+    // Add to destination
+    jdbc.update(
+        "UPDATE accounts SET balance = balance + ? WHERE id = ?",
+        amount, toAccountId
+    );
+
+    // COMMIT: releases both locks atomically
+}</pre>
+
+                <h2>5.4 — Deadlock Retry Pattern</h2>
+                <pre class="code-block">/**
+ * Since deadlocks can still occur despite prevention attempts,
+ * always implement retry logic for transactional operations.
+ *
+ * PostgreSQL deadlock error: SQLState "40P01"
+ * Generic serialization failure: SQLState "40001"
+ */
+public BookingResult bookSeatWithRetry(long seatId, String userName,
+                                        JdbcTemplate jdbc, int maxRetries) {
+    int attempt = 0;
+
+    while (attempt &lt; maxRetries) {
+        try {
+            return bookSeat(seatId, userName, jdbc);
+
+        } catch (DataAccessException e) {
+            String sqlState = ((SQLException) e.getCause()).getSQLState();
+
+            if ("40P01".equals(sqlState)) {
+                // Deadlock detected — retry
+                attempt++;
+                log.warn("Deadlock on attempt {} for seat {}. Retrying...", attempt, seatId);
+
+                try {
+                    // Brief pause before retry (exponential backoff is better in production)
+                    Thread.sleep(50L * attempt);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Interrupted during retry", ie);
+                }
+
+            } else {
+                // Non-deadlock error — don't retry
+                throw e;
+            }
+        }
+    }
+
+    throw new RuntimeException("Failed to book seat after " + maxRetries + " attempts");
+}</pre>
+
+                <h2>5.5 — Monitoring Lock Contention in Production</h2>
+                <pre class="code-block">/**
+ * Query PostgreSQL's pg_locks view to monitor lock contention.
+ * Run this when queries are slower than expected.
+ */
+public void monitorLockContention(JdbcTemplate jdbc) {
+    // Find currently blocked queries
+    List&lt;Map&lt;String, Object&gt;&gt; blockedQueries = jdbc.queryForList("""
+        SELECT
+            blocked.pid               AS blocked_pid,
+            blocked_activity.query    AS blocked_query,
+            blocked_activity.wait_event_type,
+            blocked_activity.wait_event,
+            blocking.pid              AS blocking_pid,
+            blocking_activity.query   AS blocking_query,
+            now() - blocked_activity.query_start AS wait_duration
+        FROM pg_locks blocked
+        JOIN pg_stat_activity blocked_activity
+            ON blocked_activity.pid = blocked.pid
+        JOIN pg_locks blocking
+            ON blocking.relation = blocked.relation
+            AND blocking.granted = true
+            AND blocked.granted = false
+        JOIN pg_stat_activity blocking_activity
+            ON blocking_activity.pid = blocking.pid
+        WHERE NOT blocked.granted
+        ORDER BY wait_duration DESC
+        """);
+
+    for (Map&lt;String, Object&gt; row : blockedQueries) {
+        log.warn("Query blocked: pid={}, wait={}s, blocked_by=pid={}, blocking_query={}",
+            row.get("blocked_pid"),
+            row.get("wait_duration"),
+            row.get("blocking_pid"),
+            row.get("blocking_query")
+        );
+    }
+}
+
+/**
+ * Check lock wait timeout configuration.
+ * Prevents indefinite blocking in production.
+ */
+public void configureLockTimeout(JdbcTemplate jdbc) {
+    // If lock cannot be acquired within 5 seconds, fail with ERROR
+    // Prevents cascading slow queries in high-contention scenarios
+    jdbc.execute("SET lock_timeout = '5s'");
+
+    // If a statement is blocked for more than 10 seconds total, cancel it
+    jdbc.execute("SET statement_timeout = '10s'");
+}</pre>
+            </section>
+
+            <!-- SECTION 6 -->
+            <section id="sec-6">
+                <h1>6. Practical SQL Examples</h1>
+
+                <h2>Shared Lock</h2>
+                <pre class="code-block">-- Acquire shared lock — prevents writes, allows concurrent reads
+BEGIN;
+SELECT balance
+FROM accounts
+WHERE user_id = 42
+FOR SHARE;
+
+-- Do complex multi-step calculations here...
+-- balance row is guaranteed unchanged throughout this transaction
+
+COMMIT;  -- Releases shared lock</pre>
+
+                <h2>Exclusive Lock (Two-Phase Locking)</h2>
+                <pre class="code-block">-- Phase 1: ACQUIRE — Get exclusive lock first, then check condition
+BEGIN;
+
+-- SELECT FOR UPDATE acquires exclusive row lock immediately
+-- If another transaction holds any lock on this row: BLOCKED here
+SELECT id, is_booked, occupant_name
+FROM seats
+WHERE seat_id = 14
+FOR UPDATE;
+
+-- Now safely check and update
+-- No other transaction can read (with lock) or write this row
+UPDATE seats
+SET is_booked = true,
+    occupant_name = 'Hussein'
+WHERE seat_id = 14
+  AND is_booked = false;  -- Double-check in UPDATE for extra safety
+
+-- Phase 2: RELEASE — COMMIT releases all locks
+COMMIT;</pre>
+
+                <h2>Skip Locked (Non-blocking Queue Pattern)</h2>
+                <pre class="code-block">-- SKIP LOCKED: Skip rows that are already locked instead of blocking
+-- Useful for job queues: multiple workers process different jobs simultaneously
+
+-- Worker 1: picks up next available job (skips any already being processed)
+BEGIN;
+SELECT id, payload
+FROM job_queue
+WHERE status = 'pending'
+ORDER BY created_at
+LIMIT 1
+FOR UPDATE SKIP LOCKED;
+
+UPDATE job_queue SET status = 'processing' WHERE id = &lt;fetched_id&gt;;
+COMMIT;
+
+-- Worker 2: runs simultaneously, gets a DIFFERENT job (not blocked by Worker 1)
+-- SKIP LOCKED skips rows locked by Worker 1 and finds next available</pre>
+
+                <h2>Lock Timeout Configuration</h2>
+                <pre class="code-block">-- Set per-session lock timeout (fail if lock not acquired in 3 seconds)
+SET lock_timeout = '3s';
+
+-- Now any lock acquisition attempt that blocks for > 3 seconds will fail:
+-- ERROR: canceling statement due to lock timeout
+
+-- Better than waiting indefinitely in production</pre>
+
+                <h2>Check Lock Status</h2>
+                <pre class="code-block">-- See all current locks in the system
+SELECT
+    pg_locks.pid,
+    pg_locks.locktype,
+    pg_locks.relation::regclass AS table_name,
+    pg_locks.mode,
+    pg_locks.granted,
+    pg_stat_activity.query,
+    pg_stat_activity.state
+FROM pg_locks
+JOIN pg_stat_activity ON pg_locks.pid = pg_stat_activity.pid
+WHERE pg_locks.relation IS NOT NULL
+ORDER BY pg_locks.granted, pg_locks.pid;
+
+-- granted=true  → lock is held
+-- granted=false → transaction is waiting for this lock</pre>
+            </section>
+
+            <!-- SECTION 7 -->
+            <section id="sec-7">
+                <h1>7. Important Interview Questions</h1>
+
+                <h2>Basic</h2>
+                <p><strong>Q: What is a shared lock?</strong><br>
+                A: A shared lock (read lock) is acquired by a transaction that wants to read a value and ensure nobody modifies it during that read. Multiple transactions can hold shared locks on the same resource simultaneously. A shared lock blocks exclusive locks — no one can write to a resource that has any shared lock. It does not block other readers.</p>
+
+                <p><strong>Q: What is an exclusive lock?</strong><br>
+                A: An exclusive lock (write lock) is acquired by a transaction that wants to write to a resource. Only one transaction can hold an exclusive lock at a time. An exclusive lock blocks both shared locks (readers) and other exclusive locks (writers). No other transaction can read or write the resource while an exclusive lock is held.</p>
+
+                <p><strong>Q: Can two transactions hold shared locks on the same row simultaneously?</strong><br>
+                A: Yes. Shared locks are compatible with each other — multiple readers can coexist. This is by design: concurrent reads do not conflict with each other. Only when a writer wants an exclusive lock does it conflict with existing shared locks.</p>
+
+                <p><strong>Q: What is a deadlock?</strong><br>
+                A: A deadlock occurs when two or more transactions are each waiting for the other to release a lock, creating a circular dependency. Transaction A holds a lock on resource X and wants resource Y; Transaction B holds a lock on resource Y and wants resource X. Neither can proceed. PostgreSQL's background deadlock detector identifies the cycle and rolls back the transaction that "closed" the cycle (the last one to create the dependency), allowing the other to continue.</p>
+
+                <p><strong>Q: What is two-phase locking?</strong><br>
+                A: Two-phase locking (2PL) is a concurrency control protocol with two phases: (1) Growing phase — acquire locks, cannot release any; (2) Shrinking phase — release locks, cannot acquire any new ones. The constraint "once you release, you cannot acquire" ensures that all locks are held simultaneously at the peak, which guarantees serializability — results equivalent to some serial execution order.</p>
+
+                <h2>Intermediate</h2>
+                <p><strong>Q: What is the double booking problem and how does <span class="inline-code">SELECT FOR UPDATE</span> solve it?</strong><br>
+                A: Double booking occurs when two transactions concurrently read a resource as "available" and both proceed to book it. Under MVCC, both reads succeed simultaneously, both see "available," and both commit updates — the second commit overwrites the first. <span class="inline-code">SELECT FOR UPDATE</span> solves this by acquiring an exclusive row lock during the SELECT. The second transaction's SELECT FOR UPDATE blocks until the first transaction commits or rolls back. When unblocked, the second transaction reads the current (post-commit) state — seeing the resource is already booked — and correctly rejects the booking.</p>
+
+                <p><strong>Q: What is the difference between MVCC and locking, and when do you need both?</strong><br>
+                A: MVCC prevents readers from blocking writers and vice versa by maintaining multiple row versions (each transaction sees a snapshot). However, MVCC alone does not prevent lost updates (write-write conflicts). Two transactions can both read the same value via their snapshot, compute a new value, and both write — the second write overwrites the first (lost update). Explicit locking (<span class="inline-code">SELECT FOR UPDATE</span>) is needed for write-write conflicts. In PostgreSQL: MVCC handles read-write concurrency; explicit locking handles write-write concurrency.</p>
+
+                <p><strong>Q: How does PostgreSQL decide which transaction to kill during a deadlock?</strong><br>
+                A: PostgreSQL's lock monitor builds a "wait-for graph" — a directed graph where an edge from A to B means "A is waiting for a lock held by B." A deadlock is a cycle in this graph. PostgreSQL identifies the cycle and selects the transaction that "closed" the cycle (the most recent transaction to enter the wait state that created the cycle). This transaction is the victim — it receives a deadlock error and is rolled back. The choice is deterministic and based on which transaction most recently became part of the circular dependency.</p>
+
+                <p><strong>Q: What is the difference between <span class="inline-code">FOR UPDATE</span> and <span class="inline-code">FOR SHARE</span>?</strong><br>
+                A: <span class="inline-code">FOR UPDATE</span> acquires an exclusive row lock — no other transaction can read (with any row lock) or write the row. <span class="inline-code">FOR SHARE</span> acquires a shared row lock — other transactions can also acquire shared locks (multiple readers), but writers (<span class="inline-code">FOR UPDATE</span>, <span class="inline-code">UPDATE</span>, <span class="inline-code">DELETE</span>) are blocked. Use <span class="inline-code">FOR UPDATE</span> when you intend to update the row. Use <span class="inline-code">FOR SHARE</span> when you need the value stable for reading but don't intend to update it yourself.</p>
+
+                <h2>Advanced</h2>
+                <p><strong>Q: Explain why acquiring locks in a consistent order prevents deadlocks. What happens if you don't?</strong><br>
+                A: Deadlock requires a circular wait: A holds X and wants Y; B holds Y and wants X. If all transactions always acquire locks in the same canonical order (e.g., ascending primary key), circular waits are impossible. Suppose A needs accounts 100 and 200: it acquires 100 first, then 200. Suppose B also needs 100 and 200: it also acquires 100 first — but A already holds 100, so B blocks. A then gets 200, completes, releases 100. B gets 100, then 200. No cycle. Without ordering: A gets 100, B gets 200, A wants 200 (blocked by B), B wants 100 (blocked by A) → deadlock.</p>
+
+                <p><strong>Q: A cinema booking system processes 10,000 concurrent seat booking requests for a sold-out concert release. Walk through the complete locking strategy.</strong><br>
+                A: (1) <strong>Connection pooling</strong>: Limit connections to the DB — 10,000 HTTP requests do not mean 10,000 DB connections. Use a connection pool (HikariCP, PgBouncer). (2) <strong>SELECT FOR UPDATE</strong>: Each booking attempt acquires an exclusive row lock on the target seat. (3) <strong>SKIP LOCKED alternative</strong>: For a queue-based approach, workers use <span class="inline-code">FOR UPDATE SKIP LOCKED</span> to grab available seats without blocking each other. (4) <strong>Lock timeout</strong>: Set <span class="inline-code">lock_timeout = '5s'</span> to fail fast rather than pile up waiting connections. (5) <strong>Retry logic</strong>: Implement exponential backoff with retry for deadlock errors (<span class="inline-code">SQLState 40P01</span>). (6) <strong>Optimistic locking alternative</strong>: Use a version counter column; the UPDATE includes <span class="inline-code">WHERE version = read_version</span>; if 0 rows updated, retry (optimistic concurrency without blocking locks). (7) <strong>Horizontal partitioning</strong>: Partition seats table by venue/event so lock contention is isolated per event, not table-wide.</p>
+
+                <p><strong>Q: What is <span class="inline-code">SKIP LOCKED</span> and when would you use it over standard <span class="inline-code">FOR UPDATE</span>?</strong><br>
+                A: <span class="inline-code">SELECT ... FOR UPDATE SKIP LOCKED</span> acquires an exclusive lock on rows that are immediately lockable and silently skips any row that is already locked. Standard <span class="inline-code">FOR UPDATE</span> blocks until all requested locks are available. <span class="inline-code">SKIP LOCKED</span> is ideal for work queues where multiple workers process jobs in parallel — each worker gets a different subset of available work without any worker blocking another. With standard <span class="inline-code">FOR UPDATE</span>, all workers would block on the same "next available" row, serializing what should be parallel work. Important caveat: <span class="inline-code">SKIP LOCKED</span> is not suitable when you need to process specific rows — it may result in rows being skipped indefinitely if other transactions hold long locks.</p>
+            </section>
+
+            <!-- SECTION 8 -->
+            <section id="sec-8">
+                <h1>8. Common Mistakes</h1>
+
+                <h2>Beginner Mistakes</h2>
+                <ul>
+                    <li><strong>Reading without locking when you plan to write</strong>: Reading a value without <span class="inline-code">FOR UPDATE</span>, computing a new value, then updating — allows another transaction to change the value between your read and your write (lost update / race condition)</li>
+                    <li><strong>Confusing MVCC with locking</strong>: Assuming PostgreSQL's MVCC prevents all concurrency issues — MVCC prevents dirty reads but NOT lost updates in write-write scenarios</li>
+                    <li><strong>Not handling deadlock errors in application code</strong>: Letting a deadlock error bubble up to the user without retry logic</li>
+                </ul>
+
+                <h2>Backend Engineer Mistakes</h2>
+                <ul>
+                    <li><strong>Inconsistent lock acquisition order</strong>: Different code paths lock rows in different orders (e.g., sometimes account A then B, sometimes B then A) — guarantees eventual deadlock under concurrent load</li>
+                    <li><strong>Long transactions holding locks</strong>: Starting a transaction, acquiring a lock via <span class="inline-code">SELECT FOR UPDATE</span>, then doing expensive external operations (HTTP calls, file I/O) before committing — lock held for seconds or minutes, blocking all other transactions on that row</li>
+                    <li><strong>Over-locking</strong>: Using <span class="inline-code">FOR UPDATE</span> when <span class="inline-code">FOR SHARE</span> is sufficient, or locking the entire table when row-level locking suffices — unnecessarily reduces concurrency</li>
+                    <li><strong>Not setting <span class="inline-code">lock_timeout</span></strong>: In production, a transaction waiting indefinitely for a lock causes cascading slowdowns (connections pile up, timeouts propagate)</li>
+                </ul>
+
+                <h2>Production Mistakes</h2>
+                <ul>
+                    <li><strong>No lock timeout</strong>: A runaway transaction holds a lock indefinitely. All other transactions waiting on that lock pile up. Connection pool exhausted. Service unavailable.</li>
+                    <li><strong>Not monitoring <span class="inline-code">pg_locks</span></strong>: Lock contention is invisible until queries slow down dramatically. Regular monitoring of <span class="inline-code">pg_locks</span> and <span class="inline-code">pg_stat_activity</span> catches problems before they become incidents.</li>
+                    <li><strong>Batch operations in a single transaction</strong>: <span class="inline-code">UPDATE 10 million rows</span> in one transaction holds exclusive locks on 10 million rows for potentially minutes — blocks all other access to those rows. Use batched updates (10,000 rows per transaction).</li>
+                    <li><strong>Deadlock in application code that should have been prevented</strong>: Two code paths that update the same two resources in opposite orders — a time bomb that deadlocks under concurrent load. Always define and enforce a canonical lock acquisition order.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 9 -->
+            <section id="sec-9">
+                <h1>9. Performance & Scalability Notes</h1>
+
+                <h2>Lock Contention Impact on Throughput</h2>
+                <pre class="code-block">Scenario: 100 concurrent users booking cinema seats
+
+WITHOUT proper locking (double booking allowed, no FOR UPDATE):
+  All 100 requests proceed simultaneously.
+  Throughput: 100 req/sec
+  Correctness: ❌ Multiple people book same seat
+
+WITH FOR UPDATE (correct 2PL):
+  For a single popular seat:
+    First request acquires lock.
+    Other 99 requests block waiting.
+    Serialized: ~1 req/sec for that seat
+    Correctness: ✅ One person gets the seat
+
+For different seats (no contention):
+  100 requests for 100 different seats proceed simultaneously.
+  Throughput: 100 req/sec (no contention)
+  Correctness: ✅
+
+Conclusion: Locking overhead is proportional to contention.
+            Low-contention systems: negligible performance impact.
+            High-contention (same row): throughput limited to 1/lock_duration.</pre>
+
+                <h2>Lock Duration = Everything</h2>
+                <pre class="code-block">Lock duration minimization rules:
+
+❌ Bad pattern:
+BEGIN;
+SELECT * FROM seats WHERE id=14 FOR UPDATE;  ← lock acquired
+// Do HTTP call to payment service (2 seconds)
+// Parse response
+UPDATE seats SET booked=true WHERE id=14;
+COMMIT;  ← lock released after 2+ seconds
+
+✅ Good pattern:
+// Do payment service call BEFORE transaction
+paymentResult = paymentService.charge(userId, amount);
+
+BEGIN;
+SELECT * FROM seats WHERE id=14 FOR UPDATE;  ← lock acquired
+UPDATE seats SET booked=true WHERE id=14;
+COMMIT;  ← lock released in < 10ms
+
+Difference: 2000ms lock vs 10ms lock.
+At 100 req/sec: 200 queued requests vs 1 queued request.</pre>
+
+                <h2>Optimistic vs Pessimistic Locking</h2>
+                <table>
+                    <thead>
+                        <tr><th></th><th>Pessimistic (FOR UPDATE)</th><th>Optimistic (Version Counter)</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Lock acquisition</td><td>At read time (SELECT FOR UPDATE)</td><td>None — no locks taken</td></tr>
+                        <tr><td>Conflict detection</td><td>Blocking (waits for lock)</td><td>At write time (UPDATE fails if version changed)</td></tr>
+                        <tr><td>Best for</td><td>High contention (many conflicts expected)</td><td>Low contention (conflicts rare)</td></tr>
+                        <tr><td>Throughput under no contention</td><td>Same</td><td>Same</td></tr>
+                        <tr><td>Throughput under high contention</td><td>Better (one waits, others proceed)</td><td>Worse (many retries, wasted work)</td></tr>
+                        <tr><td>Implementation</td><td>Simple (database handles)</td><td>More complex (version column, retry logic)</td></tr>
+                    </tbody>
+                </table>
+                <pre class="code-block">-- Optimistic locking with version counter
+CREATE TABLE seats (
+    id INTEGER PRIMARY KEY,
+    is_booked BOOLEAN,
+    version INTEGER DEFAULT 0  ← version column
+);
+
+-- Read
+SELECT id, is_booked, version FROM seats WHERE id = 14;
+-- Returns: is_booked=false, version=5
+
+-- Update (fails if someone else updated since our read)
+UPDATE seats
+SET is_booked = true, version = version + 1
+WHERE id = 14
+  AND version = 5;  ← Must match what we read
+
+-- If 0 rows updated: conflict → retry
+-- If 1 row updated: success</pre>
+            </section>
+
+            <!-- SECTION 10 -->
+            <section id="sec-10">
+                <h1>10. System Design Connections</h1>
+
+                <h2>Locking + Distributed Systems</h2>
+                <pre class="code-block">In a distributed (sharded/microservice) setup, traditional DB locks don't work
+across services. Alternatives:
+
+1. Distributed Lock (Redis Redlock):
+   Client acquires Redis lock before accessing shared resource.
+   Lock has TTL to prevent indefinite hold on crash.
+   
+   try:
+     lock = redis.set("seat:14:lock", uuid, NX=True, EX=5)  # 5 second TTL
+     if lock:
+       process_booking()
+     else:
+       return "Seat already being processed"
+   finally:
+     redis.delete("seat:14:lock")  # Release
+
+2. Database-level advisory locks (PostgreSQL):
+   pg_try_advisory_lock(key) → application-managed lock
+   Not tied to a specific row, flexible resource identification
+
+3. Optimistic locking with versioning:
+   No distributed lock needed.
+   Each service reads version, writes conditionally.
+   Conflicts result in retry.</pre>
+
+                <h2>Locking + ACID</h2>
+                <pre class="code-block">Locking is how databases implement the "I" in ACID (Isolation):
+
+Isolation levels and what locks they use:
+
+READ UNCOMMITTED: Barely any locks. Can read uncommitted data (dirty read).
+READ COMMITTED:   Shared lock released immediately after each read.
+                  Exclusive lock held until commit.
+REPEATABLE READ:  Shared lock held for entire transaction duration.
+                  Exclusive lock held until commit.
+SERIALIZABLE:     Full 2PL or predicate locks. No phantoms possible.
+                  Most restrictive, least concurrent.
+
+PostgreSQL default: READ COMMITTED
+Banking/finance:    SERIALIZABLE or REPEATABLE READ
+Most web apps:      READ COMMITTED (MVCC handles most cases)</pre>
+            </section>
+
+            <!-- SECTION 11 -->
+            <section id="sec-11">
+                <h1>11. Visual Mental Models</h1>
+
+                <pre class="code-block">LOCK COMPATIBILITY:
+
+             │ No Lock │ Shared │ Exclusive │
+─────────────┼─────────┼────────┼───────────┤
+Get Shared   │  ✅ OK  │ ✅ OK  │  ❌ WAIT  │
+Get Exclusive│  ✅ OK  │ ❌ WAIT│  ❌ WAIT  │
+
+
+TWO-PHASE LOCKING TIMELINE:
+
+         Phase 1 (Growing)         │    Phase 2 (Shrinking)
+         Acquire only              │    Release only
+─────────────────────────────────────────────────────────
+         Lock A                    │
+                  Lock B           │
+                           Lock C  │  Release A
+                                   │            Release B
+                                   │                     Release C
+                           ▲
+                     Lock Point
+                  (Maximum locks held)
+
+
+DEADLOCK CYCLE:
+
+Transaction A ──── holds ────→ Row 20
+     │                              
+     └──── wants ─────→ Row 21 ──── held by ─────→ Transaction B
+                                                           │
+Transaction A ←──── held by ─────── Row 20 ←──── wants ──┘
+
+Cycle: A wants what B has, B wants what A has.
+PostgreSQL detects: breaks cycle by rolling back B (entered last).</pre>
+            </section>
+
+            <!-- SECTION 12 -->
+            <section id="sec-12">
+                <h1>12. Revision Notes — One Page</h1>
+                <pre class="code-block bg-blue-900 border border-blue-800 text-blue-50 shadow-md">┌──────────────────────────────────────────────────────────────────────┐
+│              LOCKING & CONCURRENCY CONTROL CHEAT SHEET               │
+├──────────────────────────────────────────────────────────────────────┤
+│  SHARED LOCK (S-Lock / Read Lock):                                   │
+│  • "I am reading this. Don't let anyone write to it."                │
+│  • Multiple shared locks CAN coexist on same resource                │
+│  • Blocks: exclusive locks only                                      │
+│  • SQL: SELECT ... FOR SHARE                                         │
+│  • Released: when transaction ends (strict 2PL)                      │
+│                                                                      │
+│  EXCLUSIVE LOCK (X-Lock / Write Lock):                               │
+│  • "I am writing this. Don't let anyone read or write it."           │
+│  • Only ONE exclusive lock allowed at a time                         │
+│  • Blocks: ALL other locks (shared AND exclusive)                    │
+│  • SQL: SELECT ... FOR UPDATE  (or implicit with UPDATE/DELETE)      │
+│  • Released: when transaction ends                                   │
+├──────────────────────────────────────────────────────────────────────┤
+│  COMPATIBILITY:                                                      │
+│  Shared + Shared: ✅ Compatible (multiple readers OK)                │
+│  Shared + Exclusive: ❌ Conflict                                      │
+│  Exclusive + Exclusive: ❌ Conflict                                   │
+├──────────────────────────────────────────────────────────────────────┤
+│  DEADLOCK:                                                           │
+│  A holds X, wants Y. B holds Y, wants X. Circular wait.             │
+│  Detection: PostgreSQL background monitor builds wait-for graph.     │
+│  Resolution: Roll back the transaction that CLOSED the cycle.        │
+│  Prevention: ALWAYS acquire locks in consistent order (e.g., asc ID)│
+│  Recovery: Implement retry with exponential backoff in application.  │
+├──────────────────────────────────────────────────────────────────────┤
+│  TWO-PHASE LOCKING (2PL):                                            │
+│  Phase 1 GROWING: Acquire locks. Cannot release any.                 │
+│  Phase 2 SHRINKING: Release locks. Cannot acquire any new.           │
+│  Once you release ONE lock, you cannot acquire more.                 │
+│  Guarantees: SERIALIZABILITY (strongest isolation)                   │
+│  Key insight: Acquire lock BEFORE checking condition.                │
+│    Wrong: SELECT → check → UPDATE  (race condition window)           │
+│    Right: SELECT FOR UPDATE → check → UPDATE  (atomic)               │
+├──────────────────────────────────────────────────────────────────────┤
+│  DOUBLE BOOKING PREVENTION:                                          │
+│  BEGIN;                                                              │
+│  SELECT * FROM seats WHERE id=14 FOR UPDATE;  ← Lock FIRST          │
+│  -- Check if booked here (safe — no other tx can change it)          │
+│  UPDATE seats SET booked=true WHERE id=14 AND booked=false;          │
+│  COMMIT;  ← Releases lock                                            │
+├──────────────────────────────────────────────────────────────────────┤
+│  MVCC vs LOCKING:                                                    │
+│  MVCC: Readers don't block writers, writers don't block readers.     │
+│  MVCC does NOT prevent lost updates (write-write conflicts).         │
+│  SELECT FOR UPDATE needed for write-write conflict prevention.       │
+├──────────────────────────────────────────────────────────────────────┤
+│  PRODUCTION RULES:                                                   │
+│  ✅ Always set lock_timeout to prevent indefinite blocking           │
+│  ✅ Keep transactions SHORT — lock duration = contention window      │
+│  ✅ Do expensive work (HTTP calls) OUTSIDE transactions              │
+│  ✅ Acquire multiple locks in consistent order (prevent deadlock)    │
+│  ✅ Implement retry logic for deadlock errors (SQLState 40P01)       │
+│  ✅ Monitor pg_locks for contention in production                    │
+│  ❌ Never hold locks across external service calls                   │
+│  ❌ Never do batch operations (millions of rows) in one transaction  │
+└──────────────────────────────────────────────────────────────────────┘</pre>
+            </section>
+
+            <footer class="mt-16 pt-8 border-t border-gray-200 text-center text-gray-500 text-sm pb-16">
+                End of Notes — Locking & Concurrency Control
+            </footer>
+        </div>
+    </main>
+
+</body>
+</html>
