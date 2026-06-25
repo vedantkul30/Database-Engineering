@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Storage Engines — Production Engineering Notes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9fafb;
+            color: #111827;
+        }
+        pre {
+            font-family: 'Fira Code', monospace;
+        }
+        .prose h1 {
+            font-size: 2.25rem;
+            font-weight: 800;
+            margin-top: 3rem;
+            margin-bottom: 1.5rem;
+            color: #1e3a8a;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        .prose h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: #1f2937;
+        }
+        .prose h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+            color: #374151;
+        }
+        .prose h4 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-top: 1.25rem;
+            margin-bottom: 0.5rem;
+            color: #4b5563;
+        }
+        .prose p {
+            margin-bottom: 1rem;
+            line-height: 1.75;
+            color: #4b5563;
+        }
+        .prose ul, .prose ol {
+            padding-left: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #4b5563;
+        }
+        .prose ul { list-style-type: disc; }
+        .prose ol { list-style-type: decimal; }
+        .prose li {
+            margin-bottom: 0.5rem;
+            line-height: 1.6;
+        }
+        .prose strong {
+            color: #111827;
+            font-weight: 600;
+        }
+        .prose blockquote {
+            border-left: 4px solid #3b82f6;
+            background-color: #eff6ff;
+            padding: 1.25rem;
+            margin: 1.5rem 0;
+            font-style: normal;
+            color: #1e40af;
+            border-radius: 0 0.5rem 0.5rem 0;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        .prose table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+            background-color: white;
+            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .prose th {
+            background-color: #f3f4f6;
+            font-weight: 600;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #374151;
+        }
+        .prose td {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+            color: #4b5563;
+            vertical-align: top;
+        }
+        .prose tr:last-child td {
+            border-bottom: none;
+        }
+        .code-block {
+            background-color: #1f2937;
+            color: #e5e7eb;
+            padding: 1.25rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+            white-space: pre;
+        }
+        .inline-code {
+            background-color: #f3f4f6;
+            color: #ef4444;
+            padding: 0.2rem 0.4rem;
+            border-radius: 0.25rem;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.875rem;
+        }
+        .nav-link {
+            transition: all 0.2s ease;
+        }
+        .nav-link:hover {
+            color: #2563eb;
+            background-color: #eff6ff;
+            padding-left: 0.5rem;
+        }
+        html {
+            scroll-behavior: smooth;
+        }
+    </style>
+</head>
+<body class="antialiased flex flex-col md:flex-row h-screen overflow-hidden">
+
+    <!-- Sidebar / Table of Contents -->
+    <aside class="w-full md:w-72 bg-white border-r border-gray-200 h-1/4 md:h-full overflow-y-auto flex-shrink-0 z-10 shadow-sm">
+        <div class="p-6">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Contents</h2>
+
+            <nav class="space-y-1 text-sm font-medium text-gray-600">
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Foundations</p>
+                <a href="#sec-1" class="block py-1.5 nav-link rounded-md">1. Big Picture</a>
+                <a href="#sec-2" class="block py-1.5 nav-link rounded-md">2. Engine Landscape</a>
+
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Engines in Depth</p>
+                <a href="#sec-3-1" class="block py-1.5 nav-link rounded-md">3.1 MyISAM</a>
+                <a href="#sec-3-2" class="block py-1.5 nav-link rounded-md">3.2 InnoDB</a>
+                <a href="#sec-3-3" class="block py-1.5 nav-link rounded-md">3.3 XtraDB</a>
+                <a href="#sec-3-4" class="block py-1.5 nav-link rounded-md">3.4 Aria</a>
+                <a href="#sec-3-5" class="block py-1.5 nav-link rounded-md">3.5 LevelDB</a>
+                <a href="#sec-3-6" class="block py-1.5 nav-link rounded-md">3.6 RocksDB</a>
+                <a href="#sec-3-7" class="block py-1.5 nav-link rounded-md">3.7 SQLite</a>
+                <a href="#sec-3-8" class="block py-1.5 nav-link rounded-md">3.8 Berkeley DB</a>
+
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Comparison & Design</p>
+                <a href="#sec-4" class="block py-1.5 nav-link rounded-md">4. B-Tree vs LSM Deep Dive</a>
+                <a href="#sec-5" class="block py-1.5 nav-link rounded-md">5. MySQL Engine Switching</a>
+                <a href="#sec-6" class="block py-1.5 nav-link rounded-md">6. History of MySQL Default</a>
+
+                <p class="text-xs font-bold text-blue-600 uppercase tracking-wider mb-2 mt-4">Review & Interview</p>
+                <a href="#sec-7" class="block py-1.5 nav-link rounded-md">7. Name Origins</a>
+                <a href="#sec-8" class="block py-1.5 nav-link rounded-md">8. Decision Guide</a>
+                <a href="#sec-9" class="block py-1.5 nav-link rounded-md">9. Mental Models</a>
+                <a href="#sec-10" class="block py-1.5 nav-link rounded-md">10. Interview Questions</a>
+                <a href="#sec-11" class="block py-1.5 nav-link rounded-md">11. Common Mistakes</a>
+                <a href="#sec-12" class="block py-1.5 nav-link rounded-md">12. Cheat Sheet</a>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 h-3/4 md:h-full overflow-y-auto bg-gray-50 p-6 md:p-12 lg:p-16">
+        <div class="max-w-4xl mx-auto prose">
+
+            <header class="mb-12 text-center md:text-left">
+                <p class="text-blue-600 font-semibold tracking-wide uppercase text-sm mb-2">Interview &amp; System Design Ready</p>
+                <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 mt-0 border-none pb-0">Database Storage Engines</h1>
+                <p class="text-xl text-gray-500 mt-4">MyISAM · InnoDB · LevelDB · RocksDB · SQLite · Aria · XtraDB</p>
+                <p class="text-base text-gray-400 mt-1">Production Engineering Notes</p>
+            </header>
+
+            <!-- SECTION 1 -->
+            <section id="sec-1">
+                <h1>1. Big Picture</h1>
+
+                <h2>What Is a Database Storage Engine?</h2>
+                <p>A database storage engine (also called an embedded database or storage layer) is a <strong>library responsible for</strong>:</p>
+                <ul>
+                    <li>How data is physically stored on disk (file format, page layout)</li>
+                    <li>How data is read from disk (index structures, scan strategies)</li>
+                    <li>CRUD operations at the lowest level</li>
+                    <li>Whether ACID transactions are supported</li>
+                    <li>Lock granularity (row-level vs table-level)</li>
+                </ul>
+
+                <pre class="code-block">Without separating concerns (monolithic database):
+
+┌──────────────────────────────────────────────────────────┐
+│  DBMS (Everything mixed together)                        │
+│  Network/client protocol + Query parser + Optimizer +    │
+│  Transaction manager + Storage + Index management        │
+└──────────────────────────────────────────────────────────┘
+  ↑ Cannot reuse storage layer. Cannot swap implementations.
+
+With separation of concerns:
+
+┌─────────────────────────────────────────────────┐
+│  DBMS Layer (Database Management System)         │
+│  - Client/server protocol (TCP, ports)           │
+│  - SQL parser and query optimizer                │
+│  - Replication (master/follower)                 │
+│  - Stored procedures, foreign keys              │
+│  - Connection pooling                            │
+└──────────────────────┬──────────────────────────┘
+                       │ uses
+┌──────────────────────▼──────────────────────────┐
+│  Storage Engine Layer                            │
+│  - Physical file layout on disk                 │
+│  - Index data structures (B-tree, LSM)          │
+│  - ACID transactions (or not)                   │
+│  - Lock management                              │
+│  - Read/write optimizations                     │
+└─────────────────────────────────────────────────┘
+  ↑ Can be swapped. Reusable. Purpose-built for workload.</pre>
+
+                <h2>Why This Matters for Engineers</h2>
+                <ul>
+                    <li><strong>MySQL lets you swap storage engines per table</strong> — different tables can have different engines</li>
+                    <li><strong>PostgreSQL does not</strong> — always B-tree based, cannot change</li>
+                    <li>The engine choice determines: insert speed, read speed, ACID support, lock granularity, SSD friendliness</li>
+                    <li>Building a new database? Pick an existing engine and build your DBMS layer on top — don't start from scratch</li>
+                </ul>
+
+                <h2>The Two Fundamental Storage Paradigms</h2>
+                <pre class="code-block">B-Tree based (read-optimized):
+  MySQL InnoDB, MyISAM, PostgreSQL, SQLite, Oracle, SQL Server
+  Best for: Mixed read/write, OLTP, strong consistency requirements
+
+LSM-Tree based (write-optimized):
+  LevelDB, RocksDB, Cassandra, HBase, ScyllaDB, InfluxDB, Elasticsearch
+  Best for: High-insert workloads, time-series, log storage, SSD-optimized writes</pre>
+            </section>
+
+            <!-- SECTION 2 -->
+            <section id="sec-2">
+                <h1>2. The Storage Engine Landscape</h1>
+
+                <h2>Overview Table</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Engine</th>
+                            <th>Creator</th>
+                            <th>B-Tree/LSM</th>
+                            <th>ACID</th>
+                            <th>Row Locks</th>
+                            <th>Primary Use</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><strong>MyISAM</strong></td><td>MySQL AB / Oracle</td><td>B-Tree</td><td>❌</td><td>❌ Table-only</td><td>Legacy read-heavy, FTS</td></tr>
+                        <tr><td><strong>InnoDB</strong></td><td>Innobase / Oracle</td><td>B+ Tree</td><td>✅</td><td>✅</td><td>Default MySQL OLTP</td></tr>
+                        <tr><td><strong>XtraDB</strong></td><td>Percona (fork of InnoDB)</td><td>B+ Tree</td><td>✅</td><td>✅</td><td>Percona Server</td></tr>
+                        <tr><td><strong>Aria</strong></td><td>Monty / MariaDB</td><td>B-Tree</td><td>Partial</td><td>❌ Table-only</td><td>MariaDB system tables</td></tr>
+                        <tr><td><strong>LevelDB</strong></td><td>Google (Jeff Dean, Sanjay Ghemawat)</td><td>LSM</td><td>❌</td><td>N/A</td><td>Embedded, Bitcoin Core</td></tr>
+                        <tr><td><strong>RocksDB</strong></td><td>Facebook (fork of LevelDB)</td><td>LSM</td><td>✅</td><td>✅</td><td>High-insert + ACID</td></tr>
+                        <tr><td><strong>MyRocks</strong></td><td>Facebook</td><td>LSM</td><td>✅</td><td>✅</td><td>MySQL + RocksDB engine</td></tr>
+                        <tr><td><strong>SQLite</strong></td><td>D. Richard Hipp</td><td>B-Tree</td><td>✅</td><td>❌ File-only</td><td>Embedded, local apps</td></tr>
+                        <tr><td><strong>Berkeley DB</strong></td><td>Sleepycat / Oracle</td><td>B-Tree</td><td>✅</td><td>✅</td><td>Key-value, embedded</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- SECTION 3 -->
+            <section id="sec-3-1">
+                <h1>3. Core Concepts — Each Engine in Depth</h1>
+
+                <h2>3.1 — MyISAM (Indexed Sequential Access Method)</h2>
+                <p>MyISAM was the <strong>default MySQL storage engine until version 5.5</strong>. It was eventually replaced by InnoDB as the default.</p>
+
+                <h3>Architecture</h3>
+                <pre class="code-block">MyISAM file structure per table:
+  tablename.MYD  → actual row data (heap file)
+  tablename.MYI  → index file (B-tree index structure)
+  tablename.frm  → table definition / schema
+
+Every index (including secondary indexes) points DIRECTLY to the
+physical row location on disk (byte offset in .MYD file).
+
+Index → (file offset 700) → row data at byte 700 in .MYD</pre>
+
+                <h3>Why Inserts Are Fast</h3>
+                <pre class="code-block">INSERT appends to the END of the .MYD heap file.
+The file's end position is always known → O(1) append.
+New index entries are added pointing to the new offset.
+
+No tree rebalancing required for sequential inserts.
+No transaction log overhead.</pre>
+
+                <h3>Why Updates and Deletes Are Slow</h3>
+                <pre class="code-block">UPDATE changes a row → row may grow or shrink in size.
+Changed row size → byte offset of ALL subsequent rows changes.
+Changed offsets → ALL indexes pointing to ANY row after this one must be updated.
+
+This is called FRAGMENTATION.
+
+Example:
+  Row at offset 700 (50 bytes). Update adds 10 bytes.
+  Row is now at offset 700 (60 bytes).
+  Next row was at offset 750 → now at offset 760.
+  Index pointing to next row: was 750 → must update to 760.
+  CASCADE: every subsequent row's offset shifts.
+  → Update ALL affected index entries → SLOW.</pre>
+
+                <h3>No Transactions</h3>
+                <pre class="code-block">-- MyISAM demo (MySQL):
+BEGIN;  -- Starts a "transaction"
+INSERT INTO employees_myisam (name) VALUES ('Hussein');
+-- At this point, without committing:
+
+-- Another client immediately sees the row!
+SELECT * FROM employees_myisam;
+-- → Returns Hussein. Already visible. No isolation.
+
+-- ROLLBACK is meaningless:
+ROLLBACK;
+-- → Row is STILL there. Cannot undo.
+-- MyISAM ignores BEGIN/COMMIT/ROLLBACK entirely.</pre>
+
+                <p><strong>Why no transactions:</strong> MyISAM was designed for speed and simplicity. The overhead of transaction logging and rollback support was intentionally omitted.</p>
+
+                <h3>Table-Level Locking</h3>
+                <pre class="code-block">MyISAM locking:
+  Any write (INSERT/UPDATE/DELETE) locks the ENTIRE table.
+  Concurrent readers on the same table: BLOCKED.
+  Concurrent writers on the same table: BLOCKED.
+
+InnoDB locking:
+  Any write locks only the SPECIFIC ROW being written.
+  Other rows: fully accessible to concurrent readers and writers.
+
+Impact on concurrent booking system (100 users):
+  MyISAM: User 1 books a seat → all other 99 users BLOCKED from reading the table
+  InnoDB: User 1 books seat 15 → other 99 users booking other seats proceed normally</pre>
+
+                <h3>Database Corruption</h3>
+                <pre class="code-block">Crash during MyISAM write → corrupt table possible:
+  Reason: Indexes store physical file offsets.
+          If a write updates the data file but crashes before updating indexes,
+          indexes now point to wrong locations.
+          Data and indexes are out of sync.
+
+Recovery: REPAIR TABLE tablename;
+          (Rebuilds indexes from scratch — can take hours on large tables)
+
+InnoDB: Uses WAL (Write-Ahead Log). On crash, replay WAL to restore consistency.
+        No corruption. Automatic recovery.</pre>
+
+                <h3>When to Use MyISAM</h3>
+                <pre class="code-block">✅ Appropriate when:
+  - Read-heavy workload with almost no writes
+  - Full-text search (MyISAM historically had better FTS, though InnoDB 5.6+ improved)
+  - No concurrent writers needed
+  - Absolute simplest possible storage needs
+  - Legacy systems that cannot be migrated
+
+❌ Never use when:
+  - Transactions required (banking, inventory, anything financial)
+  - Concurrent writes needed
+  - Row-level lock control needed
+  - Crash safety matters (production systems)</pre>
+            </section>
+
+            <section id="sec-3-2">
+                <h2>3.2 — InnoDB</h2>
+                <p>InnoDB is the <strong>default MySQL/MariaDB storage engine since MySQL 5.5</strong>. It is a B+ Tree clustered index engine with full ACID support.</p>
+
+                <h3>Architecture</h3>
+                <pre class="code-block">InnoDB file structure:
+  ibdata1       → shared tablespace (system tables, undo log, insert buffer)
+  tablename.ibd → per-table data + index file (when innodb_file_per_table=ON)
+  ib_logfile0   → WAL (redo log file)
+  ib_logfile1   → WAL (redo log file, second file)
+
+Primary Index = The Table (Clustered Index / Index-Organized Table):
+  Table IS the B+ Tree ordered by primary key.
+  Leaf nodes contain the FULL ROW (all columns).
+  Physical row order = primary key order.
+
+Secondary indexes:
+  Do NOT point to physical row location.
+  Point to the PRIMARY KEY value instead.
+  To get full row: secondary index → PK → primary B+ Tree → full row.
+  (Double lookup — but no offset invalidation on row movement)</pre>
+
+                <h3>Full ACID Support</h3>
+                <pre class="code-block">-- InnoDB transaction demo (MySQL):
+BEGIN;
+INSERT INTO employees_innodb (name) VALUES ('Hussein');
+
+-- Another client cannot see this yet:
+-- SELECT * FROM employees_innodb → empty (isolation working correctly)
+
+-- Within same transaction, you CAN see your own changes:
+SELECT * FROM employees_innodb;  -- → Returns Hussein (your own view)
+
+-- ROLLBACK works:
+ROLLBACK;
+-- → Row is GONE. Transaction fully rolled back.
+
+-- Or COMMIT makes it visible to all:
+-- COMMIT;  → all clients now see Hussein</pre>
+
+                <h3>Row-Level Locking</h3>
+                <pre class="code-block">InnoDB: Lock granularity = individual row
+  Transaction A writes row 15 → only row 15 is locked
+  Transaction B writes row 20 → proceeds immediately (different row)
+  Transaction C reads row 15 → blocked (row 15 is exclusively locked)
+
+MyISAM: Lock granularity = entire table
+  Transaction A writes row 15 → ENTIRE table is locked
+  Transaction B writes row 20 → BLOCKED (table locked, even though different row)</pre>
+
+                <h3>Foreign Key Support</h3>
+                <pre class="code-block">-- InnoDB supports foreign key constraints
+CREATE TABLE orders (
+    id INT PRIMARY KEY,
+    customer_id INT,
+    FOREIGN KEY (customer_id) REFERENCES customers(id)
+        ON DELETE CASCADE
+        ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+-- MyISAM: FOREIGN KEY syntax is parsed but SILENTLY IGNORED
+CREATE TABLE orders (
+    id INT PRIMARY KEY,
+    customer_id INT,
+    FOREIGN KEY (customer_id) REFERENCES customers(id)  -- IGNORED in MyISAM!
+) ENGINE=MyISAM;</pre>
+
+                <h3>Crash Safety</h3>
+                <pre class="code-block">InnoDB crash recovery:
+  Every write goes to WAL (redo log) BEFORE the data file.
+  On crash: replay WAL from last checkpoint.
+  Uncommitted transactions: rolled back using undo log.
+  Result: Database is always in a consistent state after restart.
+  No manual repair needed.</pre>
+
+                <p><strong>The Uber Migration: PostgreSQL → MySQL</strong><br>
+                One cited reason: PostgreSQL's secondary indexes point to the physical tuple ID (ctid). When a row is updated, it moves to a new physical location — ALL secondary indexes must be updated (write amplification). InnoDB's secondary indexes point to the stable primary key. Row movement doesn't require updating secondary indexes (except the primary key B-tree). For Uber's write-heavy trip update workload, this reduced write amplification.</p>
+            </section>
+
+            <section id="sec-3-3">
+                <h2>3.3 — XtraDB (Percona's InnoDB Fork)</h2>
+                <p>Created by <strong>Monty Program / Percona</strong> as a fork of InnoDB to add enterprise features Oracle didn't open-source.</p>
+                <pre class="code-block">History:
+  Oracle acquired Sun (which owned MySQL + InnoDB)
+  Percona: "We don't want to depend on Oracle for storage engine features"
+  Created XtraDB: InnoDB + additional performance patches + backup tools
+
+Features added over InnoDB:
+  - Better I/O performance under certain workloads
+  - More tunable parameters
+  - Better hot backup (XtraBackup tool)
+  - Enhanced statistics
+
+Problem:
+  Oracle kept adding features to InnoDB faster than Percona could keep up.
+  XtraDB started falling behind InnoDB in features.
+
+Result:
+  MariaDB 10.2: switched DEFAULT back from XtraDB to InnoDB.
+  XtraDB now optional in Percona Server.
+  "Sometimes it's better to just bite the bullet and go with the mainstream."</pre>
+            </section>
+
+            <section id="sec-3-4">
+                <h2>3.4 — Aria (MariaDB's MyISAM Replacement)</h2>
+                <p>Created by <strong>Monty Widenius</strong> (creator of MySQL, founder of MariaDB) as a <strong>crash-safe alternative to MyISAM</strong> after Oracle acquired MySQL.</p>
+                <pre class="code-block">Why created:
+  Monty forked MySQL → MariaDB
+  Needed MyISAM-like engine (fast, simple) but NOT owned by Oracle
+  MyISAM had one critical flaw: crashes could corrupt tables
+  → Created Aria: MyISAM + crash safety
+
+Key difference from MyISAM:
+  Crash safe: Aria uses a transaction log for crash recovery.
+              On restart, replays the log to fix corrupted tables automatically.
+              No manual REPAIR TABLE needed.
+
+Similar to MyISAM:
+  No full ACID transactions (table-level atomicity only)
+  Table-level locking (no row-level)
+  B-Tree index structure
+
+Current usage:
+  MariaDB SYSTEM TABLES use Aria by default (not MyISAM, not InnoDB)
+  Reason: System tables don't need transactions; Aria is lightweight and fast
+  User tables: InnoDB is the default</pre>
+            </section>
+
+            <section id="sec-3-5">
+                <h2>3.5 — LevelDB (Google, 2011)</h2>
+                <p>Created by <strong>Jeff Dean and Sanjay Ghemawat</strong> at Google. A completely different paradigm from B-Trees: the <strong>Log-Structured Merge Tree (LSM)</strong>.</p>
+
+                <h3>The SSD Problem with B-Trees</h3>
+                <pre class="code-block">B-Tree on SSD — the write amplification problem:
+
+INSERT row → B-Tree may need to rebalance → move existing nodes →
+  UPDATE existing data on SSD → SSD writes bits in-place
+
+SSD physics:
+  - SSD cells have limited write cycles (P/E cycles: ~3,000-100,000 depending on NAND type)
+  - Writing to an already-written cell: must ERASE then WRITE
+  - Erase is slow (~1-5ms) and degrades the cell
+  - Fragmented writes scatter data across pages → garbage collection overhead
+  - In-place updates = worst case for SSD lifespan and performance
+
+Ideal for SSD: Sequential writes only. Never update existing data.</pre>
+
+                <h3>LSM Tree Architecture</h3>
+                <pre class="code-block">LevelDB write path (APPEND ONLY — never updates existing data):
+
+Step 1: WRITE to WAL (Write-Ahead Log) on disk → immediate durability
+Step 2: WRITE to MemTable in RAM (sorted, in-memory buffer)
+
+MemTable full? → Step 3: FLUSH to disk as immutable SSTable file (Level 0)
+
+Compaction: Background process merges and compacts SSTables
+  Level 0 → Level 1 → Level 2 → ... → Level 6
+  Each level is 10× larger than previous
+  Compaction merges sorted SSTables, discards obsolete versions
+  Output is a new, larger sorted SSTable
+
+NOTHING IS EVER UPDATED IN PLACE. Every write is a new file/entry.</pre>
+
+                <pre class="code-block">LevelDB levels:
+
+Level 0 (MemTable flushed):    ~4 files, ~4MB each
+Level 1:                        10 files, total ~10MB
+Level 2:                        total ~100MB
+Level 3:                        total ~1GB
+Level 4:                        total ~10GB
+Level 5:                        total ~100GB
+Level 6:                        total ~1TB
+
+As levels fill → background compaction merges them upward</pre>
+
+                <h3>Why "Level" DB?</h3>
+                <p>Named because data flows through <strong>levels</strong> as it gets compacted from fast/small (memory) to slow/large (disk). Each level is progressively larger and on slower storage.</p>
+
+                <h3>LevelDB Properties</h3>
+                <pre class="code-block">✅ Pros:
+  Fast sequential writes: O(1) — always append to MemTable
+  SSD-friendly: no in-place updates, sequential I/O only
+  High write throughput
+
+❌ Cons:
+  NO ACID transactions: reads see potentially stale data
+  Read amplification: reading a key may need to check MemTable + all SSTable levels
+  Write amplification from compaction: data rewritten multiple times as it flows down levels
+  No SQL: key-value only
+
+Used in: Bitcoin Core, Minecraft Pocket Edition, some AutoCAD versions</pre>
+            </section>
+
+            <section id="sec-3-6">
+                <h2>3.6 — RocksDB (Facebook, 2012)</h2>
+                <p>Facebook forked LevelDB and added everything that enterprise production systems need.</p>
+
+                <h3>Why Facebook Built It</h3>
+                <pre class="code-block">Facebook's workload:
+  - Billions of users, hundreds of billions of rows
+  - Extreme write throughput (status updates, likes, messages)
+  - SSD storage (cost-effective at Facebook scale)
+  - LevelDB was single-threaded compaction → bottleneck at scale
+
+Facebook's solution: Fork LevelDB, add what's missing.</pre>
+
+                <h3>RocksDB Improvements Over LevelDB</h3>
+                <table>
+                    <thead>
+                        <tr><th>Feature</th><th>LevelDB</th><th>RocksDB</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Transactions</td><td>❌ None</td><td>✅ Full ACID</td></tr>
+                        <tr><td>Compaction threads</td><td>Single thread</td><td>✅ Multi-threaded</td></tr>
+                        <tr><td>Column families</td><td>❌</td><td>✅ (logical namespaces)</td></tr>
+                        <tr><td>Compression</td><td>Basic</td><td>✅ Per-level (Snappy, Zlib, LZ4, ZSTD)</td></tr>
+                        <tr><td>Bloom filters</td><td>❌</td><td>✅ (reduces read amplification)</td></tr>
+                        <tr><td>Rate limiting</td><td>❌</td><td>✅ (throttle compaction I/O)</td></tr>
+                        <tr><td>Merge operators</td><td>❌</td><td>✅ (atomic read-modify-write)</td></tr>
+                        <tr><td>Statistics &amp; monitoring</td><td>Minimal</td><td>✅ Extensive</td></tr>
+                        <tr><td>Backup</td><td>❌</td><td>✅ Checkpoint API</td></tr>
+                    </tbody>
+                </table>
+
+                <h3>MyRocks — RocksDB as a MySQL Storage Engine</h3>
+                <pre class="code-block">Stack:
+  MySQL (SQL layer, connection handling, query parsing)
+  ↓
+  MyRocks (MySQL-RocksDB adapter)
+  ↓
+  RocksDB (LSM storage engine)
+  ↓
+  SSD/NVMe storage
+
+Benefits demonstrated by Facebook:
+  - ~2× compression vs InnoDB (LSM packs data better)
+  - Reduced write amplification vs InnoDB B-tree
+  - SSD endurance dramatically improved
+  - Similar read performance with bloom filters
+
+Supported by: MySQL (via Percona), MariaDB, Percona Server
+Not supported by: Vanilla MySQL (Oracle's distribution)</pre>
+
+                <h3>RocksDB Users</h3>
+                <table>
+                    <thead>
+                        <tr><th>Company</th><th>Use Case</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Facebook</td><td>Social graph storage, MySQL via MyRocks</td></tr>
+                        <tr><td>LinkedIn</td><td>Feed storage, Voldemort</td></tr>
+                        <tr><td>Yahoo!</td><td>Sherpa distributed database</td></tr>
+                        <tr><td>Couchbase</td><td>Underlying storage (replaced ForestDB)</td></tr>
+                        <tr><td>TiKV (PingCAP)</td><td>Distributed key-value store (powers TiDB)</td></tr>
+                        <tr><td>Cockroach Labs</td><td>Underlying storage for CockroachDB</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <section id="sec-3-7">
+                <h2>3.7 — SQLite</h2>
+                <p>Created by <strong>D. Richard Hipp in 2000</strong>. The most widely deployed database in the world by number of instances.</p>
+
+                <h3>Design Philosophy</h3>
+                <pre class="code-block">Problem Hipp solved:
+  "I want a local database. Why do I need a server?"
+  Traditional databases: client → TCP → server → storage
+  SQLite: application → library API → storage file (directly)
+
+No server process needed.
+No TCP connection needed.
+Entire database = a single file.
+Import as a library in your code.</pre>
+
+                <h3>SQLite Architecture</h3>
+                <pre class="code-block">Traditional RDBMS:              SQLite:
+┌──────────────┐                ┌─────────────────────────────┐
+│  Application │                │  Application                │
+└──────┬───────┘                │  + SQLite library (linked)  │
+       │ TCP connection         │  + Single .db file          │
+┌──────▼───────┐                └─────────────────────────────┘
+│  DB Server   │                       ↑
+│  (separate   │                 No network. No server.
+│   process)   │                 Zero configuration.
+└──────────────┘</pre>
+
+                <h3>Where SQLite Is Used</h3>
+                <pre class="code-block">Everywhere:
+  - Every iOS device (system databases, app data)
+  - Every Android device (same)
+  - Every Chrome browser (history, bookmarks, web SQL)
+  - Every Firefox browser
+  - Every macOS/Windows installation
+  - Python's built-in database module (import sqlite3)
+  - Many embedded systems
+  - Development/testing (no database setup needed)</pre>
+
+                <h3>SQLite Properties</h3>
+                <pre class="code-block">✅ Strengths:
+  Full ACID transactions (even locally!)
+  Zero configuration (no setup, no server)
+  Zero dependencies (one C file / library)
+  Cross-platform (same .db file works on all OSes)
+  B-Tree based (familiar, stable)
+  Concurrent reads: multiple readers simultaneously ✅
+  WAL mode: concurrent reads while one writer writes ✅
+
+❌ Limitations:
+  Table-level locking (no row-level locks)
+  Not designed for high-concurrency multi-user write access
+  No built-in network server (by design — it's embedded)
+  Maximum DB size: 281 TB (theoretical); practical limit ~1TB
+  Cannot handle thousands of concurrent writers</pre>
+            </section>
+
+            <section id="sec-3-8">
+                <h2>3.8 — Berkeley DB (Sleepycat / Oracle)</h2>
+                <p>One of the oldest embedded database engines, predating MySQL. Created by Sleepycat Software in 1994, now owned by Oracle.</p>
+                <pre class="code-block">Historical significance:
+  Influenced many subsequent database designs
+  Bitcoin Core used Berkeley DB for blockchain storage until 2012-2014
+  Then switched to LevelDB (faster for blockchain's append-heavy workload)
+
+Properties:
+  Key-value store (not SQL)
+  Embedded (library, no server)
+  ACID transactions
+  Multiple access methods (B-Tree, Hash, Recno, Queue)
+  Locking support
+
+Current status:
+  Oracle owns it (same theme — Oracle owns many database foundations)
+  Less popular than RocksDB/LevelDB for new projects
+  Still used in legacy systems, some Memcached DB implementations</pre>
+            </section>
+
+            <!-- SECTION 4 -->
+            <section id="sec-4">
+                <h1>4. B-Tree vs LSM-Tree Deep Comparison</h1>
+
+                <h2>Write Path</h2>
+                <pre class="code-block">B-Tree (InnoDB, MyISAM, PostgreSQL):
+  INSERT → find position in B-Tree → insert key into page →
+    if page full: page split → update parent → WAL record →
+    flush dirty pages to disk
+
+  Characteristics:
+    Random writes (page splits scatter across disk)
+    In-place updates (bad for SSD P/E cycles)
+    Write amplification: 1 logical write → multiple physical writes (splits, parent updates)
+
+LSM-Tree (LevelDB, RocksDB):
+  INSERT → WAL append (sequential) → MemTable (in-memory) →
+    MemTable flush to SSTable (sequential write) →
+    Background compaction (merge sorted files)
+
+  Characteristics:
+    Sequential writes only (excellent for SSD throughput)
+    No in-place updates (new version written, old version marked obsolete)
+    Write amplification from compaction, but sequential I/O</pre>
+
+                <h2>Read Path</h2>
+                <pre class="code-block">B-Tree read:
+  SELECT → B-Tree traversal → O(log n) → leaf page → heap fetch
+  Fast for point lookups and range scans on indexed columns
+  Index in buffer pool → often 1-2 disk I/Os
+
+LSM read:
+  SELECT → check MemTable → check Level-0 SSTables → check Level-1 →
+           ... → check Level-6
+
+  Worst case: check ALL levels (read amplification)
+  Mitigation: Bloom filters per SSTable (eliminate ~99% of unnecessary level checks)
+  With bloom filters: point lookup ~3-5 disk I/Os (vs B-Tree ~2-3)
+  Range scans: B-Tree faster (contiguous index; LSM must merge sorted levels)</pre>
+
+                <h2>Summary Table</h2>
+                <table>
+                    <thead>
+                        <tr><th>Dimension</th><th>B-Tree (InnoDB)</th><th>LSM-Tree (RocksDB)</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Write throughput</td><td>Medium (random I/O for splits)</td><td>Very High (sequential I/O always)</td></tr>
+                        <tr><td>Read throughput</td><td>High (index traversal + heap)</td><td>Medium (bloom filters help)</td></tr>
+                        <tr><td>Range scans</td><td>Excellent (linked leaves)</td><td>Good (merge scan across levels)</td></tr>
+                        <tr><td>Space amplification</td><td>Low</td><td>Higher (old versions until compaction)</td></tr>
+                        <tr><td>Write amplification</td><td>Medium (page splits)</td><td>Medium-high (compaction rewrites)</td></tr>
+                        <tr><td>SSD friendliness</td><td>Medium (in-place updates wear SSD)</td><td>High (sequential only, no in-place)</td></tr>
+                        <tr><td>ACID (in major engines)</td><td>✅ InnoDB</td><td>✅ RocksDB</td></tr>
+                        <tr><td>Read amplification</td><td>Low</td><td>Higher without bloom filters</td></tr>
+                        <tr><td>Best workload</td><td>Mixed OLTP reads/writes</td><td>High-insert, time-series, logs</td></tr>
+                    </tbody>
+                </table>
+            </section>
+
+            <!-- SECTION 5 -->
+            <section id="sec-5">
+                <h1>5. MySQL Engine Switching Demo</h1>
+                <p>MySQL's key differentiator: <strong>you can specify different storage engines per table</strong>.</p>
+
+                <h2>Demo SQL</h2>
+                <pre class="code-block">-- Show all available storage engines:
+SHOW ENGINES;
+-- → InnoDB (default), MyISAM, MEMORY, CSV, ARCHIVE, BLACKHOLE, FEDERATED, etc.
+-- → If MyRocks installed: ROCKSDB also appears
+
+-- Create database
+CREATE DATABASE test;
+USE test;
+
+-- Create MyISAM table
+CREATE TABLE employees_myisam (
+    id   INT AUTO_INCREMENT PRIMARY KEY,
+    name TEXT
+) ENGINE=MyISAM;
+
+-- Create InnoDB table
+CREATE TABLE employees_innodb (
+    id   INT AUTO_INCREMENT PRIMARY KEY,
+    name TEXT
+) ENGINE=InnoDB;
+
+-- Create RocksDB table (if MyRocks installed)
+CREATE TABLE employees_rocksdb (
+    id   INT AUTO_INCREMENT PRIMARY KEY,
+    name TEXT
+) ENGINE=ROCKSDB;
+
+-- Verify engine per table:
+SELECT table_name, engine
+FROM information_schema.tables
+WHERE table_schema = 'test';
+-- → employees_myisam → MyISAM
+-- → employees_innodb → InnoDB</pre>
+
+                <h2>Transaction Behavior Comparison</h2>
+                <pre class="code-block">-- ─── MyISAM transaction test ───────────────────────────────────────────────
+BEGIN;
+INSERT INTO employees_myisam (name) VALUES ('Hussein');
+-- MyISAM ignores BEGIN. Row is IMMEDIATELY visible to ALL clients.
+-- No isolation. No rollback possible.
+ROLLBACK;  -- Does NOTHING. Row is still there.
+
+SELECT * FROM employees_myisam;
+-- → Hussein is there. Rollback had no effect.
+
+
+-- ─── InnoDB transaction test ────────────────────────────────────────────────
+BEGIN;
+INSERT INTO employees_innodb (name) VALUES ('Hussein');
+-- Row is NOT visible to other clients yet.
+-- Within this connection, you CAN see your own change:
+SELECT * FROM employees_innodb;  -- → Returns Hussein (your own view)
+
+-- From another client/connection:
+-- SELECT * FROM employees_innodb; → empty (not committed yet)
+
+ROLLBACK;
+-- Row is GONE. Fully rolled back.
+SELECT * FROM employees_innodb;  -- → empty. Clean.
+
+-- Now with COMMIT:
+BEGIN;
+INSERT INTO employees_innodb (name) VALUES ('Edmund');
+COMMIT;  -- Now visible to all clients.</pre>
+
+                <h2>Java Implementation — Switching Engines per Table</h2>
+                <pre class="code-block">@Component
+public class StorageEngineDemo {
+
+    private final JdbcTemplate jdbcTemplate;
+
+    /**
+     * InnoDB: transactional data (orders, accounts, inventory)
+     * MyISAM: legacy read-only reference data (rarely updated lookups)
+     * MEMORY: session data that doesn't need persistence
+     * ARCHIVE: historical audit logs (insert-only, heavily compressed)
+     */
+    public void createTables() {
+        // Critical transactional data → InnoDB (ACID, row-level locks)
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS orders (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                customer_id BIGINT NOT NULL,
+                total DECIMAL(10,2) NOT NULL,
+                status VARCHAR(20) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB
+            """);
+
+        // Read-heavy reference data with rare updates → MyISAM
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS country_codes (
+                code CHAR(2) PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                region VARCHAR(50)
+            ) ENGINE=MyISAM
+            """);
+
+        // High-speed session storage in RAM → MEMORY engine
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS active_sessions (
+                session_id VARCHAR(64) PRIMARY KEY,
+                user_id BIGINT NOT NULL,
+                expires_at TIMESTAMP NOT NULL
+            ) ENGINE=MEMORY
+            """);
+
+        // Audit log (insert-only, must compress well) → ARCHIVE
+        jdbcTemplate.execute("""
+            CREATE TABLE IF NOT EXISTS audit_log (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                action VARCHAR(100) NOT NULL,
+                user_id BIGINT NOT NULL,
+                details TEXT,
+                occurred_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=ARCHIVE
+            """);
+    }
+
+    /**
+     * Alter an existing table to use a different engine (online DDL).
+     * WARNING: This copies the entire table — can be slow on large tables.
+     * Use pt-online-schema-change (Percona toolkit) for large tables.
+     */
+    public void migrateTableEngine(String tableName, String newEngine) {
+        jdbcTemplate.execute(
+            "ALTER TABLE " + tableName + " ENGINE=" + newEngine
+        );
+    }
+}</pre>
+            </section>
+
+            <!-- SECTION 6 -->
+            <section id="sec-6">
+                <h1>6. The History of MySQL's Default Engine</h1>
+                <pre class="code-block">Timeline:
+
+2000:   MySQL default engine → MyISAM
+        Reason: Fast inserts, simple, lightweight.
+        Problem: No transactions, no row locks, crashes corrupt tables.
+
+2001-2010: InnoDB available as option.
+           Manually specified: ENGINE=InnoDB
+           Many developers didn't know they needed it.
+           Legacy apps used MyISAM by default → transaction bugs in production.
+
+MySQL 5.5 (2010): DEFAULT engine changed to InnoDB.
+           Reason: MyISAM's limitations caused too many production issues.
+           "Most applications NEED transactions, even if developers don't realize it."
+
+MariaDB history:
+  2009:   Monty forks MySQL → creates MariaDB
+  2009-2017: MariaDB default = XtraDB (Percona's InnoDB fork)
+  2017 (MariaDB 10.2): Switched back to InnoDB
+          Reason: XtraDB couldn't keep pace with Oracle's InnoDB development.
+
+The XtraDB lesson:
+  "Fighting against a well-funded company on their core product is hard.
+   Sometimes you have to accept the mainstream option and focus elsewhere."</pre>
+            </section>
+
+            <!-- SECTION 7 -->
+            <section id="sec-7">
+                <h1>7. The Name Origins (Historical Context)</h1>
+                <pre class="code-block">MySQL:   "My" = Monty Widenius's daughter My (Swedish name)
+MariaDB: "Maria" = Monty Widenius's other daughter Maria
+Aria:    "Aria" = what he wanted to call Maria (avoided confusion with MariaDB)
+
+Monty Widenius created:
+  - MySQL (sold to Sun, then Sun acquired by Oracle)
+  - MyISAM storage engine
+  - Forked MySQL → MariaDB (to escape Oracle's ownership)
+  - Created Aria (MyISAM replacement, not Oracle-owned, crash-safe)
+
+InnoDB:
+  Created by: Heikki Tuuri (Innobase Oy, Finnish company)
+  Acquired by: Oracle (before Sun acquisition of MySQL, directly)
+  Result: Oracle owned InnoDB before owning MySQL
+
+The irony: Oracle owned the best MySQL storage engine (InnoDB)
+           before owning MySQL itself.</pre>
+            </section>
+
+            <!-- SECTION 8 -->
+            <section id="sec-8">
+                <h1>8. When to Use Which Engine (Decision Guide)</h1>
+                <pre class="code-block">USE InnoDB when:
+  ✅ Any application requiring ACID transactions
+  ✅ Banking, e-commerce, inventory, booking systems
+  ✅ Concurrent users writing to same tables
+  ✅ Foreign key constraints needed
+  ✅ Default choice for MySQL (safe, battle-tested)
+
+USE MyISAM when:
+  ✅ Legacy compatibility (existing codebase uses it)
+  ✅ Read-only reference tables updated rarely via batch jobs
+  ✅ Full-text search on MySQL < 5.6 (InnoDB FTS added in 5.6)
+  ❌ NEVER for new transactional applications
+
+USE RocksDB / MyRocks when:
+  ✅ Extreme write throughput (social media, logging, time-series)
+  ✅ SSD infrastructure (want to extend drive lifespan)
+  ✅ Space efficiency critical (LSM compresses better)
+  ✅ Insert-heavy workloads with acceptable read amplification
+
+USE SQLite when:
+  ✅ Mobile apps (iOS, Android)
+  ✅ Local desktop application data storage
+  ✅ Development/testing (no server setup)
+  ✅ Embedded devices and single-user applications
+  ❌ Multi-user server applications
+
+USE LevelDB when:
+  ✅ Simple key-value storage without SQL
+  ✅ Embedded application storage (Bitcoin Core pattern)
+  ✅ Write-heavy with eventual reads
+  ❌ Need SQL or transactions
+
+USE RocksDB directly (not via MySQL) when:
+  ✅ Building a custom database or storage layer
+  ✅ Key-value access patterns
+  ✅ Need ACID in an embedded/key-value context</pre>
+            </section>
+
+            <!-- SECTION 9 -->
+            <section id="sec-9">
+                <h1>9. B-Tree vs LSM — The Right Mental Model</h1>
+                <pre class="code-block">B-Tree databases (InnoDB, PostgreSQL):
+  Think: librarian who keeps books in perfect alphabetical order.
+  Every new book immediately goes to its exact spot.
+  Shelves occasionally reorganized (page splits) to maintain order.
+  Finding a book: instant (it's always in the right spot).
+
+  Real-world analogy:
+    Like a filing cabinet with alphabetical dividers.
+    New file → find the right section → insert → done.
+    Occasionally a section gets too full → move some files to a new section.
+
+LSM-Tree databases (LevelDB, RocksDB, Cassandra):
+  Think: receiving dock that sorts mail in batches.
+  Every new letter goes to the inbox first (fast append).
+  Periodically sort and merge the inbox into the main filing system.
+  Finding a letter: check inbox first, then filed letters.
+
+  Real-world analogy:
+    Like a newspaper archive.
+    New papers stacked daily (fast write).
+    Monthly: sort and archive all papers in chronological order.
+    Finding an article: check recent stack, then sorted archive.
+
+Neither is universally better:
+  OLTP (lots of reads and writes, must be fast for both) → B-Tree
+  Write-heavy (IoT sensors, logging, social media inserts) → LSM
+  Time-series data → LSM (Cassandra, InfluxDB)
+  General purpose web app → B-Tree (InnoDB/PostgreSQL)</pre>
+            </section>
+
+            <!-- SECTION 10 -->
+            <section id="sec-10">
+                <h1>10. Important Interview Questions</h1>
+
+                <h2>Basic</h2>
+
+                <p><strong>Q: What is a database storage engine?</strong><br>
+                A: A library that handles the lowest level of database operations — how data is physically stored on disk, index data structures, and CRUD at the file level. It may or may not support ACID transactions, row-level locking, and foreign keys. The DBMS layer sits on top and adds features like SQL parsing, replication, and connection handling.</p>
+
+                <p><strong>Q: What is the difference between MyISAM and InnoDB?</strong><br>
+                A: MyISAM is older, has no ACID transaction support, no row-level locking (table-level only), and indexes point directly to physical row locations. It's fast for simple reads but crashes can corrupt tables and concurrent writes are serialized. InnoDB has full ACID transactions, row-level locking, foreign key support, crash recovery via WAL, and secondary indexes point to the primary key (not physical offset). InnoDB has been the MySQL default since 5.5.</p>
+
+                <p><strong>Q: What is the key architectural difference between B-Tree and LSM-Tree storage engines?</strong><br>
+                A: B-Tree engines maintain data in sorted order on disk at all times, requiring random writes and in-place updates when the tree rebalances — causing write amplification but enabling fast reads. LSM-Tree engines write everything sequentially — new data always appended (never updated in place) — then compacted in background. This makes writes fast and SSD-friendly but introduces read amplification (must check multiple levels for a key). B-Tree is better for mixed workloads; LSM is better for high-insert, write-heavy workloads.</p>
+
+                <p><strong>Q: Why can't PostgreSQL switch storage engines while MySQL can?</strong><br>
+                A: PostgreSQL's storage layer is tightly integrated with its MVCC implementation, query planner, and index access methods. The storage is not cleanly abstracted as a separate pluggable component. MySQL was designed from the start with a pluggable storage engine API (the "Handler" interface), allowing completely different storage implementations behind the same SQL interface.</p>
+
+                <p><strong>Q: What is SQLite and where is it used?</strong><br>
+                A: SQLite is an embedded, serverless, zero-configuration SQL database — a single C library that writes to a single file. No server process, no TCP connection, no setup. It supports full ACID transactions, B-Tree storage, and concurrent reads (with WAL mode). Used in every iOS and Android device, all major web browsers, Python's standard library, and hundreds of embedded applications. The most widely deployed database engine in the world.</p>
+
+                <h2>Intermediate</h2>
+
+                <p><strong>Q: Why does LevelDB (and LSM in general) benefit SSD drives compared to B-Tree engines?</strong><br>
+                A: SSD NAND cells have limited write cycles (P/E cycles). Updating existing data requires: erase the cell → write new value. Erasing is slow and degrades the cell. B-Tree engines frequently update existing pages during rebalancing — random writes that erase and rewrite SSD cells repeatedly. LSM engines NEVER update existing data — every write is a sequential append to a new location. Old versions are discarded during compaction (sequential reads, sequential writes). This dramatically reduces random writes, extending SSD lifespan and improving throughput.</p>
+
+                <p><strong>Q: What is compaction in LSM trees and why is it necessary?</strong><br>
+                A: As LSM trees accumulate SSTables across levels, multiple versions of the same key may exist across different levels. Compaction is a background process that merges sorted SSTables from one level into the next, discarding obsolete versions of keys. Without compaction: read amplification grows, space amplification grows, and performance degrades. Compaction is the LSM tree's "maintenance cost" — the trade-off for its write efficiency.</p>
+
+                <p><strong>Q: Why did Facebook build RocksDB instead of using LevelDB?</strong><br>
+                A: LevelDB had key limitations at Facebook's scale: (1) Single-threaded compaction — at Facebook's write volume, one thread couldn't keep up, causing write stalls. (2) No ACID transactions — Facebook needed atomic multi-key operations. (3) No built-in bloom filters for read optimization. (4) Limited tuning options. RocksDB added multi-threaded compaction, full ACID transactions, bloom filters, extensive monitoring, compression per level, column families, and more — while keeping the LSM append-only write model.</p>
+
+                <p><strong>Q: Explain why MyISAM index corruption is more likely than InnoDB corruption on crashes.</strong><br>
+                A: MyISAM indexes store physical byte offsets (direct pointers) to row locations in the .MYD heap file. When a write crashes mid-operation, the data file and index files may be out of sync — indexes pointing to wrong offsets or missing entries for inserted rows. There's no WAL to replay for consistency. InnoDB uses a Write-Ahead Log — every change is written to the WAL first. On crash recovery, InnoDB replays the WAL to restore a consistent state. InnoDB's design makes it structurally crash-safe; MyISAM's direct-offset indexing makes it crash-vulnerable.</p>
+
+                <h2>Advanced</h2>
+
+                <p><strong>Q: A startup is building a system that ingests 1 million IoT sensor readings per second and needs to query the last hour's data in real time. Design the storage engine strategy.</strong></p>
+                <ul>
+                    <li><strong>Write path</strong>: LSM-based engine (RocksDB, Cassandra, InfluxDB) — append-only writes, no B-tree rebalancing, sequential I/O, SSD-friendly. Time-series data is perfectly suited to LSM (always-increasing timestamps → no random position inserts).</li>
+                    <li><strong>Data model</strong>: Partition key = device_id, clustering key = timestamp. Write path goes to MemTable → compacted to SSTable levels.</li>
+                    <li><strong>Read path</strong>: Last hour = recent data, likely still in MemTable or Level-0 SSTables. Bloom filters eliminate unnecessary SSTable checks.</li>
+                    <li><strong>Compaction strategy</strong>: TWCS (Time Window Compaction Strategy in Cassandra) — compact SSTables within same time window, then merge windows.</li>
+                    <li><strong>Retention</strong>: After 30 days, SSTables are simply dropped (LSM advantage — no expensive DELETE needed).</li>
+                </ul>
+
+                <p><strong>Q: Walk through what happens physically on disk when you INSERT a row in MyISAM vs InnoDB.</strong><br>
+                A: <strong>MyISAM:</strong> (1) Append row bytes to end of .MYD heap file. (2) Update .MYI index file — add a new B-Tree entry with (key, byte_offset). (3) If multiple secondary indexes exist, update each one. (4) No WAL written — on crash here, row may exist in data file but not in indexes.<br><br>
+                <strong>InnoDB:</strong> (1) Write WAL entry (redo log) to ib_logfile — BEFORE touching data or index. (2) Write row to InnoDB buffer pool page. (3) Update primary B+ Tree in buffer pool — leaf node contains full row. (4) Update any secondary indexes in buffer pool — each stores (secondary_key, primary_key). (5) Buffer pool pages marked dirty, eventually flushed to .ibd file asynchronously. (6) On crash at any step: WAL replay restores consistency; uncommitted transactions rolled back via undo log.</p>
+            </section>
+
+            <!-- SECTION 11 -->
+            <section id="sec-11">
+                <h1>11. Common Mistakes</h1>
+
+                <h2>Beginner Mistakes</h2>
+                <ul>
+                    <li><strong>Using MyISAM for any application that needs data integrity</strong>: "I'll just add transactions at the application layer" — this is fragile, error-prone, and doesn't protect against crashes</li>
+                    <li><strong>Not specifying ENGINE when creating MySQL tables</strong>: Relying on the default (which is InnoDB now, but wasn't always — legacy codebases may use MyISAM on older MySQL)</li>
+                    <li><strong>Using SQLite for a multi-user server application</strong>: SQLite has no row-level locking; one writer blocks all readers. Unacceptable for concurrent web apps</li>
+                </ul>
+
+                <h2>Backend Engineer Mistakes</h2>
+                <ul>
+                    <li><strong>Choosing a storage engine without understanding the access pattern</strong>: Selecting RocksDB/LSM for a system that does mostly reads with occasional writes — LSM's read amplification degrades read performance; B-Tree is better for balanced workloads</li>
+                    <li><strong>Ignoring compaction overhead in production for LSM</strong>: Compaction consumes I/O and CPU. Under sustained write load, compaction can fall behind, causing write stalls. Must monitor compaction queue and tune accordingly</li>
+                    <li><strong>ALTER TABLE to change engine on large tables without a tool</strong>: <span class="inline-code">ALTER TABLE big_table ENGINE=InnoDB</span> takes an exclusive lock and copies the entire table — potentially hours of downtime. Use <span class="inline-code">pt-online-schema-change</span> (Percona) or <span class="inline-code">gh-ost</span> (GitHub) for online engine migration</li>
+                </ul>
+
+                <h2>Production Mistakes</h2>
+                <ul>
+                    <li><strong>Mixing MyISAM tables in a system that uses transactions</strong>: A transaction touching both InnoDB and MyISAM tables — InnoDB changes can be rolled back, MyISAM changes cannot. Silent data inconsistency.</li>
+                    <li><strong>Not monitoring RocksDB compaction lag</strong>: If compaction can't keep up with write rate, Level-0 fills up → write stalls → latency spikes. Must alert on compaction pending bytes.</li>
+                    <li><strong>Not running <span class="inline-code">REPAIR TABLE</span> after MyISAM crash</strong>: Corrupt MyISAM indexes cause random query failures. After any MySQL crash involving MyISAM tables, run <span class="inline-code">CHECK TABLE</span> and <span class="inline-code">REPAIR TABLE</span> before returning to production.</li>
+                </ul>
+            </section>
+
+            <!-- SECTION 12 -->
+            <section id="sec-12">
+                <h1>12. Revision Notes — One Page</h1>
+                <pre class="code-block bg-blue-900 border border-blue-800 text-blue-50 shadow-md">┌──────────────────────────────────────────────────────────────────────┐
+│            DATABASE STORAGE ENGINES CHEAT SHEET                      │
+├──────────────────────────────────────────────────────────────────────┤
+│  WHAT IS A STORAGE ENGINE:                                           │
+│  Library handling physical disk storage, indexes, CRUD at file level.│
+│  DBMS layer sits on top: SQL, connections, replication, stored procs.│
+│  MySQL: swap engines per table. PostgreSQL: fixed engine (B-tree).   │
+├──────────────────────────────────────────────────────────────────────┤
+│  MYISAM:                                                             │
+│  B-Tree. Indexes → direct physical offset. Table-level locks.        │
+│  ❌ No transactions. ❌ No row locks. ❌ Crash = corrupt indexes.    │
+│  Fast inserts. Slow updates/deletes (offset cascade).                │
+│  MySQL default until 5.5. Created by Monty Widenius.                │
+│  Use only: read-heavy legacy systems.                                │
+│                                                                      │
+│  INNODB:                                                             │
+│  B+ Tree. Clustered PK (table IS the PK index). Row-level locks.    │
+│  ✅ ACID. ✅ FK support. ✅ WAL crash recovery. ✅ Row locks.        │
+│  Secondary indexes → PK (not physical offset) → double lookup.       │
+│  MySQL default since 5.5. Created by Heikki Tuuri, owned by Oracle. │
+│  Use: almost everything.                                             │
+│                                                                      │
+│  ARIA:                                                               │
+│  MyISAM fork by Monty. Crash-safe. Still table-level locks.         │
+│  No full ACID. MariaDB system tables use Aria (not InnoDB).         │
+│                                                                      │
+│  XTRADB:                                                             │
+│  InnoDB fork by Percona. Added features Oracle didn't open-source.  │
+│  MariaDB used as default until 10.2, then switched back to InnoDB.  │
+│                                                                      │
+│  LEVELDB:                                                            │
+│  LSM-Tree. Google (Jeff Dean, Sanjay Ghemawat), 2011.               │
+│  ❌ No transactions. ✅ Fast sequential inserts. ✅ SSD-friendly.    │
+│  Write: MemTable → flush → SSTable levels. Never in-place update.   │
+│  Used in: Bitcoin Core, Minecraft.                                   │
+│                                                                      │
+│  ROCKSDB:                                                            │
+│  LevelDB fork by Facebook, 2012. Adds what LevelDB was missing.     │
+│  ✅ ACID transactions. ✅ Multi-threaded compaction. ✅ Bloom filters│
+│  MyRocks: RocksDB as MySQL storage engine.                           │
+│  Use: high-insert, time-series, SSD-optimized, Facebook-scale.      │
+│                                                                      │
+│  SQLITE:                                                             │
+│  B-Tree. Embedded. No server. Single file. ✅ ACID. Table-level lock.│
+│  Everywhere: iOS, Android, Chrome, Python, Windows, Linux.           │
+│  Use: local apps, mobile, dev/test, embedded systems.               │
+├──────────────────────────────────────────────────────────────────────┤
+│  B-TREE vs LSM:                                                      │
+│  B-Tree: reads fast, random writes, in-place updates (bad for SSD)  │
+│  LSM: writes fast, sequential only, read amplification, SSD-friendly │
+│  OLTP (mixed): B-Tree. High-insert/time-series: LSM.                │
+├──────────────────────────────────────────────────────────────────────┤
+│  KEY HISTORY:                                                        │
+│  "My" in MySQL = Monty's daughter. "Maria" in MariaDB = same.        │
+│  Oracle owns: MySQL, InnoDB, MyISAM, Berkeley DB.                   │
+│  Monty's escape plan: Fork MySQL → MariaDB. Fork MyISAM → Aria.     │
+│  Facebook's escape plan: Fork LevelDB → RocksDB.                    │
+└──────────────────────────────────────────────────────────────────────┘</pre>
+            </section>
+
+            <footer class="mt-16 pt-8 border-t border-gray-200 text-center text-gray-500 text-sm pb-16">
+                End of Notes — Database Storage Engines
+            </footer>
+
+        </div>
+    </main>
+
+</body>
+</html>
