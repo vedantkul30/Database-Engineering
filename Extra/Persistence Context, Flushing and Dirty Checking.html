@@ -1,0 +1,2345 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Persistence Context, Flushing and Dirty Checking</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <!-- Highlight.js for code syntax highlighting -->
+  <link id="hljs-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" />
+  <link id="hljs-dark" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" disabled />
+
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-muted: #f1f5f9;
+      --surface-code: #f6f8fa;
+      --border: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --text: #0f172a;
+      --text-secondary: #334155;
+      --text-muted: #64748b;
+      --accent: #4f46e5;
+      --accent-soft: #eef2ff;
+      --accent-hover: #4338ca;
+      --success: #059669;
+      --success-soft: #ecfdf5;
+      --warn: #d97706;
+      --warn-soft: #fffbeb;
+      --analogy: #0284c7;
+      --analogy-soft: #f0f9ff;
+      --sidebar-width: 310px;
+      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+      --shadow-md: 0 4px 16px rgba(15, 23, 42, 0.08);
+      --radius: 10px;
+    }
+
+    [data-theme="dark"] {
+      --bg: #0b1120;
+      --surface: #111827;
+      --surface-muted: #1e293b;
+      --surface-code: #0d1117;
+      --border: #1f2937;
+      --border-strong: #334155;
+      --text: #f1f5f9;
+      --text-secondary: #cbd5e1;
+      --text-muted: #94a3b8;
+      --accent: #818cf8;
+      --accent-soft: rgba(99, 102, 241, 0.14);
+      --accent-hover: #a5b4fc;
+      --success: #34d399;
+      --success-soft: rgba(16, 185, 129, 0.12);
+      --warn: #fbbf24;
+      --warn-soft: rgba(245, 158, 11, 0.12);
+      --analogy: #38bdf8;
+      --analogy-soft: rgba(14, 165, 233, 0.12);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+      --shadow-md: 0 6px 24px rgba(0, 0, 0, 0.45);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      scroll-padding-top: 24px;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      font-size: 15.5px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Reading Progress Bar */
+    #progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 0%;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), #06b6d4);
+      z-index: 1000;
+      transition: width 0.1s linear;
+    }
+
+    /* App Layout */
+    .layout {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* Vertical Sidebar */
+    .sidebar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: var(--sidebar-width);
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      z-index: 200;
+      transition: transform 0.25s ease;
+    }
+
+    .sidebar-header {
+      padding: 18px 18px 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .brand-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .brand-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 7px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 12px;
+      font-weight: 800;
+      flex-shrink: 0;
+    }
+
+    .theme-btn {
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      border-radius: 7px;
+      padding: 5px 9px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .theme-btn:hover {
+      border-color: var(--border-strong);
+      color: var(--text);
+    }
+
+    .sidebar-search {
+      position: relative;
+    }
+
+    .sidebar-search input {
+      width: 100%;
+      padding: 8px 12px 8px 32px;
+      font-size: 13px;
+      font-family: inherit;
+      background: var(--surface-muted);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .sidebar-search input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+
+    .sidebar-search svg {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 14px;
+      height: 14px;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 10px 28px;
+    }
+
+    .sidebar-nav::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .sidebar-nav::-webkit-scrollbar-thumb {
+      background: var(--border-strong);
+      border-radius: 99px;
+    }
+
+    .nav-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .nav-item {
+      margin: 2px 0;
+    }
+
+    .nav-link {
+      display: block;
+      text-decoration: none;
+      color: var(--text-secondary);
+      border-radius: 7px;
+      padding: 6px 10px;
+      font-size: 13px;
+      line-height: 1.4;
+      transition: background 0.12s, color 0.12s;
+      word-break: break-word;
+    }
+
+    .nav-link:hover {
+      background: var(--surface-muted);
+      color: var(--text);
+    }
+
+    .nav-link.active {
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .nav-h1 {
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--text);
+      margin-top: 12px;
+      padding: 7px 10px;
+      border-left: 3px solid var(--accent);
+      background: var(--surface-muted);
+      border-radius: 0 7px 7px 0;
+    }
+
+    .nav-h1.first-h1 {
+      margin-top: 0;
+    }
+
+    .nav-h2 {
+      padding-left: 14px;
+      font-weight: 600;
+      font-size: 12.8px;
+    }
+
+    .nav-h3 {
+      padding-left: 26px;
+      font-size: 12.2px;
+      color: var(--text-muted);
+    }
+
+    .nav-empty {
+      padding: 16px 12px;
+      font-size: 13px;
+      color: var(--text-muted);
+      text-align: center;
+      display: none;
+    }
+
+    /* Mobile Header Bar */
+    .mobile-bar {
+      display: none;
+      position: sticky;
+      top: 0;
+      z-index: 150;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .menu-btn {
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 7px 11px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sidebar-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.5);
+      z-index: 190;
+    }
+
+    /* Main Content Area */
+    .main-wrapper {
+      margin-left: var(--sidebar-width);
+      flex: 1;
+      min-width: 0;
+      padding: 36px 40px 80px;
+    }
+
+    .content {
+      max-width: 920px;
+      margin: 0 auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 42px 48px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .intro-note {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 1.5rem;
+    }
+
+    /* Typography */
+    .content h1 {
+      font-size: 1.85rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      line-height: 1.25;
+      margin: 2.2rem 0 1rem;
+      padding-bottom: 0.55rem;
+      border-bottom: 2px solid var(--border);
+      color: var(--text);
+    }
+
+    .content h1.main-title {
+      margin-top: 0;
+      font-size: 2.05rem;
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .content h2 {
+      font-size: 1.38rem;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      line-height: 1.3;
+      margin: 2rem 0 0.85rem;
+      padding-bottom: 0.35rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .content h3 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin: 1.5rem 0 0.65rem;
+      color: var(--text);
+    }
+
+    .chapter-subtitle {
+      font-size: 1.15rem !important;
+      font-weight: 600 !important;
+      color: var(--accent) !important;
+      margin-top: 0.25rem !important;
+      margin-bottom: 1.5rem !important;
+      border-bottom: none !important;
+      padding-bottom: 0 !important;
+    }
+
+    p {
+      margin: 0.75rem 0;
+      color: var(--text-secondary);
+    }
+
+    strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    ul, ol {
+      margin: 0.65rem 0 1rem;
+      padding-left: 1.5rem;
+      color: var(--text-secondary);
+    }
+
+    li {
+      margin: 0.4rem 0;
+    }
+
+    hr {
+      border: 0;
+      border-top: 1px solid var(--border);
+      margin: 2.2rem 0;
+    }
+
+    /* Blockquotes (Analogies & Misconceptions) */
+    blockquote {
+      margin: 1rem 0 1.25rem;
+      padding: 14px 18px;
+      border-left: 4px solid var(--analogy);
+      background: var(--analogy-soft);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      color: var(--text-secondary);
+    }
+
+    blockquote p:first-child {
+      margin-top: 0;
+    }
+
+    blockquote p:last-child {
+      margin-bottom: 0;
+    }
+
+    blockquote ul {
+      margin-bottom: 0;
+    }
+
+    /* Inline Code */
+    code:not(pre code) {
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.86em;
+      background: var(--surface-muted);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 0.12em 0.4em;
+      border-radius: 5px;
+    }
+
+    /* Code Blocks */
+    .code-block {
+      position: relative;
+      margin: 1rem 0 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface-code);
+      overflow: hidden;
+    }
+
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px;
+      background: var(--surface-muted);
+      border-bottom: 1px solid var(--border);
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .copy-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      border-radius: 6px;
+      padding: 3px 9px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .copy-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .copy-btn.copied {
+      border-color: var(--success);
+      color: var(--success);
+    }
+
+    .code-block pre {
+      margin: 0;
+      padding: 14px 16px;
+      overflow-x: auto;
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 13px;
+      line-height: 1.55;
+      background: transparent !important;
+    }
+
+    .code-block pre code {
+      background: transparent !important;
+      padding: 0 !important;
+      font-family: inherit;
+    }
+
+    /* Mermaid Diagrams */
+    .diagram-card {
+      margin: 1.15rem 0 1.4rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .diagram-header {
+      padding: 6px 14px;
+      background: var(--surface-muted);
+      border-bottom: 1px solid var(--border);
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .diagram-body {
+      padding: 16px;
+      overflow-x: auto;
+      display: flex;
+      justify-content: center;
+      background: #ffffff;
+    }
+
+    [data-theme="dark"] .diagram-body {
+      background: #f8fafc;
+    }
+
+    pre.mermaid {
+      margin: 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+    }
+
+    /* Tables */
+    .table-wrap {
+      overflow-x: auto;
+      margin: 1rem 0 1.35rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      text-align: left;
+    }
+
+    thead {
+      background: var(--surface-muted);
+    }
+
+    th {
+      font-weight: 700;
+      color: var(--text);
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-strong);
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+      vertical-align: top;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    tbody tr:hover {
+      background: var(--surface-muted);
+    }
+
+    /* Callout Sections */
+    .callout {
+      border-left: 4px solid var(--accent);
+      background: var(--accent-soft);
+      border-radius: 0 var(--radius) var(--radius) 0;
+      padding: 16px 20px;
+      margin: 1.35rem 0;
+    }
+
+    .callout.case-study {
+      border-left-color: var(--warn);
+      background: var(--warn-soft);
+    }
+
+    .callout.takeaways {
+      border-left-color: var(--success);
+      background: var(--success-soft);
+    }
+
+    .callout.status-box {
+      border-left-color: var(--accent);
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      border-left-width: 4px;
+      border-left-color: var(--accent);
+    }
+
+    .callout h2:first-child,
+    .callout h3:first-child {
+      margin-top: 0;
+    }
+
+    /* Back to Top */
+    #back-to-top {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      box-shadow: var(--shadow-md);
+      cursor: pointer;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 700;
+      z-index: 120;
+      transition: transform 0.15s, background 0.15s;
+    }
+
+    #back-to-top:hover {
+      background: var(--accent-hover);
+      transform: translateY(-2px);
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .sidebar {
+        transform: translateX(-100%);
+      }
+
+      .sidebar.open {
+        transform: translateX(0);
+        box-shadow: var(--shadow-md);
+      }
+
+      .sidebar-backdrop.open {
+        display: block;
+      }
+
+      .mobile-bar {
+        display: flex;
+      }
+
+      .main-wrapper {
+        margin-left: 0;
+        padding: 20px 16px 72px;
+      }
+
+      .content {
+        padding: 26px 22px;
+      }
+    }
+
+    @media print {
+      .sidebar, .mobile-bar, #back-to-top, #progress-bar, .copy-btn {
+        display: none !important;
+      }
+      .main-wrapper {
+        margin-left: 0;
+        padding: 0;
+      }
+      .content {
+        border: none;
+        box-shadow: none;
+        padding: 0;
+        max-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="progress-bar"></div>
+
+  <div class="mobile-bar">
+    <button class="menu-btn" id="open-sidebar" aria-label="Open navigation">
+      <span>&#9776;</span> Notes Navigation
+    </button>
+    <button class="theme-btn" id="mobile-theme-toggle" aria-label="Toggle theme">
+      Theme
+    </button>
+  </div>
+
+  <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+  <div class="layout">
+    <!-- Vertical Navigation Sidebar -->
+    <aside class="sidebar" id="sidebar" aria-label="Vertical Notes Navigation">
+      <div class="sidebar-header">
+        <div class="brand-row">
+          <div class="brand-title">
+            <span class="brand-badge">JPA</span>
+            <span>Hibernate &amp; JPA (Simplified)</span>
+          </div>
+          <button class="theme-btn" id="theme-toggle" title="Toggle Light/Dark Mode">Dark</button>
+        </div>
+        <div class="sidebar-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" id="nav-search" placeholder="Filter sections..." autocomplete="off" />
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <ul class="nav-list" id="nav-list"></ul>
+        <div class="nav-empty" id="nav-empty">No matching sections</div>
+      </nav>
+    </aside>
+
+    <!-- Main Notes Content -->
+    <main class="main-wrapper">
+      <article class="content" id="notes-content">
+
+        <p class="intro-note">Understood. I'll keep the same topics and technical content, but explain them in plainer language with analogies, step-by-step walkthroughs, and a glossary. Complex topics get extra explanation, and simple ones stay as they were. I'm restarting Part 1 from Chapter 1 now.</p>
+
+        <h1 id="part-1-simplified" class="main-title">Part 1: Hibernate and JPA Internals (Simplified Edition)</h1>
+        <h2 id="chapter-1-of-4" class="chapter-subtitle">Chapter 1 of 4: Section A, Persistence Context (Topics 1-2)</h2>
+
+        <p><strong>How each topic is organized this time</strong></p>
+
+        <ol>
+          <li><strong>The big idea</strong> in plain words, with an everyday analogy</li>
+          <li><strong>How it works</strong> step by step</li>
+          <li><strong>Code</strong> with comments, and the SQL it produces</li>
+          <li><strong>What goes wrong</strong> in real projects</li>
+          <li><strong>Key takeaways</strong></li>
+        </ol>
+
+        <p><strong>Plan for Part 1</strong></p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Chapter</th>
+                <th>Topics</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>1 (this one)</strong></td>
+                <td>Persistence context, flushing, dirty checking, read-only transactions, equals/hashCode</td>
+              </tr>
+              <tr>
+                <td>2</td>
+                <td>Fetching (topics 3-7)</td>
+              </tr>
+              <tr>
+                <td>3</td>
+                <td>Querying (topics 8-11)</td>
+              </tr>
+              <tr>
+                <td>4a / 4b</td>
+                <td>Writes (topics 12-15), then revision summary, checklists, interview questions, exercises</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <hr />
+
+        <!-- SECTION 0 -->
+        <h1 id="sec-0">0. Words You Will See Often (Mini Glossary)</h1>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Word</th>
+                <th>Simple meaning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>JPA</strong></td>
+                <td>A <em>specification</em>: a set of rules and interfaces (<code>EntityManager</code>, <code>@Entity</code>, ...) for talking to a database from Java. It is just the rulebook.</td>
+              </tr>
+              <tr>
+                <td><strong>Hibernate</strong></td>
+                <td>The actual <em>library</em> that follows those rules. When you use JPA in Spring Boot, Hibernate does the work underneath.</td>
+              </tr>
+              <tr>
+                <td><strong>Spring Data JPA</strong></td>
+                <td>A layer on top that gives you <code>JpaRepository</code> so you don't write boilerplate.</td>
+              </tr>
+              <tr>
+                <td><strong>Entity</strong></td>
+                <td>A Java class mapped to a table. One object = one row.</td>
+              </tr>
+              <tr>
+                <td><strong>Session / EntityManager</strong></td>
+                <td>The object you use to talk to the database. <code>EntityManager</code> is the JPA name, <code>Session</code> is the Hibernate name. They are the same thing for our purposes.</td>
+              </tr>
+              <tr>
+                <td><strong>Persistence context</strong></td>
+                <td>The "workspace" the Session keeps in memory while you work. (Topic 1 is all about this.)</td>
+              </tr>
+              <tr>
+                <td><strong>Transaction</strong></td>
+                <td>A group of database operations that either all succeed (commit) or all get undone (rollback).</td>
+              </tr>
+              <tr>
+                <td><strong>Flush</strong></td>
+                <td>Sending the pending SQL to the database (without committing).</td>
+              </tr>
+              <tr>
+                <td><strong>Commit</strong></td>
+                <td>Making the transaction's changes permanent and visible to others.</td>
+              </tr>
+              <tr>
+                <td><strong>Proxy</strong></td>
+                <td>A stand-in object that looks like an entity but loads real data only when you use it.</td>
+              </tr>
+              <tr>
+                <td><strong>Round trip</strong></td>
+                <td>One request from your app to the database and back. Each one costs time.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <hr />
+
+        <!-- SECTION 1 -->
+        <h1 id="sec-1">1. The Example App Used Throughout</h1>
+
+        <p>We will use a small online shop in every chapter: <strong>User</strong>, <strong>Product</strong>, <strong>Order</strong>, <strong>OrderItem</strong>. One user has many orders, and one order has many items.</p>
+
+        <p><strong>Versions:</strong> Java 17+, Spring Boot 3.x, Hibernate 6.x, PostgreSQL 14+, HikariCP (connection pool), Flyway (database migrations).</p>
+
+        <h2 id="sec-1-1">1.1 Database schema</h2>
+
+        <div class="code-block">
+          <div class="code-header"><span>sql</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-sql">-- Sequences hand out ids. "INCREMENT BY 50" matches Hibernate's default (explained in Topic 12).
+CREATE SEQUENCE users_seq       START WITH 1 INCREMENT BY 50;
+CREATE SEQUENCE orders_seq      START WITH 1 INCREMENT BY 50;
+CREATE SEQUENCE order_items_seq START WITH 1 INCREMENT BY 50;
+CREATE SEQUENCE products_seq    START WITH 1 INCREMENT BY 50;
+
+CREATE TABLE users (
+    id         BIGINT PRIMARY KEY,
+    email      VARCHAR(255) NOT NULL UNIQUE,
+    full_name  VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE TABLE products (
+    id    BIGINT PRIMARY KEY,
+    sku   VARCHAR(64) NOT NULL UNIQUE,
+    name  VARCHAR(255) NOT NULL,
+    price NUMERIC(12,2) NOT NULL
+);
+
+CREATE TABLE orders (
+    id         BIGINT PRIMARY KEY,
+    user_id    BIGINT NOT NULL REFERENCES users(id),
+    status     VARCHAR(20) NOT NULL,
+    total      NUMERIC(12,2) NOT NULL DEFAULT 0,
+    version    BIGINT NOT NULL DEFAULT 0,      -- used for optimistic locking (Part 2)
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_orders_user_id ON orders(user_id);
+
+CREATE TABLE order_items (
+    id         BIGINT PRIMARY KEY,
+    order_id   BIGINT NOT NULL REFERENCES orders(id),
+    product_id BIGINT NOT NULL REFERENCES products(id),
+    quantity   INT NOT NULL,
+    unit_price NUMERIC(12,2) NOT NULL
+);
+CREATE INDEX idx_order_items_order_id ON order_items(order_id);</code></pre>
+        </div>
+
+        <h2 id="sec-1-2">1.2 Entities</h2>
+
+        <div class="code-block">
+          <div class="code-header"><span>java</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-java">@Entity
+@Table(name = "orders")
+public class Order {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "orders_seq")
+    @SequenceGenerator(name = "orders_seq", sequenceName = "orders_seq", allocationSize = 50)
+    private Long id;
+
+    // Many orders belong to one user. LAZY = don't load the user until someone asks (Topic 3).
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id")
+    private User user;
+
+    @Enumerated(EnumType.STRING)          // store "PAID" not 1, so reordering the enum is safe
+    @Column(nullable = false, length = 20)
+    private OrderStatus status = OrderStatus.NEW;
+
+    @Column(nullable = false)
+    private BigDecimal total = BigDecimal.ZERO;
+
+    @Version                              // Hibernate bumps this on every update (Part 2)
+    private long version;
+
+    // One order has many items. mappedBy = the "items" side does NOT own the foreign key;
+    // OrderItem.order does.
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List&lt;OrderItem&gt; items = new ArrayList&lt;&gt;();
+
+    protected Order() {}                  // JPA needs a no-arg constructor (protected is fine)
+
+    public Order(User user) { this.user = user; }
+
+    // Keeps BOTH sides of the relationship in sync in memory.
+    public void addItem(OrderItem item) {
+        items.add(item);
+        item.setOrder(this);
+    }
+}
+
+@Entity
+@Table(name = "order_items")
+public class OrderItem {
+    @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "order_items_seq")
+    @SequenceGenerator(name = "order_items_seq", sequenceName = "order_items_seq", allocationSize = 50)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "order_id")
+    private Order order;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "product_id")
+    private Product product;
+
+    private int quantity;
+    private BigDecimal unitPrice;
+}</code></pre>
+        </div>
+
+        <p><code>User</code> and <code>Product</code> follow the same pattern. <code>User</code> has a unique <code>email</code>, which becomes important in Topic 2.</p>
+
+        <h2 id="sec-1-3">1.3 Configuration for learning and debugging</h2>
+
+        <div class="code-block">
+          <div class="code-header"><span>yaml</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-yaml">spring:
+  jpa:
+    open-in-view: false            # explained in Topic 4. Set explicitly so it never surprises you
+    properties:
+      hibernate:
+        generate_statistics: true  # counts queries, flushes, etc.
+        jdbc.batch_size: 50        # Topic 13
+        order_inserts: true
+        order_updates: true
+logging:
+  level:
+    org.hibernate.SQL: DEBUG                    # print every SQL statement
+    org.hibernate.orm.jdbc.bind: TRACE          # print the bound values (Hibernate 6)
+    org.springframework.transaction.interceptor: TRACE   # see transactions start/end</code></pre>
+        </div>
+
+        <p>Don't leave SQL and bind logging on in production at high traffic. It is noisy and slow.</p>
+
+        <hr />
+
+        <!-- TOPIC 1 -->
+        <h1 id="topic-1">Topic 1: Persistence Context, Entity States, First-Level Cache (+)</h1>
+
+        <h2 id="sec-t1-1">1.1 The big idea</h2>
+
+        <h3 id="sec-t1-1-problem">The problem without an ORM</h3>
+
+        <p>With plain JDBC, you run <code>SELECT</code>, loop through the rows, and build Java objects yourself. Three annoying questions appear:</p>
+
+        <ol>
+          <li><strong>Same row, two objects?</strong> If you load order #42 twice, do you get two separate Java objects? If you edit both, which one wins?</li>
+          <li><strong>What changed?</strong> If you load 500 orders and change 3 fields on 2 of them, who figures out which <code>UPDATE</code> statements to run?</li>
+          <li><strong>When to write?</strong> Should every <code>setStatus()</code> immediately hit the database? That would be slow.</li>
+        </ol>
+
+        <h3 id="sec-t1-1-solution">The solution: the persistence context</h3>
+
+        <blockquote>
+          <p><strong>Analogy: a workbench.</strong><br />
+          You go to a warehouse (the database) and borrow some items. You put them on your workbench (the persistence context). While they are on the bench:</p>
+          <ul>
+            <li>Each item appears <strong>only once</strong> (no duplicates of the same item).</li>
+            <li>Hibernate took a <strong>photo of each item when you picked it up</strong>.</li>
+            <li>You modify items freely. Nothing goes back to the warehouse yet.</li>
+            <li>At the end (commit), Hibernate compares each item to its photo, sees what changed, and sends <strong>only the needed updates</strong> to the warehouse.</li>
+          </ul>
+        </blockquote>
+
+        <p>So the persistence context is:</p>
+        <ul>
+          <li>a <strong>map</strong> from <code>(entity type, id)</code> to the object in memory (one object per row),</li>
+          <li>plus a <strong>snapshot</strong> (the "photo") of each object's values when it was loaded,</li>
+          <li>plus a <strong>queue</strong> of pending SQL statements.</li>
+        </ul>
+
+        <p>It is also called the <strong>first-level cache (L1)</strong>, because it remembers objects you already loaded.</p>
+
+        <h3 id="sec-t1-1-who">Who is responsible for what?</h3>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Who</th>
+                <th>Responsibility</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>JPA (the rulebook)</strong></td>
+                <td>Defines the <em>idea</em> of a persistence context and the entity states</td>
+              </tr>
+              <tr>
+                <td><strong>Hibernate (the library)</strong></td>
+                <td>Implements it with classes like <code>Session</code>, <code>StatefulPersistenceContext</code>, <code>EntityEntry</code>, <code>ActionQueue</code></td>
+              </tr>
+              <tr>
+                <td><strong>Spring</strong></td>
+                <td>Decides <em>when</em> a persistence context opens and closes (usually: one per transaction)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="sec-t1-2">1.2 Entity states: the life of a Java object</h2>
+
+        <p>Every entity object is in one of four states.</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>State</th>
+                <th>Simple meaning</th>
+                <th>Analogy</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Transient (JPA calls it "new")</strong></td>
+                <td>Just created with <code>new</code>. Hibernate doesn't know about it. No row in the DB.</td>
+                <td>A product still in your hand, not yet put on the shelf</td>
+              </tr>
+              <tr>
+                <td><strong>Managed (persistent)</strong></td>
+                <td>On the workbench. Hibernate watches it and will save changes.</td>
+                <td>An item on your workbench</td>
+              </tr>
+              <tr>
+                <td><strong>Detached</strong></td>
+                <td>Has a row in the DB, but the workbench is gone (transaction ended) or you removed it from the bench. Hibernate no longer watches it.</td>
+                <td>An item you took home from the workbench; changes you make at home are not tracked</td>
+              </tr>
+              <tr>
+                <td><strong>Removed</strong></td>
+                <td>Marked for deletion. The <code>DELETE</code> runs at flush.</td>
+                <td>An item with a "to be discarded" sticker</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="diagram-card">
+          <div class="diagram-header">Mermaid Diagram — Entity States</div>
+          <div class="diagram-body">
+<pre class="mermaid">stateDiagram-v2
+    [*] --> Transient: new Order()
+    Transient --> Managed: persist()
+    Managed --> Removed: remove()
+    Removed --> Managed: persist() again (cancels delete)
+    Managed --> Detached: detach() / clear() / transaction ends
+    Detached --> Managed: merge() (gives back a NEW managed copy)
+    Removed --> [*]: flush runs the DELETE</pre>
+          </div>
+        </div>
+
+        <h3 id="sec-t1-2-rules">Rules beginners often get wrong</h3>
+
+        <ul>
+          <li><strong><code>persist()</code> on a detached entity throws an exception.</strong> <code>persist</code> is only for brand-new objects.</li>
+          <li><strong><code>remove()</code> on a detached entity throws an exception.</strong> Load it or merge it first.</li>
+          <li><strong><code>merge()</code> does NOT reattach the object you pass in.</strong> It finds (or loads) the managed copy with the same id, <strong>copies your values onto it</strong>, and <strong>returns that copy</strong>. Your original object stays detached.</li>
+        </ul>
+
+        <div class="code-block">
+          <div class="code-header"><span>java</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-java">Order detached = ...;                 // came from an earlier transaction
+em.merge(detached);                   // WRONG: result thrown away
+detached.setStatus(PAID);             // changes a detached object, so nothing is saved
+
+Order managed = em.merge(detached);   // CORRECT: use the returned object
+managed.setStatus(PAID);              // tracked</code></pre>
+        </div>
+
+        <ul>
+          <li>Hibernate-specific <code>update()</code>/<code>saveOrUpdate()</code> are deprecated in Hibernate 6 and removed in Hibernate 7. Use the standard JPA methods.</li>
+        </ul>
+
+        <h2 id="sec-t1-3">1.3 What is inside the persistence context?</h2>
+
+        <p>You don't need to memorize class names, but this picture helps when reading stack traces and heap dumps.</p>
+
+        <div class="diagram-card">
+          <div class="diagram-header">Mermaid Flowchart — Inside the Persistence Context</div>
+          <div class="diagram-body">
+<pre class="mermaid">flowchart TB
+    EM["EntityManager (JPA)"] --> S["Session (Hibernate)"]
+    S --> PC["Persistence Context"]
+    S --> AQ["Action Queue: pending INSERT / UPDATE / DELETE"]
+    S --> CONN["JDBC Connection (from Hikari pool)"]
+    PC --> MAP["Map: (type, id) -> entity object"]
+    PC --> EE["EntityEntry per object: status, id, snapshot, version"]
+    PC --> PRX["Proxies (lazy stand-ins)"]</pre>
+          </div>
+        </div>
+
+        <ul>
+          <li><strong>The map</strong> is why <code>find(Order.class, 42)</code> twice gives the same object.</li>
+          <li><strong><code>EntityEntry</code></strong> stores the <em>snapshot</em> (an array of the values at load time) and the current status.</li>
+          <li><strong>The action queue</strong> is why <code>persist()</code> usually doesn't run SQL immediately.</li>
+        </ul>
+
+        <p><strong>Memory cost:</strong> each managed entity costs roughly <strong>2-3 times</strong> its own size (object + snapshot + bookkeeping). Loading 500,000 entities in one transaction is therefore a memory problem, not just a speed problem (see Topic 15).</p>
+
+        <h2 id="sec-t1-4">1.4 Step-by-step: what each operation really does</h2>
+
+        <h3 id="sec-t1-4-1">1.4.1 <code>em.find(Order.class, 42L)</code></h3>
+
+        <ol>
+          <li>Hibernate checks the persistence context: "Do I already have order 42 on the bench?"</li>
+          <li><strong>Yes:</strong> return the same object. <strong>No SQL runs.</strong></li>
+          <li><strong>No:</strong> (optionally check the second-level cache, Part 2), otherwise run <code>SELECT ... FROM orders WHERE id = 42</code>, create the object, take the snapshot, put it on the bench, return it.</li>
+        </ol>
+
+        <h3 id="sec-t1-4-2">1.4.2 Queries (JPQL/HQL) are different</h3>
+
+        <p>This is a very common misunderstanding:</p>
+
+        <div class="code-block">
+          <div class="code-header"><span>java</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-java">Order a = em.find(Order.class, 42L);                 // SELECT runs
+a.setStatus(OrderStatus.PAID);                       // change in memory only
+
+Order b = em.createQuery("select o from Order o where o.id = 42", Order.class)
+            .getSingleResult();                      // a SELECT runs again
+
+assert a == b;                                       // the SAME object</code></pre>
+        </div>
+
+        <p>Two facts:</p>
+        <ol>
+          <li><strong>A query always goes to the database.</strong> Only <code>find()</code>/<code>getReference()</code> (lookup by id) check the bench first.</li>
+          <li>For each row the query returns, Hibernate asks: "Do I already have this entity on my bench?" <strong>If yes, it returns the existing object and ignores the new column values from the row.</strong></li>
+        </ol>
+
+        <p>So within one transaction, the data you see can be <em>older</em> than what the database holds now (if someone else committed a change, or you ran a bulk update). The persistence context behaves like a "frozen view" of the entities you loaded. If you really need fresh data, call <code>em.refresh(entity)</code>.</p>
+
+        <h3 id="sec-t1-4-3">1.4.3 <code>persist()</code> (saving a new object)</h3>
+
+        <p>For our <code>SEQUENCE</code> ids:</p>
+        <ol>
+          <li>Hibernate assigns an id from a pre-fetched block of 50 ids (it calls the database sequence only once per 50 ids).</li>
+          <li>The object becomes <strong>managed</strong>.</li>
+          <li>An INSERT is <strong>queued</strong>.</li>
+          <li><strong>No SQL is sent yet.</strong></li>
+        </ol>
+
+        <p>If the id strategy were <code>IDENTITY</code> (id created by the database during INSERT), Hibernate must send the INSERT <strong>immediately</strong> to learn the id. That removes the "delay and batch" advantage. Topic 12 covers it.</p>
+
+        <h3 id="sec-t1-4-4">1.4.4 <code>merge()</code></h3>
+
+        <div class="diagram-card">
+          <div class="diagram-header">Mermaid Sequence Diagram — merge()</div>
+          <div class="diagram-body">
+<pre class="mermaid">sequenceDiagram
+    participant App
+    participant S as Session
+    participant DB
+    App->>S: merge(detachedOrder with id=42)
+    S->>S: Is order 42 on the bench?
+    alt not on the bench
+        S->>DB: SELECT ... WHERE id=42
+    end
+    S->>S: copy values from detached object onto managed one
+    S-->>App: return the managed object</pre>
+          </div>
+        </div>
+
+        <p><code>merge()</code> needs the target loaded, which usually costs an extra <code>SELECT</code>.</p>
+
+        <h3 id="sec-t1-4-5">1.4.5 <code>remove()</code></h3>
+
+        <p>The object's status becomes <code>DELETED</code> and a <code>DELETE</code> is queued. With <code>cascade = REMOVE</code> or <code>orphanRemoval</code>, its children are deleted first. The SQL runs at flush time.</p>
+
+        <h2 id="sec-t1-5">1.5 How Spring decides when the persistence context lives</h2>
+
+        <p>When you inject <code>EntityManager</code> or use a Spring Data repository, you are really using a <strong>shared proxy</strong>. On every call, it looks for the EntityManager attached to the <strong>current transaction</strong>.</p>
+
+        <ul>
+          <li><strong>Inside <code>@Transactional</code>:</strong> Spring opens an EntityManager, starts a database transaction, and keeps them together until the method ends. The persistence context lives <strong>for the whole transaction</strong>. Two repository calls in the same method share it, so <code>userRepo.findById(1)</code> twice causes one SELECT and returns the same object.</li>
+          <li><strong>Outside a transaction:</strong> each repository call gets a tiny, short-lived EntityManager. Anything it returns is <strong>detached</strong> immediately. Writes fail with <code>TransactionRequiredException</code>.</li>
+          <li><strong>With Open Session In View (OSIV):</strong> the persistence context lives for the whole web request (Topic 4). We disable it.</li>
+        </ul>
+
+        <blockquote>
+          <p><strong>Misconception:</strong> "A repository has its own cache." No. A repository is a thin wrapper over the same EntityManager. The "cache" is the persistence context of the current transaction.</p>
+        </blockquote>
+
+        <h2 id="sec-t1-6">1.6 Practical code: seeing identity and delayed writes</h2>
+
+        <div class="code-block">
+          <div class="code-header"><span>java</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-java">@Service
+@RequiredArgsConstructor
+public class OrderDemoService {
+
+    private final EntityManager em;
+
+    @Transactional
+    public void demo() {
+        // getReference: no SQL. Returns a lazy stand-in (proxy). We only need its id as a foreign key.
+        User user = em.getReference(User.class, 1L);
+
+        Order order = new Order(user);                                    // state: TRANSIENT
+        order.addItem(new OrderItem(em.getReference(Product.class, 10L), 2, new BigDecimal("19.99")));
+
+        em.persist(order);                                               // state: MANAGED, id assigned, no INSERT yet
+        log.info("id = {}", order.getId());                              // id already available
+
+        order.setStatus(OrderStatus.PAID);                               // memory change only
+
+        Order same = em.find(Order.class, order.getId());                // found on the bench, no SELECT
+        assert same == order;
+    }   // commit -&gt; flush -&gt; INSERT orders (status already PAID), INSERT order_items
+}</code></pre>
+        </div>
+
+        <p>Simplified SQL log:</p>
+
+        <div class="code-block">
+          <div class="code-header"><span>sql</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-sql">select nextval('orders_seq')            -- only when the pool of 50 ids runs out
+select nextval('order_items_seq')
+insert into orders (status, total, user_id, version, id) values (?, ?, ?, ?, ?)
+insert into order_items (order_id, product_id, quantity, unit_price, id) values (?, ?, ?, ?, ?)</code></pre>
+        </div>
+
+        <p><strong>Notice:</strong> the order is inserted <em>once</em> with status <code>PAID</code>. The change from <code>NEW</code> to <code>PAID</code> happened before the flush, so no extra <code>UPDATE</code> was needed. Delaying writes lets Hibernate send fewer statements.</p>
+
+        <h2 id="sec-t1-7">1.7 What does <code>save()</code> do in Spring Data?</h2>
+
+        <p><code>repository.save(entity)</code> is just:</p>
+
+        <div class="code-block">
+          <div class="code-header"><span>java</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-java">if (entityInformation.isNew(entity)) { em.persist(entity); return entity; }
+else                                  { return em.merge(entity); }</code></pre>
+        </div>
+
+        <p>How does Spring decide "new"?</p>
+        <ol>
+          <li>If the entity has a <strong>wrapper-type</strong> <code>@Version</code> field (<code>Long</code>, not <code>long</code>): new when it is <code>null</code>.</li>
+          <li>Otherwise, if the id is a primitive: new when the id is 0.</li>
+          <li>Otherwise: new when the id is <code>null</code>.</li>
+        </ol>
+
+        <h3 id="sec-t1-7-trap">The assigned-id trap</h3>
+
+        <p>If you assign ids yourself (for example <code>UUID.randomUUID()</code>), the id is never <code>null</code> on a brand-new object. Spring thinks "not new", calls <code>merge()</code>, and <strong>every insert becomes a SELECT followed by an INSERT</strong>. That can double your insert cost.</p>
+
+        <p>Fix: tell Spring when the entity is new.</p>
+
+        <div class="code-block">
+          <div class="code-header"><span>java</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-java">@Entity
+public class Payment implements Persistable&lt;UUID&gt; {
+    @Id private UUID id = UUID.randomUUID();
+
+    @Transient private boolean isNew = true;       // not stored in the DB
+
+    @Override public UUID getId() { return id; }
+    @Override public boolean isNew() { return isNew; }
+
+    @PostPersist @PostLoad
+    void markNotNew() { this.isNew = false; }      // after saving or loading, it is no longer new
+}</code></pre>
+        </div>
+
+        <h2 id="sec-t1-8">1.8 <code>find()</code> vs <code>getReference()</code></h2>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th></th>
+                <th><code>find</code></th>
+                <th><code>getReference</code></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>SQL</td>
+                <td>Immediately (unless already on the bench)</td>
+                <td><strong>None</strong> until you touch a non-id field</td>
+              </tr>
+              <tr>
+                <td>If the row doesn't exist</td>
+                <td>Returns <code>null</code></td>
+                <td>Throws <code>EntityNotFoundException</code> later, on first use</td>
+              </tr>
+              <tr>
+                <td>Typical use</td>
+                <td>You need the data</td>
+                <td>You only need to set a foreign key</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="code-block">
+          <div class="code-header"><span>java</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-java">order.setUser(em.getReference(User.class, userId));   // no SELECT on users, just user_id in the INSERT</code></pre>
+        </div>
+
+        <p>If you are going to read fields anyway, use <code>find</code>. A proxy would just add a second, lazier SELECT.</p>
+
+        <h2 id="sec-t1-9">1.9 Common mistakes</h2>
+
+        <ol>
+          <li><strong>Calling <code>save()</code> on an entity you just loaded "to be safe".</strong> It is unnecessary. The UPDATE comes from <em>dirty checking</em> at flush, not from <code>save()</code>. It also misleads readers.</li>
+          <li><strong>Ignoring the return value of <code>merge()</code>.</strong></li>
+          <li><strong>Huge transactions</strong> that load too many entities (memory and slowness).</li>
+          <li><strong>Treating the persistence context as a cache across requests.</strong> It lives for one unit of work. Caching across requests is the second-level cache (Part 2).</li>
+          <li><strong>Changing an entity after its transaction ended</strong> and expecting it to save.</li>
+          <li><strong>Using entities as API request bodies</strong> and calling <code>save()</code>. A client could overwrite fields you never meant to expose, and <code>merge</code> writes full rows.</li>
+        </ol>
+
+        <h2 id="sec-t1-10">1.10 Real-world case study: the nightly job that gets slower and slower</h2>
+
+        <div class="callout case-study">
+          <p><strong>Situation.</strong> A nightly job recalculates totals for 400,000 orders. It loads orders in pages inside one <code>@Transactional</code> method and updates each.</p>
+
+          <p><strong>Symptoms.</strong> The first 10,000 orders take 20 seconds. By 200,000 the speed is 10 times slower. Memory climbs, garbage collection eats 40% of the time, and eventually <code>OutOfMemoryError</code>.</p>
+
+          <p><strong>Root cause (simple explanation).</strong></p>
+          <ul>
+            <li>Every loaded order stays on the workbench. Nothing is ever removed.</li>
+            <li>Before each query, Hibernate <em>flushes</em>, and a flush checks <strong>every object on the bench</strong> for changes.</li>
+            <li>So the 1st chunk checks 500 objects, the 2nd checks 1,000, the 800th checks 400,000. Total work grows like N × N.</li>
+          </ul>
+
+          <p><strong>How to investigate.</strong></p>
+          <ul>
+            <li>Heap histogram: <code>jcmd &lt;pid&gt; GC.class_histogram | head -20</code> shows <code>Order</code>, <code>OrderItem</code>, <code>Object[]</code> (snapshots) and Hibernate <code>EntityEntry</code> objects dominating.</li>
+            <li>Hibernate "Session Metrics" log at the end of the transaction shows a huge number of flushes and "flushing a total of ... entities".</li>
+            <li>A CPU profiler shows time in <code>DefaultFlushEntityEventListener</code> and <code>findDirty</code>.</li>
+          </ul>
+
+          <p><strong>Fix.</strong> Process in chunks so the bench is emptied regularly:</p>
+
+          <div class="code-block">
+            <div class="code-header"><span>java</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-java">public void run() {
+    while (true) {
+        List&lt;Order&gt; chunk = txTemplate.execute(status -&gt; {
+            List&lt;Order&gt; orders = repo.findChunk(...);        // 500 rows
+            orders.forEach(Order::recomputeTotal);
+            return orders;
+        });                                                  // commit here: bench is cleared, memory freed
+        if (chunk.size() &lt; 500) break;
+    }
+}</code></pre>
+          </div>
+
+          <p>Alternatives: call <code>flush()</code> then <code>clear()</code> inside one transaction; use a single SQL <code>UPDATE</code>; or use <code>StatelessSession</code>. All of these are covered in Topic 15.</p>
+
+          <p><strong>Lesson.</strong> The persistence context is a working set. Keep it small.</p>
+        </div>
+
+        <h2 id="sec-t1-11">1.11 Debugging tools for the persistence context</h2>
+
+        <div class="code-block">
+          <div class="code-header"><span>java</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-java">Session session = em.unwrap(Session.class);
+SessionStatistics ss = session.getStatistics();
+log.info("entities on the bench = {}", ss.getEntityCount());
+log.info("is this order managed? {}", em.contains(order));
+log.info("are the items loaded? {}", Hibernate.isInitialized(order.getItems()));</code></pre>
+        </div>
+
+        <p>Overall statistics (enabled with <code>generate_statistics=true</code>):</p>
+
+        <div class="code-block">
+          <div class="code-header"><span>java</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-java">Statistics st = em.getEntityManagerFactory().unwrap(SessionFactory.class).getStatistics();
+st.getEntityLoadCount(); st.getEntityUpdateCount(); st.getFlushCount(); st.getPrepareStatementCount();</code></pre>
+        </div>
+
+        <p>Statistics have some overhead, so use them in tests and staging, or sample them in production.</p>
+
+        <h2 id="sec-t1-12">1.12 Best practices</h2>
+
+        <ul>
+          <li>Open transactions in the <strong>service layer</strong>, and keep them short.</li>
+          <li>Use <code>persist</code> (through <code>save</code> with generated ids) for new objects. For updates: load, change, and let dirty checking save it.</li>
+          <li>Return <strong>DTOs</strong> (simple data objects) from services, not managed entities.</li>
+          <li>Keep the bench small for bulk work.</li>
+          <li>Use <code>getReference</code> only to set foreign keys.</li>
+        </ul>
+
+        <div class="callout takeaways">
+          <h2 id="sec-t1-13">1.13 Key takeaways (Topic 1)</h2>
+          <ul>
+            <li>The persistence context = identity map + snapshots + delayed-write queue.</li>
+            <li><code>find</code> checks the bench first. <strong>Queries always hit the DB</strong>, but the objects they return are matched against the bench (the first instance wins).</li>
+            <li><code>persist()</code> and <code>remove()</code> only <em>schedule</em> work. <strong>Flush</strong> executes it.</li>
+            <li><code>merge()</code> copies values onto a managed instance and <strong>returns</strong> it.</li>
+            <li>In Spring (without OSIV) the persistence context lives exactly as long as the transaction.</li>
+          </ul>
+        </div>
+
+        <hr />
+
+        <!-- TOPIC 2 -->
+        <h1 id="topic-2">Topic 2: Flushing, Dirty Checking, Read-Only Transactions, equals/hashCode (+)</h1>
+
+        <p>This topic has four parts. Each is explained on its own.</p>
+
+        <hr />
+
+        <!-- PART 2A -->
+        <h2 id="part-2a">Part 2A: Flushing</h2>
+
+        <h3 id="sec-2a-1">2A.1 The big idea</h3>
+
+        <blockquote>
+          <p><strong>Analogy: typing a document.</strong></p>
+          <ul>
+            <li>Changing text in the editor = changing your entity in memory.</li>
+            <li><strong>Flush</strong> = pressing "Save" to a draft file on your own computer. Only <em>you</em> see the draft.</li>
+            <li><strong>Commit</strong> = publishing it for everyone.</li>
+            <li><strong>Rollback</strong> = deleting the draft.</li>
+          </ul>
+        </blockquote>
+
+        <p><strong>Flush sends the pending SQL to the database inside your current transaction. It does not commit.</strong> Other transactions can't see flushed rows until you commit (PostgreSQL isolates them), but <em>your own transaction</em> can see them. If you roll back, everything flushed is undone.</p>
+
+        <h3 id="sec-2a-2">2A.2 When does a flush happen?</h3>
+
+        <ol>
+          <li><strong>At commit.</strong> Spring flushes just before committing.</li>
+          <li><strong>Before a query</strong>, in the default mode <code>AUTO</code>, if the query might be affected by your pending changes.</li>
+          <li><strong>When you call it:</strong> <code>em.flush()</code>, <code>repository.flush()</code>, <code>saveAndFlush()</code>.</li>
+        </ol>
+
+        <h3 id="sec-2a-3">2A.3 How AUTO flush decides (important and often confusing)</h3>
+
+        <p>Hibernate wants queries to see your own pending changes ("read your own writes"). So before running a query, it may flush first.</p>
+
+        <ul>
+          <li><strong>JPQL/HQL queries:</strong> Hibernate looks at <em>which tables the query touches</em>. If you have pending changes on those tables, it flushes first. A query on <code>Product</code> won't force a flush of a pending <code>Order</code> change.</li>
+          <li><strong>Native SQL queries:</strong> Hibernate cannot read your SQL to know the tables, so (in Spring Boot with JPA) it plays safe and <strong>flushes everything</strong>. Declare the affected tables if you want precision.</li>
+          <li><strong><code>FlushModeType.COMMIT</code>:</strong> flush only at commit. Your queries might not see your own pending changes. Rarely a good idea.</li>
+          <li><strong>Hibernate-only <code>FlushMode.MANUAL</code>:</strong> never flush unless you ask. Spring uses this for read-only transactions (see Part 2C).</li>
+        </ul>
+
+        <div class="code-block">
+          <div class="code-header"><span>java</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-java">@Transactional
+public void autoFlushDemo(Long orderId) {
+    Order o = em.find(Order.class, orderId);
+    o.setStatus(OrderStatus.PAID);              // pending change on the orders table
+
+    // This query reads the orders table, so Hibernate flushes first:
+    long paid = em.createQuery("select count(o) from Order o where o.status = 'PAID'", Long.class)
+                  .getSingleResult();
+    // SQL order: UPDATE orders SET ...;  then SELECT count(*) FROM orders ...
+}</code></pre>
+        </div>
+
+        <div class="code-block">
+          <div class="code-header"><span>java</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-java">@Transactional
+public void otherTable(Long orderId) {
+    Order o = em.find(Order.class, orderId);
+    o.setStatus(OrderStatus.PAID);
+
+    // This query reads products only. No overlap, so NO flush. The UPDATE stays pending.
+    em.createQuery("select p from Product p", Product.class).getResultList();
+}</code></pre>
+        </div>
+
+        <h3 id="sec-2a-4">2A.4 What happens during a flush</h3>
+
+        <div class="diagram-card">
+          <div class="diagram-header">Mermaid Flowchart — Flush Steps</div>
+          <div class="diagram-body">
+<pre class="mermaid">flowchart LR
+    A[Flush starts] --> B["Cascade to new objects reachable from managed ones"]
+    B --> C["Dirty-check EVERY managed entity, queue UPDATEs"]
+    C --> D["Queue collection changes"]
+    D --> E["Execute the queue in a fixed order"]
+    E --> F["Refresh snapshots"]</pre>
+          </div>
+        </div>
+
+        <h3 id="sec-2a-5">2A.5 The fixed execution order (very important)</h3>
+
+        <p>Hibernate does <strong>not</strong> run SQL in the order you wrote your code. It runs the queue in this order:</p>
+
+        <ol>
+          <li>Orphan removals</li>
+          <li>Entity <strong>INSERTs</strong></li>
+          <li>Entity <strong>UPDATEs</strong></li>
+          <li>Collection removals</li>
+          <li>Collection updates</li>
+          <li>Collection inserts</li>
+          <li>Entity <strong>DELETEs</strong></li>
+        </ol>
+
+        <p><strong>Real consequence.</strong> Suppose a unique constraint exists on <code>(order_id, product_id)</code>. You write:</p>
+
+        <div class="code-block">
+          <div class="code-header"><span>java</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-java">em.remove(oldItem);              // DELETE of the row with unique value X
+em.persist(newItem);             // INSERT of a new row with the SAME unique value X</code></pre>
+        </div>
+
+        <p>At flush, the INSERT runs <strong>before</strong> the DELETE. The database rejects it with a unique constraint violation. Fix: call <code>em.flush()</code> between the two lines, or update the existing row instead.</p>
+
+        <p><strong>Another consequence: errors show up late.</strong> A constraint violation appears at flush or commit, not at <code>persist()</code>. The stack trace may point at Spring's transaction code instead of your business logic. When debugging, temporarily use <code>saveAndFlush()</code> or <code>em.flush()</code> to make the error appear at the line that caused it.</p>
+
+        <h3 id="sec-2a-6">2A.6 PostgreSQL-specific: one error ruins the whole transaction</h3>
+
+        <p>In PostgreSQL, if any statement in a transaction fails, the transaction becomes <strong>aborted</strong>. Every following command fails with:</p>
+
+        <div class="code-block">
+          <div class="code-header"><span>log</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-plaintext">ERROR: current transaction is aborted, commands ignored until end of transaction block</code></pre>
+        </div>
+
+        <p>Hibernate also treats the session as unusable after a flush failure. So this common pattern <strong>does not work</strong>:</p>
+
+        <div class="code-block">
+          <div class="code-header"><span>java</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-java">@Transactional
+public void importUsers(List&lt;User&gt; users) {
+    for (User u : users) {
+        try {
+            em.persist(u);
+            em.flush();                       // fails on a duplicate email
+        } catch (PersistenceException e) {    // WRONG: the transaction is already doomed
+            log.warn("skipping {}", u.getEmail());
+        }
+    }
+}</code></pre>
+        </div>
+
+        <p>Correct alternatives:</p>
+        <ul>
+          <li>Check or filter duplicates <strong>before</strong> inserting.</li>
+          <li>Use native SQL <code>INSERT ... ON CONFLICT DO NOTHING</code>.</li>
+          <li>Process each item in its <strong>own transaction</strong> (this needs a call through another Spring bean, because of the "self-invocation" rule in Part 2).</li>
+        </ul>
+
+        <h3 id="sec-2a-7">2A.7 Flush mode decision table</h3>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Mode</th>
+                <th>Flushes when</th>
+                <th>Use when</th>
+                <th>Risk</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>AUTO</code> (default)</td>
+                <td>At commit, and before queries that overlap pending changes</td>
+                <td>Almost always</td>
+                <td>With a big persistence context, many flushes become slow</td>
+              </tr>
+              <tr>
+                <td><code>COMMIT</code></td>
+                <td>Only at commit or when you call it</td>
+                <td>You don't need to read your own pending writes</td>
+                <td>Queries miss your own changes</td>
+              </tr>
+              <tr>
+                <td><code>MANUAL</code> (Hibernate)</td>
+                <td>Only when you call <code>flush()</code></td>
+                <td>Read-only work, controlled bulk loops</td>
+                <td>You may forget to flush and silently lose changes</td>
+              </tr>
+              <tr>
+                <td>Explicit <code>flush()</code></td>
+                <td>When you call it</td>
+                <td>You want errors early, or ordering workarounds, or batching windows</td>
+                <td>Overuse kills the delayed-write benefit</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <hr />
+
+        <!-- PART 2B -->
+        <h2 id="part-2b">Part 2B: Dirty Checking</h2>
+
+        <h3 id="sec-2b-1">2B.1 The big idea</h3>
+
+        <blockquote>
+          <p><strong>Analogy: spot-the-difference.</strong><br />
+          When an entity is loaded, Hibernate takes a <strong>photo</strong> (snapshot). At flush time, it compares the current object to its photo. Any difference becomes an <code>UPDATE</code>.</p>
+        </blockquote>
+
+        <p>That is why you don't write <code>repository.save()</code> after changing a managed entity. Hibernate notices the difference itself.</p>
+
+        <h3 id="sec-2b-2">2B.2 How it works step by step</h3>
+
+        <ol>
+          <li><strong>At load:</strong> Hibernate copies the property values into an array (<code>loadedState</code>) inside the object's <code>EntityEntry</code>.</li>
+          <li><strong>At flush:</strong> for each managed entity, compare each property to the snapshot value.</li>
+          <li>If something differs, queue an <code>UPDATE</code> for that entity.</li>
+        </ol>
+
+        <p><strong>Cost:</strong></p>
+        <ul>
+          <li><strong>Time:</strong> (number of managed entities) × (number of properties), <strong>every flush</strong>.</li>
+          <li><strong>Memory:</strong> one snapshot array per managed entity.</li>
+        </ul>
+
+        <p>That is why large persistence contexts are slow (Case Study 1).</p>
+
+        <h3 id="sec-2b-3">2B.3 Which columns does the UPDATE include?</h3>
+
+        <p>By default, Hibernate updates <strong>all mapped columns</strong>, even if only one field changed:</p>
+
+        <div class="code-block">
+          <div class="code-header"><span>sql</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-sql">update orders set status=?, total=?, user_id=?, version=? where id=? and version=?</code></pre>
+        </div>
+
+        <p>Why? The SQL text is generated once at startup and reused. That helps statement caching and JDBC batching (Topic 13).</p>
+
+        <p><code>@DynamicUpdate</code> (Hibernate-specific) builds the UPDATE per case with only the changed columns:</p>
+
+        <div class="code-block">
+          <div class="code-header"><span>sql</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-sql">update orders set status=?, version=? where id=? and version=?</code></pre>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th></th>
+                <th>Default (all columns)</th>
+                <th><code>@DynamicUpdate</code></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Statement reuse and batching</td>
+                <td>Excellent (one SQL shape)</td>
+                <td>Poor (many shapes)</td>
+              </tr>
+              <tr>
+                <td>Tables with big <code>text</code> / <code>bytea</code> / <code>jsonb</code> columns</td>
+                <td>Rewrites the big values on every update</td>
+                <td>Writes only what changed</td>
+              </tr>
+              <tr>
+                <td>Does it prevent lost updates?</td>
+                <td>No (use <code>@Version</code>, Part 2)</td>
+                <td>No, not a substitute for locking</td>
+              </tr>
+              <tr>
+                <td>Use when</td>
+                <td>Typical narrow entities</td>
+                <td>Wide rows with large JSON or text columns</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>PostgreSQL note: an UPDATE always creates a <strong>new row version</strong> internally (MVCC), however few columns changed. So <code>@DynamicUpdate</code> doesn't make PostgreSQL's per-row work cheaper. It only changes the statement shape and avoids rewriting big values.</p>
+
+        <h3 id="sec-2b-4">2B.4 Ways to make dirty checking cheaper</h3>
+
+        <ul>
+          <li>Keep the persistence context small (the best fix).</li>
+          <li>Use read-only entities or queries (Part 2C).</li>
+          <li><strong>Bytecode enhancement</strong> with dirty tracking: the entity records changes itself, so Hibernate skips the full comparison. Needs a build plugin.</li>
+        </ul>
+
+        <h3 id="sec-2b-5">2B.5 Surprises with dirty checking</h3>
+
+        <ol>
+          <li><strong>Phantom UPDATEs.</strong> If a custom converter (for example JSON to object) creates a <em>new object each time</em> and has no proper <code>equals</code>, Hibernate thinks the value changed and issues an UPDATE for every loaded entity. How to notice: Hibernate's <code>entityUpdateCount</code> rising on a read-only endpoint, or <code>pg_stat_user_tables.n_tup_upd</code> growing with read traffic.</li>
+          <li><strong>Replacing a collection.</strong> Doing <code>order.setItems(new ArrayList&lt;&gt;())</code> replaces Hibernate's tracked collection and can cause delete-all-and-reinsert or the error "A collection with cascade=all-delete-orphan was no longer referenced". Mutate the existing collection (<code>clear()</code> then <code>addAll()</code>), ideally inside a domain method.</li>
+          <li><strong><code>@Version</code> and collections.</strong> Changes to a collection the entity <em>owns</em> (not <code>mappedBy</code>) bump the entity's version. Changes to an inverse <code>mappedBy</code> collection do not.</li>
+          <li><strong><code>@PreUpdate</code></strong> runs at flush for dirty entities, at a time Hibernate chooses. Don't put business logic with side effects in it.</li>
+        </ol>
+
+        <hr />
+
+        <!-- PART 2C -->
+        <h2 id="part-2c">Part 2C: Read-Only Transactions</h2>
+
+        <h3 id="sec-2c-1">2C.1 The big idea</h3>
+
+        <p><code>@Transactional(readOnly = true)</code> tells "this method only reads". It is a <strong>hint passed down several layers</strong>, and each layer reacts differently. This is where most misunderstandings come from.</p>
+
+        <h3 id="sec-2c-2">2C.2 What each layer does (Spring Boot 3, Hibernate 6)</h3>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Layer</th>
+                <th>What happens</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Spring</strong></td>
+                <td>Marks the transaction as read-only. It only has effect when it <strong>starts a new transaction</strong>. If your method joins an existing read-write transaction, the hint is ignored.</td>
+              </tr>
+              <tr>
+                <td><strong>Hibernate</strong></td>
+                <td>Sets flush mode to <code>MANUAL</code> (no automatic flush) and loads entities as <strong>read-only</strong>: no snapshot kept and no dirty checking.</td>
+              </tr>
+              <tr>
+                <td><strong>JDBC / pgjdbc</strong></td>
+                <td>Sets the connection to read-only, which sends <code>BEGIN READ ONLY</code> to PostgreSQL.</td>
+              </tr>
+              <tr>
+                <td><strong>PostgreSQL</strong></td>
+                <td>Rejects writes in that transaction: <code>ERROR: cannot execute INSERT in a read-only transaction</code>.</td>
+              </tr>
+              <tr>
+                <td><strong>Routing (only if you set it up)</strong></td>
+                <td>A routing DataSource <em>can</em> send read-only transactions to a replica. That is your own configuration, not a default (Part 3).</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p>Verify the internals against your exact Spring and Hibernate versions before relying on a specific detail.</p>
+
+        <h3 id="sec-2c-3">2C.3 Why use it?</h3>
+
+        <ol>
+          <li><strong>Faster read paths:</strong> no snapshots, no dirty checks, no flush before each query.</li>
+          <li><strong>A safety net:</strong> PostgreSQL itself rejects real writes.</li>
+          <li><strong>Clear intent</strong> for the reader.</li>
+        </ol>
+
+        <p>It does <strong>not</strong> change the isolation level and does not make the database itself read faster.</p>
+
+        <h3 id="sec-2c-4">2C.4 The trap: silently lost changes</h3>
+
+        <div class="code-block">
+          <div class="code-header"><span>java</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-java">@Transactional(readOnly = true)               // "it's just a lookup"
+public OrderDto getAndMarkViewed(Long id) {
+    Order o = repo.findById(id).orElseThrow();
+    o.setLastViewedAt(Instant.now());          // you expect this to be saved
+    return mapper.toDto(o);
+}</code></pre>
+        </div>
+
+        <p><strong>Result: no UPDATE and no error.</strong> Flush mode is <code>MANUAL</code> and the entity is read-only, so Hibernate never writes it. Even worse, if an outer read-write transaction already loaded the entity, the same code might save it. The behavior then depends on who called it, which is very hard to debug.</p>
+
+        <div class="callout case-study">
+          <h3 id="case-study-2">Case study 2: "The order status sometimes isn't saved"</h3>
+
+          <p><strong>Situation.</strong> A payments service marks orders <code>PAID</code> after gateway callbacks. During a performance cleanup, someone put <code>@Transactional(readOnly = true)</code> on the whole <code>OrderService</code> class. One write method forgot to override it with a plain <code>@Transactional</code>.</p>
+
+          <p><strong>Symptoms.</strong> Intermittent: callbacks return 200, but some orders stay <code>NEW</code>. No exceptions.</p>
+
+          <p><strong>Root cause.</strong> The write method inherited read-only. Hibernate's <code>MANUAL</code> flush meant changes were never written. It worked "sometimes" because some callers already had a read-write transaction, which the method joined (the read-only hint was ignored).</p>
+
+          <p><strong>How to investigate.</strong></p>
+          <ul>
+            <li>Enable <code>org.springframework.transaction.interceptor: TRACE</code> and look for the transaction definition: <code>PROPAGATION_REQUIRED,ISOLATION_DEFAULT,readOnly</code>.</li>
+            <li>Hibernate statistics: <code>entityUpdateCount</code> didn't change during the request.</li>
+            <li>PostgreSQL: <code>pg_stat_statements</code> shows fewer UPDATE calls than callbacks.</li>
+          </ul>
+
+          <p><strong>Fix.</strong> Put <code>@Transactional</code> (read-write) explicitly on write methods. Pick <strong>one convention</strong> (for example, write by default and <code>readOnly = true</code> on query methods) and enforce it. Add an integration test that checks the database state after the write method.</p>
+
+          <p><strong>Prevention.</strong> A test that counts UPDATE statements (Part 2, Topic 23) catches this class of bug.</p>
+        </div>
+
+        <h3 id="sec-2c-5">2C.5 Best practices</h3>
+
+        <ul>
+          <li>Mark <strong>query-only</strong> service methods <code>@Transactional(readOnly = true)</code>.</li>
+          <li>Don't treat it as security. Database roles and grants are the real protection.</li>
+          <li>Remember it's ignored when joining an existing writable transaction.</li>
+          <li>If you route reads to replicas, beware of <strong>replication lag</strong> (stale data); never send a "read right after my own write" flow to a replica (Part 3, Topic 46).</li>
+        </ul>
+
+        <hr />
+
+        <!-- PART 2D -->
+        <h2 id="part-2d">Part 2D: equals() and hashCode() for Entities</h2>
+
+        <p>This is the hardest part of Topic 2, so we go slowly.</p>
+
+        <h3 id="sec-2d-1">2D.1 Why does it matter?</h3>
+
+        <p><code>equals</code> and <code>hashCode</code> are used by:</p>
+        <ul>
+          <li><code>HashSet</code>, <code>HashMap</code></li>
+          <li>Hibernate's collection handling for <code>Set</code> associations</li>
+          <li>your own code when comparing entities across different sessions (for example, a detached copy against a fresh one)</li>
+        </ul>
+
+        <p><strong>Within one persistence context</strong>, <code>==</code> already works, because there is only one object per row. The problems appear with <strong>detached entities, sets and proxies</strong>.</p>
+
+        <h3 id="sec-2d-2">2D.2 A refresher: how a HashSet works</h3>
+
+        <blockquote>
+          <p><strong>Analogy: a coat check with numbered racks.</strong><br />
+          When you add an object to a <code>HashSet</code>, Java calls <code>hashCode()</code> and puts the object on the rack with that number. To find it later, Java calls <code>hashCode()</code> again and looks on that rack. <strong>If the number changes after you put it away, Java looks on the wrong rack and the object seems lost.</strong></p>
+        </blockquote>
+
+        <p>That is the core rule: <strong><code>hashCode</code> must not change while the object is inside a hash-based collection.</strong></p>
+
+        <h3 id="sec-2d-3">2D.3 The central difficulty</h3>
+
+        <p>A new entity has no id yet (<code>id == null</code>). After <code>persist()</code>, it gets an id. If <code>hashCode</code> uses the id, it <strong>changes</strong>:</p>
+
+        <div class="code-block">
+          <div class="code-header"><span>java</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-java">@Override public int hashCode() { return Objects.hash(id); }   // BAD with generated ids</code></pre>
+        </div>
+
+        <div class="code-block">
+          <div class="code-header"><span>java</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-java">Set&lt;OrderItem&gt; items = new HashSet&lt;&gt;();
+OrderItem item = new OrderItem(...);   // id == null  -&gt; hash A (rack A)
+items.add(item);                       // stored on rack A
+em.persist(item);                      // id assigned  -&gt; hash is now B
+items.contains(item);                  // FALSE: Java looks on rack B. The item is "lost"</code></pre>
+        </div>
+
+        <h3 id="sec-2d-4">2D.4 Other traps</h3>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Trap</th>
+                <th>Why it breaks</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>getClass() != o.getClass()</code> in <code>equals</code></td>
+                <td>A Hibernate <strong>proxy</strong> is a generated subclass, so a proxy never equals the real entity. Use <code>instanceof</code>, and use getters (not fields) since proxy fields are empty.</td>
+              </tr>
+              <tr>
+                <td>Lombok <code>@Data</code> or <code>@EqualsAndHashCode</code> on entities</td>
+                <td>Includes all fields: loads lazy associations (hidden queries or <code>LazyInitializationException</code>), loops forever on two-way associations (<code>StackOverflowError</code>), and changes whenever data changes.</td>
+              </tr>
+              <tr>
+                <td>Putting mutable fields (like <code>status</code>) in <code>hashCode</code></td>
+                <td>Hash changes while in a set.</td>
+              </tr>
+              <tr>
+                <td><code>equals</code> on all fields</td>
+                <td>The same row loaded at different times looks "different".</td>
+              </tr>
+              <tr>
+                <td>Lazy associations inside <code>toString()</code></td>
+                <td>Logging triggers hidden queries.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="sec-2d-5">2D.5 Your options</h3>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Strategy</th>
+                <th><code>equals</code></th>
+                <th><code>hashCode</code></th>
+                <th>Good</th>
+                <th>Bad</th>
+                <th>Use when</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>A. Default (identity)</strong></td>
+                <td><code>==</code></td>
+                <td>identity</td>
+                <td>Simple, safe within one session</td>
+                <td>Detached copies and proxies are never equal</td>
+                <td>Entities never compared outside one session</td>
+              </tr>
+              <tr>
+                <td><strong>B. Business key</strong></td>
+                <td>compares an <strong>immutable natural key</strong> (<code>email</code>, <code>sku</code>)</td>
+                <td>hash of that key</td>
+                <td>Stable in every state</td>
+                <td>Needs a truly unique, never-changing, non-null key</td>
+                <td><code>User.email</code>, <code>Product.sku</code> (if they never change)</td>
+              </tr>
+              <tr>
+                <td><strong>C. Assigned UUID</strong></td>
+                <td>compares <code>id</code></td>
+                <td><code>id.hashCode()</code></td>
+                <td>Id exists from construction, so stable</td>
+                <td>Random UUIDs hurt index locality (consider time-ordered UUIDs)</td>
+                <td>No natural key, or distributed id generation</td>
+              </tr>
+              <tr>
+                <td><strong>D. Generated id, null-safe, constant hash</strong></td>
+                <td><code>id != null &amp;&amp; id.equals(other.id)</code></td>
+                <td>a constant (the class hash)</td>
+                <td>Works with DB-generated ids, stable hash</td>
+                <td>All objects land on one rack, so large sets get slow</td>
+                <td>Small child collections (tens or hundreds of items)</td>
+              </tr>
+              <tr>
+                <td><strong>E. All fields / Lombok default</strong></td>
+                <td>all fields</td>
+                <td>all fields</td>
+                <td>none</td>
+                <td>Everything above</td>
+                <td><strong>Never for entities</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 id="sec-2d-6">2D.6 Correct code</h3>
+
+        <p><strong>Business key (<code>User</code>):</strong></p>
+
+        <div class="code-block">
+          <div class="code-header"><span>java</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-java">@Entity @Table(name = "users")
+public class User {
+    @Id @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "users_seq")
+    @SequenceGenerator(name = "users_seq", sequenceName = "users_seq", allocationSize = 50)
+    private Long id;
+
+    @Column(nullable = false, unique = true, updatable = false)   // never changes after creation
+    private String email;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof User other)) return false;            // instanceof works with proxies
+        return Objects.equals(getEmail(), other.getEmail());      // use getters so proxies work
+    }
+
+    @Override
+    public int hashCode() { return Objects.hashCode(getEmail()); }
+}</code></pre>
+        </div>
+
+        <p><strong>Generated id (<code>OrderItem</code>):</strong></p>
+
+        <div class="code-block">
+          <div class="code-header"><span>java</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-java">@Override
+public boolean equals(Object o) {
+    if (this == o) return true;
+    if (!(o instanceof OrderItem other)) return false;
+    return getId() != null &amp;&amp; getId().equals(other.getId());   // two unsaved items are never equal
+}
+
+@Override
+public int hashCode() {
+    return getClass().hashCode();    // constant: never changes between new / managed / detached
+}</code></pre>
+        </div>
+
+        <p>A small subtlety: a proxy and the real entity have different <code>getClass()</code>. If both can appear in the same set, use <code>Hibernate.getClass(this).hashCode()</code> or a fixed constant per entity class.</p>
+
+        <p><strong>Rules of thumb</strong></p>
+        <ul>
+          <li>If an immutable natural key exists, use it (B).</li>
+          <li>Otherwise use D for small collections, or C when ids are assigned at creation.</li>
+          <li>Never include associations or changing fields.</li>
+          <li>Keep <code>toString()</code> free of lazy associations.</li>
+        </ul>
+
+        <h3 id="sec-2d-7">2D.7 Failure case: "ghost" items in a Set</h3>
+
+        <p><strong>Situation.</strong> <code>Order.items</code> is a <code>Set&lt;OrderItem&gt;</code> with an id-based <code>hashCode</code>. A web flow adds items (id null), persists the order, and later calls <code>order.getItems().remove(item)</code>.</p>
+
+        <p><strong>Symptoms.</strong> <code>remove</code> does nothing. Orphan removal doesn't delete the row. The cart shows duplicate lines.</p>
+
+        <p><strong>Diagnosis.</strong> A tiny test that prints <code>item.hashCode()</code> before and after <code>persist()</code>, and checks <code>items.contains(item)</code> both times. The values differ, and <code>contains</code> flips from true to false.</p>
+
+        <p><strong>Fix.</strong> Use strategy B, C or D. Add a unit test (no database) that proves hash stability across the new, managed and detached states, plus an integration test: add, flush, remove.</p>
+
+        <hr />
+
+        <!-- PUTTING EVERYTHING TOGETHER -->
+        <h2 id="putting-everything-together">Putting everything in Topic 2 together</h2>
+
+        <div class="code-block">
+          <div class="code-header"><span>java</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-java">@Service
+@RequiredArgsConstructor
+public class OrderService {
+
+    private final OrderRepository orders;
+    private final ProductRepository products;
+
+    @Transactional                                   // read-write
+    public OrderDto addItem(Long orderId, String sku, int qty) {
+        Order order = orders.findById(orderId).orElseThrow();       // SELECT (or from the bench)
+        Product p = products.findBySku(sku).orElseThrow();          // SELECT
+        order.addItem(new OrderItem(p, qty, p.getPrice()));         // memory change
+        order.recalculateTotal();                                   // memory change
+        return OrderDto.from(order);                                // map to a DTO inside the transaction
+    }   // commit: flush -&gt; INSERT order_items; UPDATE orders SET total=?, version=? WHERE id=? AND version=?
+}
+
+@Service
+public class OrderQueryService {
+    @Transactional(readOnly = true)                  // no snapshots, no flush, BEGIN READ ONLY
+    public Page&lt;OrderSummary&gt; list(Long userId, Pageable page) {
+        return orders.findSummariesByUserId(userId, page);          // DTO projection (Topic 9)
+    }
+}</code></pre>
+        </div>
+
+        <p>Generated SQL for <code>addItem</code>:</p>
+
+        <div class="code-block">
+          <div class="code-header"><span>sql</span><button class="copy-btn">Copy</button></div>
+<pre><code class="language-sql">select ... from orders where id=?
+select ... from products where sku=?
+insert into order_items (order_id, product_id, quantity, unit_price, id) values (?,?,?,?,?)
+update orders set status=?, total=?, user_id=?, version=? where id=? and version=?</code></pre>
+        </div>
+
+        <p>Two observations:</p>
+        <ul>
+          <li><code>order.addItem(...)</code> calls <code>items.add(...)</code>, which <strong>loads the whole <code>items</code> collection first</strong> (one extra SELECT) because it is lazy. Many teams add children through their own repository instead. This is part of the lazy-loading story in Chapter 2.</li>
+          <li>The <code>version</code> bump happens because <code>total</code> changed. With optimistic locking, two concurrent <code>addItem</code> calls produce an <code>OptimisticLockException</code> instead of a silent lost update (Part 2).</li>
+        </ul>
+
+        <h2 id="performance-summary-topic-2">Performance summary for Topic 2</h2>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Concern</th>
+                <th>What helps</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Flush cost grows with persistence context size</td>
+                <td>Smaller transactions, <code>clear()</code>, read-only mode, stateless or bulk approaches</td>
+              </tr>
+              <tr>
+                <td>Dirty-check CPU</td>
+                <td>Bytecode dirty tracking, read-only entities, loading fewer entities</td>
+              </tr>
+              <tr>
+                <td>Large UPDATE statements</td>
+                <td><code>@DynamicUpdate</code> for wide rows only</td>
+              </tr>
+              <tr>
+                <td>Hidden flushes before queries</td>
+                <td>Read first, change later, or use <code>FlushMode.COMMIT</code> in controlled places</td>
+              </tr>
+              <tr>
+                <td>Constant <code>hashCode</code> with big sets</td>
+                <td>Keep association collections small, or use a business key</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout takeaways">
+          <h2 id="key-takeaways-topic-2">Key takeaways (Topic 2)</h2>
+          <ul>
+            <li><strong>Flush is not commit.</strong> Execution order is <strong>inserts, updates, collection changes, deletes</strong>, regardless of the order of your code.</li>
+            <li>AUTO flush looks at which tables a JPQL query touches. Native SQL flushes everything.</li>
+            <li>Dirty checking compares each managed entity with its load-time snapshot. Cost grows with the number of entities.</li>
+            <li>The default UPDATE writes all columns. <code>@DynamicUpdate</code> writes only changed ones but breaks statement reuse.</li>
+            <li><code>readOnly = true</code> works in layers (Spring, Hibernate <code>MANUAL</code> flush, JDBC read-only, PostgreSQL). Writes can be <strong>silently dropped</strong> at the Hibernate layer.</li>
+            <li>In PostgreSQL, one failed statement aborts the whole transaction. You can't catch the error and continue.</li>
+            <li>Entity <code>equals/hashCode</code> must stay stable through all lifecycle states, work with proxies, and ignore associations. Prefer a business key; otherwise null-safe id equality with a constant hash.</li>
+          </ul>
+        </div>
+
+        <hr />
+
+        <!-- CHAPTER STATUS -->
+        <div class="callout status-box">
+          <h2 id="chapter-1-status">Chapter 1 status</h2>
+          <ul>
+            <li><strong>Completed:</strong> Section A, Topic 1 (persistence context, entity states, first-level cache) and Topic 2 (flushing, dirty checking, read-only transactions, equals/hashCode), in simplified form.</li>
+            <li><strong>Next:</strong> <strong>Chapter 2, Section B: Fetching.</strong> It covers Topic 3 (lazy vs eager, <code>LazyInitializationException</code>), Topic 4 (Open Session in View), Topic 5 (the N+1 problem), Topic 6 (<code>JOIN FETCH</code>, <code>@EntityGraph</code>, <code>MultipleBagFetchException</code>), and Topic 7 (batch and subselect fetching with the decision table).</li>
+          </ul>
+          <p>If this level of explanation feels right, say <strong>"Continue"</strong> and I'll write Chapter 2 in the same style. If it is still too hard or too easy, tell me and I'll adjust.</p>
+        </div>
+
+      </article>
+    </main>
+  </div>
+
+  <button id="back-to-top" title="Back to top" aria-label="Back to top">&#8593;</button>
+
+  <!-- Scripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    (function () {
+      // 1. Build Vertical Sidebar Navigation from Headings
+      const contentEl = document.getElementById('notes-content');
+      const navList = document.getElementById('nav-list');
+      const headings = Array.from(contentEl.querySelectorAll('h1, h2, h3'));
+
+      let firstH1Seen = false;
+      const navItems = [];
+
+      headings.forEach((heading, idx) => {
+        if (!heading.id) {
+          heading.id = 'section-' + idx;
+        }
+        const tag = heading.tagName.toLowerCase();
+        const li = document.createElement('li');
+        li.className = 'nav-item';
+
+        const a = document.createElement('a');
+        a.href = '#' + heading.id;
+        a.textContent = heading.textContent.trim();
+        a.className = 'nav-link nav-' + tag;
+
+        if (tag === 'h1' && !firstH1Seen) {
+          a.classList.add('first-h1');
+          firstH1Seen = true;
+        }
+
+        a.addEventListener('click', () => {
+          closeMobileSidebar();
+        });
+
+        li.appendChild(a);
+        navList.appendChild(li);
+        navItems.push({ heading, link: a, li, text: heading.textContent.toLowerCase() });
+      });
+
+      // 2. Sidebar Search Filter
+      const searchInput = document.getElementById('nav-search');
+      const navEmpty = document.getElementById('nav-empty');
+
+      searchInput.addEventListener('input', (e) => {
+        const q = e.target.value.trim().toLowerCase();
+        let visibleCount = 0;
+
+        navItems.forEach((item) => {
+          const match = item.text.includes(q);
+          item.li.style.display = match ? '' : 'none';
+          if (match) visibleCount++;
+        });
+
+        navEmpty.style.display = visibleCount === 0 ? 'block' : 'none';
+      });
+
+      // 3. Scroll-Spy Active Navigation Highlighting + Progress Bar + Back to Top
+      const progressBar = document.getElementById('progress-bar');
+      const backToTop = document.getElementById('back-to-top');
+
+      function updateScrollUI() {
+        const scrollTop = window.scrollY || document.documentElement.scrollTop;
+        const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+        const pct = docHeight > 0 ? Math.min(100, Math.max(0, (scrollTop / docHeight) * 100)) : 0;
+        progressBar.style.width = pct + '%';
+
+        backToTop.style.display = scrollTop > 400 ? 'flex' : 'none';
+
+        let current = navItems[0];
+        const offset = 110;
+        for (let i = 0; i < navItems.length; i++) {
+          const rect = navItems[i].heading.getBoundingClientRect();
+          if (rect.top <= offset) {
+            current = navItems[i];
+          } else {
+            break;
+          }
+        }
+
+        navItems.forEach((item) => item.link.classList.remove('active'));
+        if (current) {
+          current.link.classList.add('active');
+        }
+      }
+
+      window.addEventListener('scroll', updateScrollUI, { passive: true });
+      updateScrollUI();
+
+      backToTop.addEventListener('click', () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+
+      // 4. Mobile Sidebar Drawer
+      const sidebar = document.getElementById('sidebar');
+      const backdrop = document.getElementById('sidebar-backdrop');
+      const openBtn = document.getElementById('open-sidebar');
+
+      function openMobileSidebar() {
+        sidebar.classList.add('open');
+        backdrop.classList.add('open');
+      }
+
+      function closeMobileSidebar() {
+        sidebar.classList.remove('open');
+        backdrop.classList.remove('open');
+      }
+
+      openBtn.addEventListener('click', openMobileSidebar);
+      backdrop.addEventListener('click', closeMobileSidebar);
+
+      // 5. Light/Dark Theme Toggle
+      const htmlEl = document.documentElement;
+      const themeToggle = document.getElementById('theme-toggle');
+      const mobileThemeToggle = document.getElementById('mobile-theme-toggle');
+      const hljsLight = document.getElementById('hljs-light');
+      const hljsDark = document.getElementById('hljs-dark');
+
+      function applyTheme(theme) {
+        htmlEl.setAttribute('data-theme', theme);
+        localStorage.setItem('notes-theme', theme);
+        const label = theme === 'dark' ? 'Light' : 'Dark';
+        themeToggle.textContent = label;
+        mobileThemeToggle.textContent = label;
+        hljsLight.disabled = theme === 'dark';
+        hljsDark.disabled = theme !== 'dark';
+      }
+
+      const savedTheme = localStorage.getItem('notes-theme') || 'light';
+      applyTheme(savedTheme);
+
+      function toggleTheme() {
+        const next = htmlEl.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        applyTheme(next);
+      }
+
+      themeToggle.addEventListener('click', toggleTheme);
+      mobileThemeToggle.addEventListener('click', toggleTheme);
+
+      // 6. Copy Code Buttons
+      document.querySelectorAll('.code-block').forEach((block) => {
+        const btn = block.querySelector('.copy-btn');
+        const code = block.querySelector('code');
+        if (!btn || !code) return;
+
+        btn.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(code.textContent);
+            btn.textContent = 'Copied!';
+            btn.classList.add('copied');
+            setTimeout(() => {
+              btn.textContent = 'Copy';
+              btn.classList.remove('copied');
+            }, 1600);
+          } catch {
+            btn.textContent = 'Failed';
+            setTimeout(() => (btn.textContent = 'Copy'), 1600);
+          }
+        });
+      });
+
+      // 7. Initialize Syntax Highlighting & Mermaid Diagrams (graceful if offline)
+      if (window.hljs) {
+        hljs.highlightAll();
+      }
+      if (window.mermaid) {
+        mermaid.initialize({
+          startOnLoad: true,
+          theme: 'default',
+          securityLevel: 'loose'
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
